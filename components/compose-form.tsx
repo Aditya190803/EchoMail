@@ -199,7 +199,7 @@ export function ComposeForm() {
               className="text-base"
             />
             <p className="text-xs text-gray-500">
-              Example: "Hello {{ name }}, special offer for {{ company }}"
+              Example: "Hello {`{{name}}`}, special offer for {`{{company}}`}"
             </p>
           </div>
 
@@ -215,7 +215,7 @@ export function ComposeForm() {
             />
             <div className="bg-blue-50 p-3 rounded-lg">
               <p className="text-sm text-blue-800">
-                💡 <strong>Pro Tip:</strong> Use placeholders like {{ name }}, {{ company }}, or {{ email }} to
+                💡 <strong>Pro Tip:</strong> Use placeholders like {`{{name}}`}, {`{{company}}`}, or {`{{email}}`} to
                 personalize your emails based on CSV data.
               </p>
             </div>

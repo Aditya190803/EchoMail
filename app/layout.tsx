@@ -7,9 +7,17 @@ import { Providers } from "./providers"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Email Sender - Next.js Gmail App",
-  description: "Send personalized emails using Gmail API",
-    generator: 'v0.dev'
+  title: "Email Sender Pro - Gmail API Integration",
+  description:
+    "Send personalized emails with ease using Gmail API. Upload CSV data, compose rich text emails, and send bulk personalized messages.",
+  generator: "v0.dev",
+  keywords: ["email", "gmail", "bulk email", "personalization", "csv", "marketing"],
+  authors: [{ name: "Email Sender Pro" }],
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.ico",
+  },
 }
 
 export default function RootLayout({
@@ -19,6 +27,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.ico" type="image/png" />
+        <link rel="apple-touch-icon" href="/favicon.ico" />
+      </head>
       <body className={inter.className}>
         <Providers>{children}</Providers>
       </body>
