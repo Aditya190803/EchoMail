@@ -42,7 +42,7 @@ interface RichTextEditorProps {
   placeholder?: string
 }
 
-export function RichTextEditor({ content, onChange, placeholder = "Enter your message..." }: RichTextEditorProps) {
+export function RichTextEditor({ content, onChange, placeholder }: RichTextEditorProps) {
   const [linkUrl, setLinkUrl] = useState("")
   const [imageUrl, setImageUrl] = useState("")
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
