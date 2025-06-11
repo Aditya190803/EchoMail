@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Paperclip, Eye, X, Send, CheckCircle, AlertCircle, Users, FileText } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Paperclip, Eye, X, Send, CheckCircle, AlertCircle, Users, FileText, Plus, Trash2 } from "lucide-react"
 import { CSVUpload } from "./csv-upload"
 import { EmailPreview } from "./email-preview"
 import { RichTextEditor } from "./rich-text-editor"
@@ -27,7 +28,6 @@ async function fileToBase64(file: File): Promise<AttachmentData> {
     reader.readAsDataURL(file)
     reader.onload = () => {
       const result = reader.result as string
-      // Remove the data URL prefix (e.g., "data:image/png;base64,")
       const base64Data = result.split(",")[1]
       resolve({
         name: file.name,
@@ -39,16 +39,24 @@ async function fileToBase64(file: File): Promise<AttachmentData> {
   })
 }
 
+interface ManualEmail {
+  email: string
+  name: string
+  [key: string]: string
+}
+
 export function ComposeForm() {
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
   const [csvData, setCsvData] = useState<CSVRow[]>([])
+  const [manualEmails, setManualEmails] = useState<ManualEmail[]>([{ email: "", name: "" }])
   const [attachments, setAttachments] = useState<File[]>([])
   const [showPreview, setShowPreview] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [sendStatus, setSendStatus] = useState<SendStatus[]>([])
   const [showSuccess, setShowSuccess] = useState(false)
   const [sendProgress, setSendProgress] = useState(0)
+  const [activeTab, setActiveTab] = useState("csv")
 
   const handleFileAttachment = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -59,8 +67,19 @@ export function ComposeForm() {
     setAttachments((prev) => prev.filter((_, i) => i !== index))
   }
 
+  const addManualEmail = () => {
+    setManualEmails((prev) => [...prev, { email: "", name: "" }])
+  }
+
+  const removeManualEmail = (index: number) => {
+    setManualEmails((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const updateManualEmail = (index: number, field: string, value: string) => {
+    setManualEmails((prev) => prev.map((email, i) => (i === index ? { ...email, [field]: value } : email)))
+  }
+
   const generatePersonalizedEmails = async (): Promise<PersonalizedEmail[]> => {
-    // Convert all files to base64
     const attachmentData: AttachmentData[] = []
     for (const file of attachments) {
       try {
@@ -71,7 +90,9 @@ export function ComposeForm() {
       }
     }
 
-    return csvData.map((row) => ({
+    const emailData = activeTab === "csv" ? csvData : manualEmails.filter((email) => email.email.trim())
+
+    return emailData.map((row) => ({
       to: row.email,
       subject: replacePlaceholders(subject, row),
       message: replacePlaceholders(message, row),
@@ -81,8 +102,10 @@ export function ComposeForm() {
   }
 
   const handlePreview = async () => {
-    if (csvData.length === 0) {
-      alert("Please upload CSV data first")
+    const emailData = activeTab === "csv" ? csvData : manualEmails.filter((email) => email.email.trim())
+
+    if (emailData.length === 0) {
+      alert("Please add email recipients first")
       return
     }
     if (!subject.trim() || !message.trim()) {
@@ -101,7 +124,6 @@ export function ComposeForm() {
     try {
       const personalizedEmails = await generatePersonalizedEmails()
 
-      // Initialize status
       const initialStatus = personalizedEmails.map((email) => ({
         email: email.to,
         status: "pending" as const,
@@ -121,14 +143,12 @@ export function ComposeForm() {
       const data = await response.json()
       setSendStatus(data.results)
 
-      // Calculate success rate
       const successCount = data.results.filter((result: SendStatus) => result.status === "success").length
       const totalCount = data.results.length
       setSendProgress(100)
 
       if (successCount === totalCount) {
         setShowSuccess(true)
-        // Auto-hide success message after 5 seconds
         setTimeout(() => setShowSuccess(false), 5000)
       }
     } catch (error) {
@@ -147,8 +167,9 @@ export function ComposeForm() {
   }
 
   const getPersonalizedEmailsForPreview = (): PersonalizedEmail[] => {
-    // For preview, we don't need to convert files to base64
-    return csvData.map((row) => ({
+    const emailData = activeTab === "csv" ? csvData : manualEmails.filter((email) => email.email.trim())
+
+    return emailData.map((row) => ({
       to: row.email,
       subject: replacePlaceholders(subject, row),
       message: replacePlaceholders(message, row),
@@ -156,7 +177,7 @@ export function ComposeForm() {
       attachments: attachments.map((file) => ({
         name: file.name,
         type: file.type,
-        data: "", // Empty for preview
+        data: "",
       })),
     }))
   }
@@ -164,7 +185,8 @@ export function ComposeForm() {
   const personalizedEmailsForPreview = getPersonalizedEmailsForPreview()
   const successCount = sendStatus.filter((status) => status.status === "success").length
   const errorCount = sendStatus.filter((status) => status.status === "error").length
-  const canSend = subject.trim() && message.trim() && csvData.length > 0
+  const emailData = activeTab === "csv" ? csvData : manualEmails.filter((email) => email.email.trim())
+  const canSend = subject.trim() && message.trim() && emailData.length > 0
 
   return (
     <div className="space-y-6">
@@ -216,7 +238,7 @@ export function ComposeForm() {
             <div className="bg-blue-50 p-3 rounded-lg">
               <p className="text-sm text-blue-800">
                 💡 <strong>Pro Tip:</strong> Use placeholders like {`{{name}}`}, {`{{company}}`}, or {`{{email}}`} to
-                personalize your emails based on CSV data.
+                personalize your emails based on your recipient data.
               </p>
             </div>
           </div>
@@ -273,14 +295,85 @@ export function ComposeForm() {
           <div className="flex gap-3 pt-4 border-t">
             <Button onClick={handlePreview} disabled={!canSend} variant="outline" className="flex-1">
               <Eye className="h-4 w-4 mr-2" />
-              Preview Emails
+              Preview Emails ({emailData.length})
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* CSV Upload */}
-      <CSVUpload onDataLoad={setCsvData} csvData={csvData} />
+      {/* Recipients Section */}
+      <Card className="shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Recipients
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="csv">CSV Upload</TabsTrigger>
+              <TabsTrigger value="manual">Manual Entry</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="csv" className="mt-4">
+              <CSVUpload onDataLoad={setCsvData} csvData={csvData} />
+            </TabsContent>
+
+            <TabsContent value="manual" className="mt-4">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-600">Add recipients manually</p>
+                  <Button onClick={addManualEmail} size="sm" variant="outline">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Recipient
+                  </Button>
+                </div>
+
+                <div className="space-y-3 max-h-60 overflow-y-auto">
+                  {manualEmails.map((emailData, index) => (
+                    <div key={index} className="flex gap-3 items-center p-3 bg-gray-50 rounded-lg">
+                      <div className="flex-1">
+                        <Input
+                          placeholder="Email address"
+                          value={emailData.email}
+                          onChange={(e) => updateManualEmail(index, "email", e.target.value)}
+                          type="email"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <Input
+                          placeholder="Name"
+                          value={emailData.name}
+                          onChange={(e) => updateManualEmail(index, "name", e.target.value)}
+                        />
+                      </div>
+                      {manualEmails.length > 1 && (
+                        <Button
+                          onClick={() => removeManualEmail(index)}
+                          size="sm"
+                          variant="ghost"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {manualEmails.filter((email) => email.email.trim()).length > 0 && (
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      📧 {manualEmails.filter((email) => email.email.trim()).length} recipient(s) ready to send
+                    </p>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
 
       {/* Send Progress */}
       {isLoading && (
