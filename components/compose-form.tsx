@@ -7,10 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Paperclip, Eye, X } from "lucide-react"
+import { Paperclip, Eye, X, Send, CheckCircle, AlertCircle, Users, FileText } from "lucide-react"
 import { CSVUpload } from "./csv-upload"
 import { EmailPreview } from "./email-preview"
 import { RichTextEditor } from "./rich-text-editor"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Progress } from "@/components/ui/progress"
 import type { CSVRow, PersonalizedEmail, SendStatus, AttachmentData } from "@/types/email"
 
 // Simple client-side placeholder replacement for HTML content
@@ -45,6 +47,8 @@ export function ComposeForm() {
   const [showPreview, setShowPreview] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [sendStatus, setSendStatus] = useState<SendStatus[]>([])
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [sendProgress, setSendProgress] = useState(0)
 
   const handleFileAttachment = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -91,6 +95,8 @@ export function ComposeForm() {
   const handleSend = async () => {
     setIsLoading(true)
     setSendStatus([])
+    setShowSuccess(false)
+    setSendProgress(0)
 
     try {
       const personalizedEmails = await generatePersonalizedEmails()
@@ -114,6 +120,17 @@ export function ComposeForm() {
 
       const data = await response.json()
       setSendStatus(data.results)
+
+      // Calculate success rate
+      const successCount = data.results.filter((result: SendStatus) => result.status === "success").length
+      const totalCount = data.results.length
+      setSendProgress(100)
+
+      if (successCount === totalCount) {
+        setShowSuccess(true)
+        // Auto-hide success message after 5 seconds
+        setTimeout(() => setShowSuccess(false), 5000)
+      }
     } catch (error) {
       console.error("Failed to send emails:", error)
       setSendStatus((prev) =>
@@ -145,68 +162,105 @@ export function ComposeForm() {
   }
 
   const personalizedEmailsForPreview = getPersonalizedEmailsForPreview()
+  const successCount = sendStatus.filter((status) => status.status === "success").length
+  const errorCount = sendStatus.filter((status) => status.status === "error").length
+  const canSend = subject.trim() && message.trim() && csvData.length > 0
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Compose Email</CardTitle>
+      {/* Success Alert */}
+      {showSuccess && (
+        <Alert className="border-green-200 bg-green-50">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-800">All emails sent successfully! 🎉</AlertDescription>
+        </Alert>
+      )}
+
+      {/* Main Compose Card */}
+      <Card className="shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <Send className="h-5 w-5 text-blue-600" />
+            Compose Email
+          </CardTitle>
+          <p className="text-sm text-gray-600 mt-1">Create personalized emails for your recipients</p>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div>
-            <Label htmlFor="subject">Subject</Label>
+        <CardContent className="space-y-6 p-6">
+          {/* Subject Field */}
+          <div className="space-y-2">
+            <Label htmlFor="subject" className="text-base font-medium">
+              Subject Line
+            </Label>
             <Input
               id="subject"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Enter email subject (use {{placeholders}} for personalization)"
-              className="mt-1"
+              className="text-base"
             />
+            <p className="text-xs text-gray-500">
+              Example: "Hello {{ name }}, special offer for {{ company }}"
+            </p>
           </div>
 
-          <div>
+          {/* Message Field */}
+          <div className="space-y-2">
             <Label htmlFor="message" className="text-base font-medium">
-              Message
+              Email Message
             </Label>
-            <div className="mt-2">
-              <RichTextEditor
-                content={message}
-                onChange={setMessage}
-                placeholder="Compose your email message here. Use {{placeholders}} for personalization..."
-              />
-            </div>
-            <div className="mt-2 text-sm text-gray-600">
-              <p>
-                💡 <strong>Tip:</strong> Use placeholders like {`{name}`} or {`{company}`} to personalize your emails
-                based on CSV data.
+            <RichTextEditor
+              content={message}
+              onChange={setMessage}
+              placeholder="Compose your email message here. Use {{placeholders}} for personalization..."
+            />
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <p className="text-sm text-blue-800">
+                💡 <strong>Pro Tip:</strong> Use placeholders like {{ name }}, {{ company }}, or {{ email }} to
+                personalize your emails based on CSV data.
               </p>
             </div>
           </div>
 
-          <div>
-            <Label htmlFor="attachments">Attachments</Label>
-            <div className="flex items-center gap-2 mt-1">
+          {/* Attachments */}
+          <div className="space-y-3">
+            <Label htmlFor="attachments" className="text-base font-medium">
+              Attachments
+            </Label>
+            <div className="flex items-center gap-2">
               <input type="file" id="attachments" multiple onChange={handleFileAttachment} className="hidden" />
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={() => document.getElementById("attachments")?.click()}
+                className="flex items-center gap-2"
               >
-                <Paperclip className="h-4 w-4 mr-2" />
-                Add Attachments
+                <Paperclip className="h-4 w-4" />
+                Add Files
               </Button>
+              <span className="text-sm text-gray-500">
+                {attachments.length > 0 ? `${attachments.length} file(s) selected` : "No files selected"}
+              </span>
             </div>
+
             {attachments.length > 0 && (
-              <div className="mt-3 space-y-2">
+              <div className="space-y-2">
                 {attachments.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between text-sm bg-gray-50 p-3 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <Paperclip className="h-4 w-4 text-gray-500" />
-                      <span className="font-medium">{file.name}</span>
-                      <span className="text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-4 w-4 text-gray-500" />
+                      <div>
+                        <p className="font-medium text-sm">{file.name}</p>
+                        <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
+                      </div>
                     </div>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => removeAttachment(index)}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeAttachment(index)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
@@ -215,13 +269,9 @@ export function ComposeForm() {
             )}
           </div>
 
-          <div className="flex gap-2 pt-4 border-t">
-            <Button
-              onClick={handlePreview}
-              disabled={!subject.trim() || !message.trim() || csvData.length === 0}
-              variant="outline"
-              className="flex-1"
-            >
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-4 border-t">
+            <Button onClick={handlePreview} disabled={!canSend} variant="outline" className="flex-1">
               <Eye className="h-4 w-4 mr-2" />
               Preview Emails
             </Button>
@@ -229,30 +279,68 @@ export function ComposeForm() {
         </CardContent>
       </Card>
 
+      {/* CSV Upload */}
       <CSVUpload onDataLoad={setCsvData} csvData={csvData} />
 
+      {/* Send Progress */}
+      {isLoading && (
+        <Card>
+          <CardContent className="p-6">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium">Sending Emails...</h3>
+                <span className="text-sm text-gray-500">{sendProgress}%</span>
+              </div>
+              <Progress value={sendProgress} className="w-full" />
+              <p className="text-sm text-gray-600">Please wait while we send your emails.</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Send Status */}
       {sendStatus.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Send Status</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Send Results
+              {successCount > 0 && (
+                <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">{successCount} sent</span>
+              )}
+              {errorCount > 0 && (
+                <span className="text-sm bg-red-100 text-red-800 px-2 py-1 rounded-full">{errorCount} failed</span>
+              )}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-60 overflow-y-auto">
               {sendStatus.map((status, index) => (
-                <div key={index} className="flex items-center justify-between text-sm">
-                  <span>{status.email}</span>
-                  <span
-                    className={`px-2 py-1 rounded text-xs ${
-                      status.status === "success"
-                        ? "bg-green-100 text-green-800"
-                        : status.status === "error"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-yellow-100 text-yellow-800"
-                    }`}
-                  >
-                    {status.status}
-                    {status.error && ` - ${status.error}`}
-                  </span>
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    {status.status === "success" ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : status.status === "error" ? (
+                      <AlertCircle className="h-4 w-4 text-red-600" />
+                    ) : (
+                      <div className="h-4 w-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                    )}
+                    <span className="font-medium text-sm">{status.email}</span>
+                  </div>
+                  <div className="text-right">
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        status.status === "success"
+                          ? "bg-green-100 text-green-800"
+                          : status.status === "error"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-yellow-100 text-yellow-800"
+                      }`}
+                    >
+                      {status.status === "success" ? "Sent" : status.status === "error" ? "Failed" : "Sending..."}
+                    </span>
+                    {status.error && <p className="text-xs text-red-600 mt-1">{status.error}</p>}
+                  </div>
                 </div>
               ))}
             </div>
@@ -260,6 +348,7 @@ export function ComposeForm() {
         </Card>
       )}
 
+      {/* Email Preview Modal */}
       {showPreview && (
         <EmailPreview
           emails={personalizedEmailsForPreview}
