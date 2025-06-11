@@ -158,6 +158,7 @@ export default function ContactsPage() {
       if (!error) {
         setNewContact({ email: "", name: "", company: "", phone: "" })
         setShowAddForm(false)
+        // fetchContacts will be called automatically via real-time subscription
       } else {
         console.error("Error adding contact:", error)
         alert("Failed to add contact. Please try again.")
@@ -181,6 +182,7 @@ export default function ContactsPage() {
         console.error("Error deleting contact:", error)
         alert("Failed to delete contact. Please try again.")
       }
+      // fetchContacts will be called automatically via real-time subscription
     } catch (e) {
       console.error("Failed to delete contact:", e)
       alert("Failed to delete contact. Please try again.")
@@ -194,7 +196,7 @@ export default function ContactsPage() {
     }
 
     const csvContent = [
-      ["Email", "Name", "Company", "Phone"],
+      ["Email", "Name", "Company", "Phone"], // Headers
       ...contacts.map(contact => [
         contact.email,
         contact.name || "",
@@ -224,6 +226,7 @@ export default function ContactsPage() {
         const text = e.target?.result as string
         const lines = text.split('\n').filter(line => line.trim())
         
+        // Skip header row if it exists
         const dataLines = lines.slice(1)
         
         const contactsToImport = dataLines
@@ -238,7 +241,7 @@ export default function ContactsPage() {
         if (contactsToImport.length > 0 && session?.user?.email) {
           const contactsWithUser = contactsToImport.map(contact => ({
             ...contact,
-            user_email: session.user!.email,
+            user_email: session.user.email,
             name: contact.name || null,
             company: contact.company || null,
             phone: contact.phone || null,
@@ -266,7 +269,7 @@ export default function ContactsPage() {
     }
     
     reader.readAsText(file)
-    event.target.value = ""
+    event.target.value = "" // Reset file input
   }
 
   if (status === "loading" || !isMounted) {

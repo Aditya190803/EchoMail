@@ -117,11 +117,34 @@ export default function AnalyticsPage() {
         })
       } catch (e) {
         console.error("Failed to fetch analytics:", e)
-      }
-    }
+      }    }
     
     if (session?.user?.email) {
+      // Initial fetch
       fetchAnalytics()
+      
+      // Set up real-time subscription
+      const channel = supabase
+        .channel('analytics_campaigns_changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'email_campaigns',
+            filter: `user_email=eq.${session.user.email}`
+          },
+          (payload) => {
+            console.log('Real-time analytics update:', payload)
+            // Refetch data when any change occurs
+            fetchAnalytics()
+          }
+        )
+        .subscribe()
+      
+      return () => {
+        supabase.removeChannel(channel)
+      }
     }
   }, [session, timeRange])
 

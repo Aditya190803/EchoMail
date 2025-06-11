@@ -145,10 +145,10 @@ export function ComposeForm() {
   const removeManualEmail = (index: number) => {
     setManualEmails((prev) => prev.filter((_, i) => i !== index))
   }
-
   const updateManualEmail = (index: number, field: string, value: string) => {
     setManualEmails((prev) => prev.map((email, i) => (i === index ? { ...email, [field]: value } : email)))
   }
+
   const generatePersonalizedEmails = async (): Promise<PersonalizedEmail[]> => {
     const attachmentData: AttachmentData[] = []
     for (const file of attachments) {
@@ -162,15 +162,20 @@ export function ComposeForm() {
 
     let emailData: any[] = []
     if (activeTab === "csv") {
-      emailData = csvData
+      emailData = csvData || []
     } else if (activeTab === "manual") {
-      emailData = manualEmails.filter((email) => email.email.trim())
+      emailData = (manualEmails || []).filter((email) => email.email.trim())
     } else if (activeTab === "contacts") {
-      emailData = selectedContacts.map(contact => ({
+      emailData = (selectedContacts || []).map(contact => ({
         email: contact.email,
         name: contact.name || "",
         company: contact.company || ""
       }))
+    }
+
+    // Ensure emailData is always an array before mapping
+    if (!Array.isArray(emailData)) {
+      emailData = []
     }
 
     return emailData.map((row) => ({
@@ -181,15 +186,14 @@ export function ComposeForm() {
       attachments: attachmentData,
     }))
   }
-
   const handlePreview = async () => {
     let emailData: any[] = []
     if (activeTab === "csv") {
-      emailData = csvData
+      emailData = csvData || []
     } else if (activeTab === "manual") {
-      emailData = manualEmails.filter((email) => email.email.trim())
+      emailData = (manualEmails || []).filter((email) => email.email.trim())
     } else if (activeTab === "contacts") {
-      emailData = selectedContacts
+      emailData = selectedContacts || []
     }
 
     if (emailData.length === 0) {
@@ -219,8 +223,7 @@ export function ComposeForm() {
       setSendStatus(initialStatus)
 
       const response = await fetch("/api/send-email", {
-        method: "POST",
-        headers: {
+        method: "POST",        headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -229,10 +232,17 @@ export function ComposeForm() {
       })
 
       const data = await response.json()
-      setSendStatus(data.results)
+      const results = data.results || []
+      setSendStatus(results)
 
-      const successCount = data.results.filter((result: SendStatus) => result.status === "success").length
-      const totalCount = data.results.length
+      console.log("Email sending results:", {
+        totalEmails: personalizedEmails.length,
+        results: results,
+        summary: data.summary
+      })
+
+      const successCount = results.filter((result: SendStatus) => result.status === "success").length
+      const totalCount = results.length
       setSendProgress(100)
 
       if (successCount === totalCount) {
@@ -242,44 +252,61 @@ export function ComposeForm() {
     } catch (error) {
       console.error("Failed to send emails:", error)
       setSendStatus((prev) =>
-        prev.map((status) => ({
+        (prev || []).map((status) => ({
           ...status,
           status: "error" as const,
           error: "Network error",
-        })),
+        }))
       )
     } finally {
       setIsLoading(false)
       setShowPreview(false)
     }
   }
-
+  
   const getPersonalizedEmailsForPreview = (): PersonalizedEmail[] => {
-    const emailData = activeTab === "csv" ? csvData : manualEmails.filter((email) => email.email.trim())
+    let emailData: any[] = []
+    if (activeTab === "csv") {
+      emailData = csvData || []
+    } else if (activeTab === "manual") {
+      emailData = (manualEmails || []).filter((email) => email.email.trim())
+    } else if (activeTab === "contacts") {
+      emailData = (selectedContacts || []).map(contact => ({
+        email: contact.email,
+        name: contact.name || "",
+        company: contact.company || ""
+      }))
+    }
+
+    // Ensure emailData is always an array before mapping
+    if (!Array.isArray(emailData)) {
+      emailData = []
+    }
 
     return emailData.map((row) => ({
       to: row.email,
       subject: replacePlaceholders(subject, row),
       message: replacePlaceholders(message, row),
       originalRowData: row,
-      attachments: attachments.map((file) => ({
+      attachments: (attachments || []).map((file) => ({
         name: file.name,
         type: file.type,
         data: "",
       })),
     }))
   }
+  
   const personalizedEmailsForPreview = getPersonalizedEmailsForPreview()
-  const successCount = sendStatus.filter((status) => status.status === "success").length
-  const errorCount = sendStatus.filter((status) => status.status === "error").length
+  const successCount = (sendStatus || []).filter((status) => status.status === "success").length
+  const errorCount = (sendStatus || []).filter((status) => status.status === "error").length
   
   let emailData: any[] = []
   if (activeTab === "csv") {
-    emailData = csvData
+    emailData = csvData || []
   } else if (activeTab === "manual") {
-    emailData = manualEmails.filter((email) => email.email.trim())
+    emailData = (manualEmails || []).filter((email) => email.email.trim())
   } else if (activeTab === "contacts") {
-    emailData = selectedContacts
+    emailData = selectedContacts || []
   }
   
   const canSend = subject.trim() && message.trim() && emailData.length > 0
@@ -524,8 +551,7 @@ export function ComposeForm() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-3 pt-0">
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {sendStatus.map((status, index) => (
+                <div className="space-y-2 max-h-48 overflow-y-auto">                  {sendStatus.map((status, index) => (
                     <div key={index} className="flex flex-col gap-1 p-2 bg-gray-50 rounded-lg">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -551,11 +577,29 @@ export function ComposeForm() {
                         </span>
                       </div>
                       {status.error && <p className="text-xs text-red-600 mt-1">{status.error}</p>}
+                      {status.status === "success" && (
+                        <p className="text-xs text-green-600 mt-1">
+                          ✅ Email queued successfully. Check recipient's inbox/spam folder.
+                        </p>
+                      )}
                     </div>
                   ))}
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* Email Delivery Notes */}
+          {successCount > 0 && (
+            <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+              <h4 className="text-sm font-medium text-blue-900 mb-2">📧 Email Delivery Notes:</h4>
+              <ul className="text-xs text-blue-800 space-y-1">
+                <li>• Emails have been sent through Gmail API and are being delivered</li>
+                <li>• Recipients should check their spam/junk folders if emails aren't in inbox</li>
+                <li>• Delivery can take a few minutes depending on recipient's email provider</li>
+                <li>• <a href="/test-email-delivery" className="underline">Test email delivery</a> if issues persist</li>
+              </ul>
+            </div>
           )}
 
           {/* Email Preview Modal */}

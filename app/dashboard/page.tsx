@@ -61,9 +61,28 @@ export default function DashboardPage() {
       setEmailHistory(campaigns)
     }
     
+    // Initial fetch
     fetchCampaigns()
     
-    // Auto-refresh every 30 seconds to catch new campaigns
+    // Set up real-time subscription
+    const channel = supabase
+      .channel('email_campaigns_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'email_campaigns'
+        },
+        (payload) => {
+          console.log('Real-time update:', payload)
+          // Refetch data when any change occurs
+          fetchCampaigns()
+        }
+      )
+      .subscribe()
+    
+    // Fallback: Auto-refresh every 30 seconds
     const interval = setInterval(fetchCampaigns, 30000)
     
     // Also refresh when window gains focus (user comes back to tab)
@@ -71,6 +90,8 @@ export default function DashboardPage() {
     window.addEventListener('focus', handleFocus)
     
     return () => {
+      // Cleanup
+      supabase.removeChannel(channel)
       clearInterval(interval)
       window.removeEventListener('focus', handleFocus)
     }

@@ -13,9 +13,26 @@ export async function sendEmailViaAPI(
 ) {
   const boundary = "boundary_" + Math.random().toString(36).substr(2, 9)
 
+  // First, get the user's email address to use as 'From'
+  const userResponse = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+
+  if (!userResponse.ok) {
+    throw new Error("Failed to get user profile from Gmail API")
+  }
+
+  const userProfile = await userResponse.json()
+  const fromEmail = userProfile.emailAddress
+
   const email = [
+    `From: ${fromEmail}`,
     `To: ${to}`,
     `Subject: ${subject}`,
+    `MIME-Version: 1.0`,
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
     "",
     `--${boundary}`,
@@ -56,10 +73,17 @@ export async function sendEmailViaAPI(
 
   if (!response.ok) {
     const error = await response.text()
-    throw new Error(`Gmail API error: ${error}`)
+    console.error(`Gmail API error for ${to}:`, {
+      status: response.status,
+      statusText: response.statusText,
+      error: error
+    })
+    throw new Error(`Gmail API error (${response.status}): ${error}`)
   }
 
-  return await response.json()
+  const result = await response.json()
+  console.log(`Email sent successfully to ${to}, Gmail message ID: ${result.id}`)
+  return result
 }
 
 export function replacePlaceholders(template: string, data: Record<string, string>): string {
