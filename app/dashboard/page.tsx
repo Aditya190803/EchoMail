@@ -21,6 +21,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { AuthButton } from "@/components/auth-button"
+import { supabase } from "@/lib/supabase"
 
 interface EmailCampaign {
   id: string
@@ -44,44 +45,32 @@ export default function DashboardPage() {
   }, [status, router])
 
   useEffect(() => {
-    // Load email history from localStorage (in a real app, this would come from a database)
-    const savedHistory = localStorage.getItem("emailHistory")
-    if (savedHistory) {
-      setEmailHistory(JSON.parse(savedHistory))
-    } else {
-      // Demo data for better UX
-      const demoData: EmailCampaign[] = [
-        {
-          id: "1",
-          subject: "Welcome to our newsletter",
-          recipients: 150,
-          sent: 148,
-          failed: 2,
-          date: "2024-01-15",
-          status: "completed",
-        },
-        {
-          id: "2",
-          subject: "Product launch announcement",
-          recipients: 89,
-          sent: 89,
-          failed: 0,
-          date: "2024-01-12",
-          status: "completed",
-        },
-        {
-          id: "3",
-          subject: "Monthly update",
-          recipients: 203,
-          sent: 195,
-          failed: 8,
-          date: "2024-01-08",
-          status: "completed",
-        },
-      ]
-      setEmailHistory(demoData)
-      localStorage.setItem("emailHistory", JSON.stringify(demoData))
+    async function fetchCampaigns() {
+      let campaigns: EmailCampaign[] = []
+      let supabaseError = false
+      try {
+        const { data, error } = await supabase
+          .from("email_campaigns")
+          .select("id, subject, recipients, sent, failed, date, status")
+          .order("date", { ascending: false })
+        if (!error && data && data.length > 0) {
+          campaigns = data as EmailCampaign[]
+        } else {
+          supabaseError = true
+        }
+      } catch (e) {
+        supabaseError = true
+      }
+      if (supabaseError || campaigns.length === 0) {
+        // fallback to localStorage
+        const savedHistory = localStorage.getItem("emailHistory")
+        if (savedHistory) {
+          campaigns = JSON.parse(savedHistory)
+        }
+      }
+      setEmailHistory(campaigns)
     }
+    fetchCampaigns()
   }, [])
 
   if (status === "loading") {
