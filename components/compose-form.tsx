@@ -124,12 +124,36 @@ export function ComposeForm() {
     try {
       const personalizedEmails = await generatePersonalizedEmails()
 
+      // First create the campaign in the database
+      const campaignResponse = await fetch("/api/campaigns", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          subject,
+          content: message,
+          recipients: personalizedEmails.map((email) => ({
+            email: email.to,
+            name: email.originalRowData.name || "",
+            metadata: email.originalRowData,
+          })),
+        }),
+      })
+
+      if (!campaignResponse.ok) {
+        throw new Error("Failed to create campaign")
+      }
+
+      const { campaignId } = await campaignResponse.json()
+
       const initialStatus = personalizedEmails.map((email) => ({
         email: email.to,
         status: "pending" as const,
       }))
       setSendStatus(initialStatus)
 
+      // Send emails
       const response = await fetch("/api/send-email", {
         method: "POST",
         headers: {
@@ -137,6 +161,7 @@ export function ComposeForm() {
         },
         body: JSON.stringify({
           personalizedEmails,
+          campaignId,
         }),
       })
 
@@ -230,11 +255,7 @@ export function ComposeForm() {
             <Label htmlFor="message" className="text-base font-medium">
               Email Message
             </Label>
-            <RichTextEditor
-              content={message}
-              onChange={setMessage}
-              placeholder="Compose your email message here. Use {{placeholders}} for personalization..."
-            />
+            <RichTextEditor content={message} onChange={setMessage} />
             <div className="bg-blue-50 p-3 rounded-lg">
               <p className="text-sm text-blue-800">
                 💡 <strong>Pro Tip:</strong> Use placeholders like {`{{name}}`}, {`{{company}}`}, or {`{{email}}`} to
