@@ -40,7 +40,7 @@ export default function HomePage() {
         <div className="relative max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 pt-20 pb-16">
           <div className="text-center">
             <div className="mx-auto mb-8 p-4 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl w-fit shadow-lg">
-              <Mail className="h-12 w-12 text-white" />
+              <img src="/favicon.png" alt="EchoMail Logo" className="h-12 w-12 mx-auto mb-8" />
             </div>
             <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
               <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">

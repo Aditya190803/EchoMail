@@ -21,7 +21,7 @@ export default function TermsOfServicePage() {
               </Button>
             </div>
             <div className="flex items-center gap-2">
-              <FileText className="h-6 w-6 text-blue-600" />
+              <img src="/favicon.png" alt="EchoMail Logo" className="h-12 w-12" />
               <span className="text-xl font-bold text-gray-900">EchoMail</span>
             </div>
           </div>
@@ -258,8 +258,8 @@ export default function TermsOfServicePage() {
                 </p>
                 <div className="bg-gray-50 p-4 rounded-lg mt-2">
                   <p className="text-gray-700">
-                    <strong>Email:</strong> legal@echomail.com<br />
-                    <strong>Support:</strong> support@echomail.com
+                    <strong>Email:</strong> adityamer.work@gmail.com<br />
+                    <strong>Support:</strong> adityamer.work@gmail.com<br />
                   </p>
                 </div>
               </section>

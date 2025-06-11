@@ -116,7 +116,7 @@ export default function DashboardPage() {
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
-                <Mail className="h-6 w-6 text-blue-600" />
+                <img src="/favicon.png" alt="EchoMail Logo" className="h-12 w-12" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">EchoMail Dashboard</h1>
