@@ -230,11 +230,7 @@ export function ComposeForm() {
             <Label htmlFor="message" className="text-base font-medium">
               Email Message
             </Label>
-            <RichTextEditor
-              content={message}
-              onChange={setMessage}
-              placeholder="Compose your email message here. Use {{placeholders}} for personalization..."
-            />
+            <RichTextEditor content={message} onChange={setMessage} />
             <div className="bg-blue-50 p-3 rounded-lg">
               <p className="text-sm text-blue-800">
                 💡 <strong>Pro Tip:</strong> Use placeholders like {`{{name}}`}, {`{{company}}`}, or {`{{email}}`} to
