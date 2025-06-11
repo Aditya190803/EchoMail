@@ -4,12 +4,16 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const error = searchParams.get("error")
 
-  // Return proper JSON response instead of HTML
-  return NextResponse.json({
-    error: error || "Unknown authentication error",
-    message: getErrorMessage(error),
-    timestamp: new Date().toISOString(),
-  })
+  // Return proper JSON response for authentication errors
+  return NextResponse.json(
+    {
+      error: error || "Unknown authentication error",
+      message: getErrorMessage(error),
+      timestamp: new Date().toISOString(),
+      status: 400, // Add status code
+    },
+    { status: error ? 400 : 500 },
+  ) // Set appropriate HTTP status code
 }
 
 function getErrorMessage(error: string | null): string {
