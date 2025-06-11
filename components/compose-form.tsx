@@ -189,7 +189,7 @@ export function ComposeForm() {
   const canSend = subject.trim() && message.trim() && emailData.length > 0
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-2xl mx-auto px-2 sm:px-4 md:px-6 lg:px-0 w-full">
       {/* Success Alert */}
       {showSuccess && (
         <Alert className="border-green-200 bg-green-50">
@@ -199,7 +199,7 @@ export function ComposeForm() {
       )}
 
       {/* Main Compose Card */}
-      <Card className="shadow-lg">
+      <Card className="shadow-lg w-full">
         <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
           <CardTitle className="flex items-center gap-2 text-xl">
             <Send className="h-5 w-5 text-blue-600" />
@@ -207,7 +207,7 @@ export function ComposeForm() {
           </CardTitle>
           <p className="text-sm text-gray-600 mt-1">Create personalized emails for your recipients</p>
         </CardHeader>
-        <CardContent className="space-y-6 p-6">
+        <CardContent className="space-y-6 p-4 sm:p-6">
           {/* Subject Field */}
           <div className="space-y-2">
             <Label htmlFor="subject" className="text-base font-medium">
@@ -218,7 +218,7 @@ export function ComposeForm() {
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Enter email subject (use {{placeholders}} for personalization)"
-              className="text-base"
+              className="text-base w-full"
             />
             <p className="text-xs text-gray-500">
               Example: "Hello {`{{name}}`}, special offer for {`{{company}}`}"
@@ -244,7 +244,7 @@ export function ComposeForm() {
             <Label htmlFor="attachments" className="text-base font-medium">
               Attachments
             </Label>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
               <input type="file" id="attachments" multiple onChange={handleFileAttachment} className="hidden" />
               <Button
                 type="button"
@@ -264,7 +264,7 @@ export function ComposeForm() {
             {attachments.length > 0 && (
               <div className="space-y-2">
                 {attachments.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                  <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-gray-50 rounded-lg border gap-2">
                     <div className="flex items-center gap-3">
                       <FileText className="h-4 w-4 text-gray-500" />
                       <div>
@@ -288,7 +288,7 @@ export function ComposeForm() {
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-3 pt-4 border-t">
+          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
             <Button onClick={handlePreview} disabled={!canSend} variant="outline" className="flex-1">
               <Eye className="h-4 w-4 mr-2" />
               Preview Emails ({emailData.length})
@@ -298,7 +298,7 @@ export function ComposeForm() {
       </Card>
 
       {/* Recipients Section */}
-      <Card className="shadow-lg">
+      <Card className="shadow-lg w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
@@ -318,7 +318,7 @@ export function ComposeForm() {
 
             <TabsContent value="manual" className="mt-4">
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                   <p className="text-sm text-gray-600">Add recipients manually</p>
                   <Button onClick={addManualEmail} size="sm" variant="outline">
                     <Plus className="h-4 w-4 mr-2" />
@@ -328,8 +328,8 @@ export function ComposeForm() {
 
                 <div className="space-y-3 max-h-60 overflow-y-auto">
                   {manualEmails.map((emailData, index) => (
-                    <div key={index} className="flex gap-3 items-center p-3 bg-gray-50 rounded-lg">
-                      <div className="flex-1">
+                    <div key={index} className="flex flex-col sm:flex-row gap-3 items-center p-3 bg-gray-50 rounded-lg">
+                      <div className="flex-1 w-full">
                         <Input
                           placeholder="Email address"
                           value={emailData.email}
@@ -337,7 +337,7 @@ export function ComposeForm() {
                           type="email"
                         />
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 w-full">
                         <Input
                           placeholder="Name"
                           value={emailData.name}
@@ -374,9 +374,9 @@ export function ComposeForm() {
       {/* Send Progress */}
       {isLoading && (
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 sm:p-6">
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
                 <h3 className="font-medium">Sending Emails...</h3>
                 <span className="text-sm text-gray-500">{sendProgress}%</span>
               </div>
@@ -391,7 +391,7 @@ export function ComposeForm() {
       {sendStatus.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 flex-wrap">
               <Users className="h-5 w-5" />
               Send Results
               {successCount > 0 && (
@@ -405,7 +405,7 @@ export function ComposeForm() {
           <CardContent>
             <div className="space-y-2 max-h-60 overflow-y-auto">
               {sendStatus.map((status, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3">
                     {status.status === "success" ? (
                       <CheckCircle className="h-4 w-4 text-green-600" />
