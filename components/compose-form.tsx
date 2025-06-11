@@ -2,19 +2,29 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Paperclip, Eye, X, Send, CheckCircle, AlertCircle, Users, FileText, Plus, Trash2 } from "lucide-react"
+import { Paperclip, Eye, X, Send, CheckCircle, AlertCircle, Users, FileText, Plus, Trash2, Search } from "lucide-react"
 import { CSVUpload } from "./csv-upload"
 import { EmailPreview } from "./email-preview"
 import { RichTextEditor } from "./rich-text-editor"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
+import { Badge } from "@/components/ui/badge"
+import { supabase } from "@/lib/supabase"
 import type { CSVRow, PersonalizedEmail, SendStatus, AttachmentData } from "@/types/email"
+
+interface Contact {
+  id: string
+  email: string
+  name?: string
+  company?: string
+}
 
 // Simple client-side placeholder replacement for HTML content
 function replacePlaceholders(template: string, data: Record<string, string>): string {
@@ -46,10 +56,14 @@ interface ManualEmail {
 }
 
 export function ComposeForm() {
+  const { data: session } = useSession()
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
   const [csvData, setCsvData] = useState<CSVRow[]>([])
   const [manualEmails, setManualEmails] = useState<ManualEmail[]>([{ email: "", name: "" }])
+  const [contacts, setContacts] = useState<Contact[]>([])
+  const [selectedContacts, setSelectedContacts] = useState<Contact[]>([])
+  const [contactSearch, setContactSearch] = useState("")
   const [attachments, setAttachments] = useState<File[]>([])
   const [showPreview, setShowPreview] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -57,6 +71,63 @@ export function ComposeForm() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [sendProgress, setSendProgress] = useState(0)
   const [activeTab, setActiveTab] = useState("csv")
+
+  // Fetch contacts from Supabase
+  useEffect(() => {
+    async function fetchContacts() {
+      if (!session?.user?.email) return
+      
+      try {
+        const { data, error } = await supabase
+          .from("contacts")
+          .select("id, email, name, company")
+          .eq("user_email", session.user.email)
+          .order("name", { ascending: true })
+        
+        if (!error && data) {
+          setContacts(data as Contact[])
+        }
+      } catch (e) {
+        console.error("Failed to fetch contacts:", e)
+      }
+    }
+    
+    if (session?.user?.email) {
+      fetchContacts()
+    }
+  }, [session])
+
+  // Contact selection functions
+  const toggleContactSelection = (contact: Contact) => {
+    setSelectedContacts(prev => {
+      const isSelected = prev.find(c => c.id === contact.id)
+      if (isSelected) {
+        return prev.filter(c => c.id !== contact.id)
+      } else {
+        return [...prev, contact]
+      }
+    })
+  }
+
+  const selectAllFilteredContacts = () => {
+    const filtered = getFilteredContacts()
+    setSelectedContacts(prev => {
+      const newSelections = filtered.filter(contact => !prev.find(c => c.id === contact.id))
+      return [...prev, ...newSelections]
+    })
+  }
+
+  const clearContactSelection = () => {
+    setSelectedContacts([])
+  }
+
+  const getFilteredContacts = () => {
+    return contacts.filter(contact =>
+      contact.email.toLowerCase().includes(contactSearch.toLowerCase()) ||
+      (contact.name && contact.name.toLowerCase().includes(contactSearch.toLowerCase())) ||
+      (contact.company && contact.company.toLowerCase().includes(contactSearch.toLowerCase()))
+    )
+  }
 
   const handleFileAttachment = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -78,7 +149,6 @@ export function ComposeForm() {
   const updateManualEmail = (index: number, field: string, value: string) => {
     setManualEmails((prev) => prev.map((email, i) => (i === index ? { ...email, [field]: value } : email)))
   }
-
   const generatePersonalizedEmails = async (): Promise<PersonalizedEmail[]> => {
     const attachmentData: AttachmentData[] = []
     for (const file of attachments) {
@@ -90,7 +160,18 @@ export function ComposeForm() {
       }
     }
 
-    const emailData = activeTab === "csv" ? csvData : manualEmails.filter((email) => email.email.trim())
+    let emailData: any[] = []
+    if (activeTab === "csv") {
+      emailData = csvData
+    } else if (activeTab === "manual") {
+      emailData = manualEmails.filter((email) => email.email.trim())
+    } else if (activeTab === "contacts") {
+      emailData = selectedContacts.map(contact => ({
+        email: contact.email,
+        name: contact.name || "",
+        company: contact.company || ""
+      }))
+    }
 
     return emailData.map((row) => ({
       to: row.email,
@@ -102,7 +183,14 @@ export function ComposeForm() {
   }
 
   const handlePreview = async () => {
-    const emailData = activeTab === "csv" ? csvData : manualEmails.filter((email) => email.email.trim())
+    let emailData: any[] = []
+    if (activeTab === "csv") {
+      emailData = csvData
+    } else if (activeTab === "manual") {
+      emailData = manualEmails.filter((email) => email.email.trim())
+    } else if (activeTab === "contacts") {
+      emailData = selectedContacts
+    }
 
     if (emailData.length === 0) {
       alert("Please add email recipients first")
@@ -181,11 +269,19 @@ export function ComposeForm() {
       })),
     }))
   }
-
   const personalizedEmailsForPreview = getPersonalizedEmailsForPreview()
   const successCount = sendStatus.filter((status) => status.status === "success").length
   const errorCount = sendStatus.filter((status) => status.status === "error").length
-  const emailData = activeTab === "csv" ? csvData : manualEmails.filter((email) => email.email.trim())
+  
+  let emailData: any[] = []
+  if (activeTab === "csv") {
+    emailData = csvData
+  } else if (activeTab === "manual") {
+    emailData = manualEmails.filter((email) => email.email.trim())
+  } else if (activeTab === "contacts") {
+    emailData = selectedContacts
+  }
+  
   const canSend = subject.trim() && message.trim() && emailData.length > 0
 
   return (
@@ -279,10 +375,10 @@ export function ComposeForm() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0">
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList className="grid w-full grid-cols-2 h-8">
+              <Tabs value={activeTab} onValueChange={setActiveTab}>                <TabsList className="grid w-full grid-cols-3 h-8">
                   <TabsTrigger value="csv" className="text-xs">CSV Upload</TabsTrigger>
                   <TabsTrigger value="manual" className="text-xs">Manual Entry</TabsTrigger>
+                  <TabsTrigger value="contacts" className="text-xs">Contacts</TabsTrigger>
                 </TabsList>
                 <TabsContent value="csv" className="mt-3">
                   <CSVUpload onDataLoad={setCsvData} csvData={csvData} />
@@ -327,6 +423,58 @@ export function ComposeForm() {
                       📧 {manualEmails.filter((email) => email.email.trim()).length} recipient(s) ready to send
                     </div>
                   )}
+                </TabsContent>
+                <TabsContent value="contacts" className="mt-3">
+                  <div className="space-y-2">
+                    {/* Search Bar */}
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="text"
+                        placeholder="Search contacts..."
+                        value={contactSearch}
+                        onChange={(e) => setContactSearch(e.target.value)}
+                        className="flex-1 text-xs h-8"
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={selectAllFilteredContacts}
+                        className="h-8"
+                      >
+                        <Plus className="h-4 w-4 mr-1" /> Add All
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={clearContactSelection}
+                        className="h-8"
+                      >
+                        Clear
+                      </Button>
+                    </div>                    {/* Contact List */}
+                    <div className="max-h-60 overflow-y-auto">
+                      {getFilteredContacts().length === 0 ? (
+                        <p className="text-xs text-gray-500 py-2 text-center">No contacts found</p>
+                      ) : (
+                        getFilteredContacts().map((contact) => (
+                          <div
+                            key={contact.id}
+                            className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer
+                            ${selectedContacts.find(c => c.id === contact.id) ? "bg-blue-50" : "hover:bg-gray-100"}`}
+                            onClick={() => toggleContactSelection(contact)}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{contact.name || "Unnamed Contact"}</p>
+                              <p className="text-xs text-gray-500 truncate">{contact.email}</p>
+                            </div>
+                            {selectedContacts.find(c => c.id === contact.id) && (
+                              <CheckCircle className="h-5 w-5 text-blue-600" />
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </TabsContent>
               </Tabs>
             </CardContent>
