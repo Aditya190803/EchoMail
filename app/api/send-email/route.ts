@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { sendEmail, replacePlaceholders } from "@/lib/gmail"
+import { sendEmailViaAPI, replacePlaceholders } from "@/lib/gmail"
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,7 +20,13 @@ export async function POST(request: NextRequest) {
         const personalizedSubject = replacePlaceholders(email.subject, email.originalRowData)
         const personalizedMessage = replacePlaceholders(email.message, email.originalRowData)
 
-        await sendEmail(session.accessToken, email.to, personalizedSubject, personalizedMessage, email.attachments)
+        await sendEmailViaAPI(
+          session.accessToken,
+          email.to,
+          personalizedSubject,
+          personalizedMessage,
+          email.attachments,
+        )
 
         results.push({
           email: email.to,

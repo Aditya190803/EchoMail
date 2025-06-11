@@ -1,20 +1,10 @@
-import { google } from "googleapis"
-
-export async function sendEmail(
+export async function sendEmailViaAPI(
   accessToken: string,
   to: string,
   subject: string,
   htmlBody: string,
   attachments?: File[],
 ) {
-  const gmail = google.gmail({
-    version: "v1",
-    auth: new google.auth.OAuth2(),
-  })
-
-  // Set the access token
-  gmail.context._options.auth = accessToken
-
   const boundary = "boundary_" + Math.random().toString(36).substr(2, 9)
 
   const email = [
@@ -50,14 +40,23 @@ export async function sendEmail(
     .replace(/\//g, "_")
     .replace(/=+$/, "")
 
-  const response = await gmail.users.messages.send({
-    userId: "me",
-    requestBody: {
-      raw: encodedEmail,
+  const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({
+      raw: encodedEmail,
+    }),
   })
 
-  return response.data
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Gmail API error: ${error}`)
+  }
+
+  return await response.json()
 }
 
 export function replacePlaceholders(template: string, data: Record<string, string>): string {

@@ -12,7 +12,11 @@ import { Paperclip, Eye } from "lucide-react"
 import { CSVUpload } from "./csv-upload"
 import { EmailPreview } from "./email-preview"
 import type { CSVRow, PersonalizedEmail, SendStatus } from "@/types/email"
-import { replacePlaceholders } from "@/lib/gmail"
+
+// Simple client-side placeholder replacement
+function replacePlaceholders(template: string, data: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (match, key) => data[key] || match)
+}
 
 export function ComposeForm() {
   const [subject, setSubject] = useState("")
