@@ -21,7 +21,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { AuthButton } from "@/components/auth-button"
-import { supabase } from "@/lib/supabase"
+import { getSupabaseClient } from "@/lib/supabase"
 
 interface EmailCampaign {
   id: string
@@ -34,6 +34,7 @@ interface EmailCampaign {
 }
 
 export default function DashboardPage() {
+  const supabase = getSupabaseClient();
   const { data: session, status } = useSession()
   const router = useRouter()
   const [emailHistory, setEmailHistory] = useState<EmailCampaign[]>([])
