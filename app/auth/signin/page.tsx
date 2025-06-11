@@ -65,7 +65,7 @@ export default function SignIn() {
           <div className="mx-auto mb-4 p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl w-fit">
             <Mail className="h-8 w-8 text-white" />
           </div>
-          <CardTitle className="text-2xl font-bold text-gray-900">Welcome Back</CardTitle>
+          <CardTitle className="text-2xl font-bold text-gray-900">Welcome to EchoMail</CardTitle>
           <p className="text-gray-600 mt-2">Sign in to access your email dashboard</p>
         </CardHeader>
         <CardContent className="pt-6">
@@ -107,8 +107,8 @@ export default function SignIn() {
                 </Button>
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <p className="text-xs text-blue-800">
-                    <strong>Secure:</strong> We use OAuth 2.0 for secure authentication. Your credentials are never
-                    stored on our servers.
+                    <strong>Secure:</strong> EchoMail uses OAuth 2.0 for secure authentication. Your credentials are
+                    never stored on our servers.
                   </p>
                 </div>
               </div>

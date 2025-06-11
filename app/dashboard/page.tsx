@@ -119,7 +119,7 @@ export default function DashboardPage() {
                 <Mail className="h-6 w-6 text-blue-600" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Email Dashboard</h1>
+                <h1 className="text-xl font-bold text-gray-900">EchoMail Dashboard</h1>
                 <p className="text-sm text-gray-600">Welcome back, {session?.user?.name}</p>
               </div>
             </div>

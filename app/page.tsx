@@ -6,7 +6,6 @@ import { useEffect } from "react"
 import { AuthButton } from "@/components/auth-button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Mail, Users, Send, Sparkles, Zap, Shield, Clock, CheckCircle } from "lucide-react"
-import { Button } from "@/components/ui/button"
 
 export default function HomePage() {
   const { data: session, status } = useSession()
@@ -44,18 +43,16 @@ export default function HomePage() {
               <Mail className="h-12 w-12 text-white" />
             </div>
             <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
-              Email Sender
-              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"> Pro</span>
+              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                EchoMail
+              </span>
             </h1>
             <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
-              Send personalized emails at scale with our powerful Gmail API integration. Upload CSV data, craft
+              Send personalized emails at scale with EchoMail's powerful Gmail API integration. Upload CSV data, craft
               beautiful messages, and reach your audience with precision.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
+            <div className="flex justify-center items-center mb-12">
               <AuthButton />
-              <Button variant="outline" size="lg" className="text-gray-600 border-gray-300 hover:bg-gray-50">
-                View Demo
-              </Button>
             </div>
           </div>
         </div>
@@ -165,7 +162,6 @@ export default function HomePage() {
       </div>
 
       {/* Stats Section */}
-      
 
       {/* CTA Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -174,8 +170,8 @@ export default function HomePage() {
             <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-6" />
             <h3 className="text-3xl font-bold text-gray-900 mb-4">Ready to get started?</h3>
             <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-              Join thousands of users who trust Email Sender Pro for their email campaigns. Sign in with Google and
-              start sending in minutes.
+              Join thousands of users who trust EchoMail for their email campaigns. Sign in with Google and start
+              sending in minutes.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <AuthButton />

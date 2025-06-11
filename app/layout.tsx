@@ -7,12 +7,12 @@ import { Providers } from "./providers"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Email Sender Pro - Gmail API Integration",
+  title: "EchoMail - Gmail API Integration",
   description:
-    "Send personalized emails with ease using Gmail API. Upload CSV data, compose rich text emails, and send bulk personalized messages.",
+    "Send personalized emails with ease using Gmail API. Upload CSV data, compose rich text emails, and send bulk personalized messages with EchoMail.",
   generator: "v0.dev",
-  keywords: ["email", "gmail", "bulk email", "personalization", "csv", "marketing"],
-  authors: [{ name: "Email Sender Pro" }],
+  keywords: ["email", "gmail", "bulk email", "personalization", "csv", "marketing", "echomail"],
+  authors: [{ name: "EchoMail" }],
   icons: {
     icon: "/favicon.ico",
     shortcut: "/favicon.ico",

@@ -70,7 +70,7 @@ export default function ComposePage() {
                   <Mail className="h-6 w-6 text-blue-600" />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-gray-900">Email Composer</h1>
+                  <h1 className="text-xl font-bold text-gray-900">EchoMail Composer</h1>
                   <p className="text-sm text-gray-600">Signed in as {session?.user?.email}</p>
                 </div>
               </div>
