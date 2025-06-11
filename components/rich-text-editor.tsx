@@ -42,7 +42,7 @@ interface RichTextEditorProps {
   placeholder?: string
 }
 
-export function RichTextEditor({ content, onChange, placeholder }: RichTextEditorProps) {
+export function RichTextEditor({ content, onChange, placeholder = "Compose your email message..." }: RichTextEditorProps) {
   const [linkUrl, setLinkUrl] = useState("")
   const [imageUrl, setImageUrl] = useState("")
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
@@ -73,7 +73,7 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
     },
     editorProps: {
       attributes: {
-        class: "prose prose-sm sm:prose lg:prose-lg xl:prose-2xl mx-auto focus:outline-none min-h-[200px] p-4",
+        class: "prose prose-sm max-w-none focus:outline-none min-h-[150px] p-2 text-sm",
       },
     },
   })
@@ -130,17 +130,17 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
   )
 
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div className="border rounded-lg overflow-hidden relative bg-white">
       {/* Toolbar */}
-      <div className="border-b bg-gray-50 p-2">
-        <div className="flex flex-wrap items-center gap-1">
+      <div className="border-b bg-gray-50 p-1 overflow-x-auto">
+        <div className="flex items-center gap-0.5 min-w-[280px]">
           {/* Text Formatting */}
           <ToolbarButton
             onClick={() => editor.chain().focus().toggleBold().run()}
             isActive={editor.isActive("bold")}
             title="Bold"
           >
-            <Bold className="h-4 w-4" />
+            <Bold className="h-3 w-3" />
           </ToolbarButton>
 
           <ToolbarButton
@@ -148,7 +148,7 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
             isActive={editor.isActive("italic")}
             title="Italic"
           >
-            <Italic className="h-4 w-4" />
+            <Italic className="h-3 w-3" />
           </ToolbarButton>
 
           <ToolbarButton
@@ -156,72 +156,10 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
             isActive={editor.isActive("underline")}
             title="Underline"
           >
-            <UnderlineIcon className="h-4 w-4" />
+            <UnderlineIcon className="h-3 w-3" />
           </ToolbarButton>
 
-          <Separator orientation="vertical" className="h-6" />
-
-          {/* Headings */}
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-            isActive={editor.isActive("heading", { level: 1 })}
-            title="Heading 1"
-          >
-            <Heading1 className="h-4 w-4" />
-          </ToolbarButton>
-
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-            isActive={editor.isActive("heading", { level: 2 })}
-            title="Heading 2"
-          >
-            <Heading2 className="h-4 w-4" />
-          </ToolbarButton>
-
-          <ToolbarButton
-            onClick={() => editor.chain().focus().setParagraph().run()}
-            isActive={editor.isActive("paragraph")}
-            title="Paragraph"
-          >
-            <Type className="h-4 w-4" />
-          </ToolbarButton>
-
-          <Separator orientation="vertical" className="h-6" />
-
-          {/* Text Alignment */}
-          <ToolbarButton
-            onClick={() => editor.chain().focus().setTextAlign("left").run()}
-            isActive={editor.isActive({ textAlign: "left" })}
-            title="Align Left"
-          >
-            <AlignLeft className="h-4 w-4" />
-          </ToolbarButton>
-
-          <ToolbarButton
-            onClick={() => editor.chain().focus().setTextAlign("center").run()}
-            isActive={editor.isActive({ textAlign: "center" })}
-            title="Align Center"
-          >
-            <AlignCenter className="h-4 w-4" />
-          </ToolbarButton>
-
-          <ToolbarButton
-            onClick={() => editor.chain().focus().setTextAlign("right").run()}
-            isActive={editor.isActive({ textAlign: "right" })}
-            title="Align Right"
-          >
-            <AlignRight className="h-4 w-4" />
-          </ToolbarButton>
-
-          <ToolbarButton
-            onClick={() => editor.chain().focus().setTextAlign("justify").run()}
-            isActive={editor.isActive({ textAlign: "justify" })}
-            title="Justify"
-          >
-            <AlignJustify className="h-4 w-4" />
-          </ToolbarButton>
-
-          <Separator orientation="vertical" className="h-6" />
+          <Separator orientation="vertical" className="h-4" />
 
           {/* Lists */}
           <ToolbarButton
@@ -229,7 +167,7 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
             isActive={editor.isActive("bulletList")}
             title="Bullet List"
           >
-            <List className="h-4 w-4" />
+            <List className="h-3 w-3" />
           </ToolbarButton>
 
           <ToolbarButton
@@ -237,29 +175,10 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
             isActive={editor.isActive("orderedList")}
             title="Numbered List"
           >
-            <ListOrdered className="h-4 w-4" />
+            <ListOrdered className="h-3 w-3" />
           </ToolbarButton>
 
-          <Separator orientation="vertical" className="h-6" />
-
-          {/* Quote and Code */}
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleBlockquote().run()}
-            isActive={editor.isActive("blockquote")}
-            title="Quote"
-          >
-            <Quote className="h-4 w-4" />
-          </ToolbarButton>
-
-          <ToolbarButton
-            onClick={() => editor.chain().focus().toggleCode().run()}
-            isActive={editor.isActive("code")}
-            title="Inline Code"
-          >
-            <Code className="h-4 w-4" />
-          </ToolbarButton>
-
-          <Separator orientation="vertical" className="h-6" />
+          <Separator orientation="vertical" className="h-4" />
 
           {/* Link */}
           <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
@@ -268,30 +187,31 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
                 variant={editor.isActive("link") ? "default" : "ghost"}
                 size="sm"
                 title="Add Link"
-                className={`h-8 w-8 p-0 ${editor.isActive("link") ? "bg-blue-100 text-blue-700" : ""}`}
+                className={`h-6 w-6 p-0 ${editor.isActive("link") ? "bg-blue-100 text-blue-700" : ""}`}
               >
-                <LinkIcon className="h-4 w-4" />
+                <LinkIcon className="h-3 w-3" />
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="w-[95vw] max-w-sm">
               <DialogHeader>
-                <DialogTitle>Add Link</DialogTitle>
+                <DialogTitle className="text-sm">Add Link</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div>
-                  <Label htmlFor="link-url">URL</Label>
+                  <Label htmlFor="link-url" className="text-xs">URL</Label>
                   <Input
                     id="link-url"
                     value={linkUrl}
                     onChange={(e) => setLinkUrl(e.target.value)}
                     placeholder="https://example.com"
+                    className="text-xs h-8"
                   />
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={addLink} disabled={!linkUrl}>
+                  <Button onClick={addLink} disabled={!linkUrl} size="sm" className="text-xs">
                     Add Link
                   </Button>
-                  <Button variant="outline" onClick={removeLink}>
+                  <Button variant="outline" onClick={removeLink} size="sm" className="text-xs">
                     Remove Link
                   </Button>
                 </div>
@@ -299,50 +219,13 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
             </DialogContent>
           </Dialog>
 
-          {/* Image */}
-          <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="sm" title="Add Image" className="h-8 w-8 p-0">
-                <ImageIcon className="h-4 w-4" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Image</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="image-url">Image URL</Label>
-                  <Input
-                    id="image-url"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://example.com/image.jpg"
-                  />
-                </div>
-                <Button onClick={addImage} disabled={!imageUrl}>
-                  Add Image
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          <Separator orientation="vertical" className="h-6" />
-
-          {/* Horizontal Rule */}
-          <ToolbarButton onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Horizontal Rule">
-            <Minus className="h-4 w-4" />
-          </ToolbarButton>
-
-          <Separator orientation="vertical" className="h-6" />
-
           {/* Undo/Redo */}
           <ToolbarButton
             onClick={() => editor.chain().focus().undo().run()}
             disabled={!editor.can().undo()}
             title="Undo"
           >
-            <Undo className="h-4 w-4" />
+            <Undo className="h-3 w-3" />
           </ToolbarButton>
 
           <ToolbarButton
@@ -350,18 +233,18 @@ export function RichTextEditor({ content, onChange, placeholder }: RichTextEdito
             disabled={!editor.can().redo()}
             title="Redo"
           >
-            <Redo className="h-4 w-4" />
+            <Redo className="h-3 w-3" />
           </ToolbarButton>
         </div>
       </div>
 
       {/* Editor Content */}
-      <div className="min-h-[200px] max-h-[400px] overflow-y-auto">
-        <EditorContent editor={editor} className="prose prose-sm max-w-none" />
+      <div className="min-h-[150px] max-h-[300px] overflow-y-auto">
+        <EditorContent editor={editor} className="prose prose-sm max-w-none text-sm" />
       </div>
 
       {/* Placeholder when empty */}
-      {editor.isEmpty && <div className="absolute top-16 left-4 text-gray-400 pointer-events-none">{placeholder}</div>}
+      {editor.isEmpty && <div className="absolute top-12 left-2 text-gray-400 pointer-events-none text-sm">{placeholder}</div>}
     </div>
   )
 }

@@ -189,7 +189,7 @@ export function ComposeForm() {
   const canSend = subject.trim() && message.trim() && emailData.length > 0
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto px-2 sm:px-4 md:px-6 lg:px-0 w-full">
+    <div className="space-y-3 w-full max-w-2xl mx-auto px-2">
       {/* Success Alert */}
       {showSuccess && (
         <Alert className="border-green-200 bg-green-50">
@@ -200,17 +200,17 @@ export function ComposeForm() {
 
       {/* Main Compose Card */}
       <Card className="shadow-lg w-full">
-        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Send className="h-5 w-5 text-blue-600" />
+        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b p-3">
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Send className="h-4 w-4 text-blue-600" />
             Compose Email
           </CardTitle>
-          <p className="text-sm text-gray-600 mt-1">Create personalized emails for your recipients</p>
+          <p className="text-xs text-gray-600 mt-1">Create personalized emails for your recipients</p>
         </CardHeader>
-        <CardContent className="space-y-6 p-4 sm:p-6">
+        <CardContent className="space-y-4 p-3">
           {/* Subject Field */}
           <div className="space-y-2">
-            <Label htmlFor="subject" className="text-base font-medium">
+            <Label htmlFor="subject" className="text-sm font-medium">
               Subject Line
             </Label>
             <Input
@@ -218,7 +218,7 @@ export function ComposeForm() {
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Enter email subject (use {{placeholders}} for personalization)"
-              className="text-base w-full"
+              className="text-sm w-full"
             />
             <p className="text-xs text-gray-500">
               Example: "Hello {`{{name}}`}, special offer for {`{{company}}`}"
@@ -227,12 +227,12 @@ export function ComposeForm() {
 
           {/* Message Field */}
           <div className="space-y-2">
-            <Label htmlFor="message" className="text-base font-medium">
+            <Label htmlFor="message" className="text-sm font-medium">
               Email Message
             </Label>
             <RichTextEditor content={message} onChange={setMessage} />
-            <div className="bg-blue-50 p-3 rounded-lg">
-              <p className="text-sm text-blue-800">
+            <div className="bg-blue-50 p-2 rounded-lg">
+              <p className="text-xs text-blue-800">
                 💡 <strong>Pro Tip:</strong> Use placeholders like {`{{name}}`}, {`{{company}}`}, or {`{{email}}`} to
                 personalize your emails based on your recipient data.
               </p>
@@ -240,212 +240,187 @@ export function ComposeForm() {
           </div>
 
           {/* Attachments */}
-          <div className="space-y-3">
-            <Label htmlFor="attachments" className="text-base font-medium">
+          <div className="space-y-2">
+            <Label htmlFor="attachments" className="text-sm font-medium">
               Attachments
             </Label>
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <div className="flex flex-col gap-2 w-full">
               <input type="file" id="attachments" multiple onChange={handleFileAttachment} className="hidden" />
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
+                className="w-full h-8"
                 onClick={() => document.getElementById("attachments")?.click()}
-                className="flex items-center gap-2"
               >
-                <Paperclip className="h-4 w-4" />
-                Add Files
+                <Paperclip className="h-3 w-3 mr-2" />
+                Add Attachment
               </Button>
-              <span className="text-sm text-gray-500">
-                {attachments.length > 0 ? `${attachments.length} file(s) selected` : "No files selected"}
-              </span>
-            </div>
-
-            {attachments.length > 0 && (
-              <div className="space-y-2">
-                {attachments.map((file, index) => (
-                  <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-gray-50 rounded-lg border gap-2">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-4 w-4 text-gray-500" />
-                      <div>
-                        <p className="font-medium text-sm">{file.name}</p>
-                        <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeAttachment(index)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+              <div className="flex flex-wrap gap-1">
+                {attachments.map((file, idx) => (
+                  <div key={idx} className="flex items-center gap-1 bg-gray-100 rounded px-2 py-1 text-xs">
+                    <FileText className="h-3 w-3" />
+                    <span className="max-w-20 truncate">{file.name}</span>
+                    <button type="button" onClick={() => removeAttachment(idx)}>
+                      <X className="h-3 w-3 ml-1 text-red-500" />
+                    </button>
                   </div>
                 ))}
               </div>
-            )}
+            </div>
           </div>
+
+          {/* Recipients Section */}
+          <Card className="shadow-sm w-full">
+            <CardHeader className="p-3">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <Users className="h-4 w-4" />
+                Recipients
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3 pt-0">
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid w-full grid-cols-2 h-8">
+                  <TabsTrigger value="csv" className="text-xs">CSV Upload</TabsTrigger>
+                  <TabsTrigger value="manual" className="text-xs">Manual Entry</TabsTrigger>
+                </TabsList>
+                <TabsContent value="csv" className="mt-3">
+                  <CSVUpload onDataLoad={setCsvData} csvData={csvData} />
+                </TabsContent>
+                <TabsContent value="manual" className="mt-3">
+                  <div className="space-y-2">
+                    {manualEmails.map((email, idx) => (
+                      <div key={idx} className="flex flex-col gap-2 w-full">
+                        <div className="flex gap-2">
+                          <Input
+                            type="email"
+                            placeholder="Email"
+                            value={email.email}
+                            onChange={(e) => updateManualEmail(idx, "email", e.target.value)}
+                            className="flex-1 text-xs h-8"
+                          />
+                          <Input
+                            type="text"
+                            placeholder="Name"
+                            value={email.name}
+                            onChange={(e) => updateManualEmail(idx, "name", e.target.value)}
+                            className="flex-1 text-xs h-8"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeManualEmail(idx)}
+                            className="text-red-500 h-8 w-8 p-0"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <Button type="button" variant="outline" onClick={addManualEmail} size="sm" className="w-full h-8 text-xs">
+                      <Plus className="h-3 w-3 mr-1" /> Add Recipient
+                    </Button>
+                  </div>
+                  {manualEmails.filter((email) => email.email.trim()).length > 0 && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      📧 {manualEmails.filter((email) => email.email.trim()).length} recipient(s) ready to send
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
 
           {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t">
-            <Button onClick={handlePreview} disabled={!canSend} variant="outline" className="flex-1">
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              onClick={handlePreview}
+              disabled={!canSend || isLoading}
+              className="w-full h-10 text-sm"
+            >
               <Eye className="h-4 w-4 mr-2" />
-              Preview Emails ({emailData.length})
+              Preview & Send
             </Button>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Recipients Section */}
-      <Card className="shadow-lg w-full">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Recipients
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="csv">CSV Upload</TabsTrigger>
-              <TabsTrigger value="manual">Manual Entry</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="csv" className="mt-4">
-              <CSVUpload onDataLoad={setCsvData} csvData={csvData} />
-            </TabsContent>
-
-            <TabsContent value="manual" className="mt-4">
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                  <p className="text-sm text-gray-600">Add recipients manually</p>
-                  <Button onClick={addManualEmail} size="sm" variant="outline">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Recipient
-                  </Button>
+          {/* Send Progress */}
+          {isLoading && (
+            <Card>
+              <CardContent className="p-3">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium">Sending Emails...</h3>
+                    <span className="text-xs text-gray-500">{sendProgress}%</span>
+                  </div>
+                  <Progress value={sendProgress} className="w-full h-2" />
+                  <p className="text-xs text-gray-600">Please wait while we send your emails.</p>
                 </div>
+              </CardContent>
+            </Card>
+          )}
 
-                <div className="space-y-3 max-h-60 overflow-y-auto">
-                  {manualEmails.map((emailData, index) => (
-                    <div key={index} className="flex flex-col sm:flex-row gap-3 items-center p-3 bg-gray-50 rounded-lg">
-                      <div className="flex-1 w-full">
-                        <Input
-                          placeholder="Email address"
-                          value={emailData.email}
-                          onChange={(e) => updateManualEmail(index, "email", e.target.value)}
-                          type="email"
-                        />
-                      </div>
-                      <div className="flex-1 w-full">
-                        <Input
-                          placeholder="Name"
-                          value={emailData.name}
-                          onChange={(e) => updateManualEmail(index, "name", e.target.value)}
-                        />
-                      </div>
-                      {manualEmails.length > 1 && (
-                        <Button
-                          onClick={() => removeManualEmail(index)}
-                          size="sm"
-                          variant="ghost"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+          {/* Send Status */}
+          {sendStatus.length > 0 && (
+            <Card>
+              <CardHeader className="p-3">
+                <CardTitle className="flex items-center gap-2 flex-wrap text-sm">
+                  <Users className="h-4 w-4" />
+                  Send Results
+                  {successCount > 0 && (
+                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">{successCount} sent</span>
+                  )}
+                  {errorCount > 0 && (
+                    <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">{errorCount} failed</span>
+                  )}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-3 pt-0">
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {sendStatus.map((status, index) => (
+                    <div key={index} className="flex flex-col gap-1 p-2 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {status.status === "success" ? (
+                            <CheckCircle className="h-3 w-3 text-green-600" />
+                          ) : status.status === "error" ? (
+                            <AlertCircle className="h-3 w-3 text-red-600" />
+                          ) : (
+                            <div className="h-3 w-3 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+                          )}
+                          <span className="text-xs font-medium truncate flex-1">{status.email}</span>
+                        </div>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            status.status === "success"
+                              ? "bg-green-100 text-green-800"
+                              : status.status === "error"
+                                ? "bg-red-100 text-red-800"
+                                : "bg-yellow-100 text-yellow-800"
+                          }`}
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                          {status.status === "success" ? "Sent" : status.status === "error" ? "Failed" : "Sending..."}
+                        </span>
+                      </div>
+                      {status.error && <p className="text-xs text-red-600 mt-1">{status.error}</p>}
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          )}
 
-                {manualEmails.filter((email) => email.email.trim()).length > 0 && (
-                  <div className="bg-blue-50 p-3 rounded-lg">
-                    <p className="text-sm text-blue-800">
-                      📧 {manualEmails.filter((email) => email.email.trim()).length} recipient(s) ready to send
-                    </p>
-                  </div>
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
+          {/* Email Preview Modal */}
+          {showPreview && (
+            <EmailPreview
+              emails={personalizedEmailsForPreview}
+              onSend={handleSend}
+              onClose={() => setShowPreview(false)}
+              isLoading={isLoading}
+            />
+          )}
         </CardContent>
       </Card>
-
-      {/* Send Progress */}
-      {isLoading && (
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="space-y-3">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between">
-                <h3 className="font-medium">Sending Emails...</h3>
-                <span className="text-sm text-gray-500">{sendProgress}%</span>
-              </div>
-              <Progress value={sendProgress} className="w-full" />
-              <p className="text-sm text-gray-600">Please wait while we send your emails.</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Send Status */}
-      {sendStatus.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 flex-wrap">
-              <Users className="h-5 w-5" />
-              Send Results
-              {successCount > 0 && (
-                <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">{successCount} sent</span>
-              )}
-              {errorCount > 0 && (
-                <span className="text-sm bg-red-100 text-red-800 px-2 py-1 rounded-full">{errorCount} failed</span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {sendStatus.map((status, index) => (
-                <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    {status.status === "success" ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                    ) : status.status === "error" ? (
-                      <AlertCircle className="h-4 w-4 text-red-600" />
-                    ) : (
-                      <div className="h-4 w-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
-                    )}
-                    <span className="font-medium text-sm">{status.email}</span>
-                  </div>
-                  <div className="text-right">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        status.status === "success"
-                          ? "bg-green-100 text-green-800"
-                          : status.status === "error"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-yellow-100 text-yellow-800"
-                      }`}
-                    >
-                      {status.status === "success" ? "Sent" : status.status === "error" ? "Failed" : "Sending..."}
-                    </span>
-                    {status.error && <p className="text-xs text-red-600 mt-1">{status.error}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Email Preview Modal */}
-      {showPreview && (
-        <EmailPreview
-          emails={personalizedEmailsForPreview}
-          onSend={handleSend}
-          onClose={() => setShowPreview(false)}
-          isLoading={isLoading}
-        />
-      )}
     </div>
   )
 }

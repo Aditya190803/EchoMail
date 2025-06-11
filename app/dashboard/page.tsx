@@ -194,13 +194,17 @@ export default function DashboardPage() {
                   <span>New Campaign</span>
                 </Link>
               </Button>
-              <Button variant="outline" className="h-10 flex-col gap-1 text-xs">
-                <Users className="h-4 w-4" />
-                <span>Manage Contacts</span>
+              <Button asChild variant="outline" className="h-10 flex-col gap-1 text-xs">
+                <Link href="/contacts">
+                  <Users className="h-4 w-4" />
+                  <span>Manage Contacts</span>
+                </Link>
               </Button>
-              <Button variant="outline" className="h-10 flex-col gap-1 text-xs">
-                <BarChart3 className="h-4 w-4" />
-                <span>View Analytics</span>
+              <Button asChild variant="outline" className="h-10 flex-col gap-1 text-xs">
+                <Link href="/analytics">
+                  <BarChart3 className="h-4 w-4" />
+                  <span>View Analytics</span>
+                </Link>
               </Button>
             </div>
           </CardContent>

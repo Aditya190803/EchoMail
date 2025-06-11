@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { sendEmailViaAPI, replacePlaceholders } from "@/lib/gmail"
+import { supabase } from "@/lib/supabase"
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,6 +14,10 @@ export async function POST(request: NextRequest) {
 
     const { personalizedEmails } = await request.json()
     const results = []
+
+    // Get first email for campaign info
+    const firstEmail = personalizedEmails[0]
+    const campaignSubject = replacePlaceholders(firstEmail.subject, firstEmail.originalRowData)
 
     for (const email of personalizedEmails) {
       try {
@@ -38,6 +43,25 @@ export async function POST(request: NextRequest) {
           error: error instanceof Error ? error.message : "Unknown error",
         })
       }
+    }
+
+    // Save campaign to Supabase
+    const successCount = results.filter(r => r.status === "success").length
+    const failedCount = results.filter(r => r.status === "error").length
+    
+    try {
+      await supabase.from("email_campaigns").insert({
+        subject: campaignSubject,
+        recipients: personalizedEmails.length,
+        sent: successCount,
+        failed: failedCount,
+        date: new Date().toISOString(),
+        status: failedCount === 0 ? "completed" : "completed",
+        user_email: session.user?.email
+      })
+    } catch (supabaseError) {
+      console.error("Failed to save campaign to Supabase:", supabaseError)
+      // Continue anyway, don't fail the email sending
     }
 
     return NextResponse.json({ results })
