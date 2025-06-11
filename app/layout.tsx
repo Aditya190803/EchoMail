@@ -3,7 +3,6 @@ import "./globals.css"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { Providers } from "./providers"
-import { Footer } from "@/components/footer"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -34,10 +33,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/favicon.ico" />
       </head>
       <body className={inter.className}>
-        <div className="min-h-screen flex flex-col">
-          <Providers>{children}</Providers>
-          <Footer />
-        </div>
+        <Providers>{children}</Providers>
       </body>
     </html>
   )

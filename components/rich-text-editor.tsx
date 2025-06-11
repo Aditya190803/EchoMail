@@ -39,9 +39,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 interface RichTextEditorProps {
   content: string
   onChange: (content: string) => void
+  placeholder?: string
 }
 
-export function RichTextEditor({ content, onChange }: RichTextEditorProps) {
+export function RichTextEditor({ content, onChange, placeholder = "Enter your message..." }: RichTextEditorProps) {
   const [linkUrl, setLinkUrl] = useState("")
   const [imageUrl, setImageUrl] = useState("")
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
@@ -358,6 +359,9 @@ export function RichTextEditor({ content, onChange }: RichTextEditorProps) {
       <div className="min-h-[200px] max-h-[400px] overflow-y-auto">
         <EditorContent editor={editor} className="prose prose-sm max-w-none" />
       </div>
+
+      {/* Placeholder when empty */}
+      {editor.isEmpty && <div className="absolute top-16 left-4 text-gray-400 pointer-events-none">{placeholder}</div>}
     </div>
   )
 }

@@ -124,36 +124,12 @@ export function ComposeForm() {
     try {
       const personalizedEmails = await generatePersonalizedEmails()
 
-      // First create the campaign in the database
-      const campaignResponse = await fetch("/api/campaigns", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          subject,
-          content: message,
-          recipients: personalizedEmails.map((email) => ({
-            email: email.to,
-            name: email.originalRowData.name || "",
-            metadata: email.originalRowData,
-          })),
-        }),
-      })
-
-      if (!campaignResponse.ok) {
-        throw new Error("Failed to create campaign")
-      }
-
-      const { campaignId } = await campaignResponse.json()
-
       const initialStatus = personalizedEmails.map((email) => ({
         email: email.to,
         status: "pending" as const,
       }))
       setSendStatus(initialStatus)
 
-      // Send emails
       const response = await fetch("/api/send-email", {
         method: "POST",
         headers: {
@@ -161,7 +137,6 @@ export function ComposeForm() {
         },
         body: JSON.stringify({
           personalizedEmails,
-          campaignId,
         }),
       })
 
@@ -224,127 +199,121 @@ export function ComposeForm() {
       )}
 
       {/* Main Compose Card */}
-      <Card className="shadow-lg">
-        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
-          <CardTitle className="flex items-center gap-2 text-xl">
-            <Send className="h-5 w-5 text-blue-600" />
-            Compose Email
-          </CardTitle>
-          <p className="text-sm text-gray-600 mt-1">Create personalized emails for your recipients</p>
+      <Card className="w-full max-w-2xl mx-auto p-4 sm:p-8">
+        <CardHeader className="flex flex-col sm:flex-row gap-2 sm:gap-4 items-start sm:items-center">
+          <CardTitle className="text-lg sm:text-2xl font-semibold">Compose Email</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6 p-6">
-          {/* Subject Field */}
-          <div className="space-y-2">
-            <Label htmlFor="subject" className="text-base font-medium">
-              Subject Line
-            </Label>
-            <Input
-              id="subject"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              placeholder="Enter email subject (use {{placeholders}} for personalization)"
-              className="text-base"
-            />
-            <p className="text-xs text-gray-500">
-              Example: "Hello {`{{name}}`}, special offer for {`{{company}}`}"
-            </p>
-          </div>
-
-          {/* Message Field */}
-          <div className="space-y-2">
-            <Label htmlFor="message" className="text-base font-medium">
-              Email Message
-            </Label>
-            <RichTextEditor content={message} onChange={setMessage} />
-            <div className="bg-blue-50 p-3 rounded-lg">
-              <p className="text-sm text-blue-800">
-                💡 <strong>Pro Tip:</strong> Use placeholders like {`{{name}}`}, {`{{company}}`}, or {`{{email}}`} to
-                personalize your emails based on your recipient data.
-              </p>
-            </div>
-          </div>
-
-          {/* Attachments */}
-          <div className="space-y-3">
-            <Label htmlFor="attachments" className="text-base font-medium">
-              Attachments
-            </Label>
-            <div className="flex items-center gap-2">
-              <input type="file" id="attachments" multiple onChange={handleFileAttachment} className="hidden" />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => document.getElementById("attachments")?.click()}
-                className="flex items-center gap-2"
-              >
-                <Paperclip className="h-4 w-4" />
-                Add Files
-              </Button>
-              <span className="text-sm text-gray-500">
-                {attachments.length > 0 ? `${attachments.length} file(s) selected` : "No files selected"}
-              </span>
-            </div>
-
-            {attachments.length > 0 && (
-              <div className="space-y-2">
-                {attachments.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-4 w-4 text-gray-500" />
-                      <div>
-                        <p className="font-medium text-sm">{file.name}</p>
-                        <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeAttachment(index)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3 pt-4 border-t">
-            <Button onClick={handlePreview} disabled={!canSend} variant="outline" className="flex-1">
-              <Eye className="h-4 w-4 mr-2" />
-              Preview Emails ({emailData.length})
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Recipients Section */}
-      <Card className="shadow-lg">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Recipients
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="csv">CSV Upload</TabsTrigger>
-              <TabsTrigger value="manual">Manual Entry</TabsTrigger>
+        <CardContent className="space-y-6">
+          <Tabs defaultValue="editor" className="w-full">
+            <TabsList className="flex flex-col sm:flex-row w-full gap-2 sm:gap-4 mb-4">
+              <TabsTrigger value="editor" className="flex-1">Editor</TabsTrigger>
+              <TabsTrigger value="csv" className="flex-1">CSV Upload</TabsTrigger>
+              <TabsTrigger value="preview" className="flex-1">Preview</TabsTrigger>
             </TabsList>
 
+            {/* Editor Tab */}
+            <TabsContent value="editor">
+              {/* Subject Field */}
+              <div className="space-y-2">
+                <Label htmlFor="subject" className="text-base font-medium">
+                  Subject Line
+                </Label>
+                <Input
+                  id="subject"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="Enter email subject (use {{placeholders}} for personalization)"
+                  className="text-base"
+                />
+                <p className="text-xs text-gray-500">
+                  Example: "Hello {`{{name}}`}, special offer for {`{{company}}`}"
+                </p>
+              </div>
+
+              {/* Message Field */}
+              <div className="space-y-2">
+                <Label htmlFor="message" className="text-base font-medium">
+                  Email Message
+                </Label>
+                <RichTextEditor
+                  content={message}
+                  onChange={setMessage}
+                />
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    💡 <strong>Pro Tip:</strong> Use placeholders like {`{{name}}`}, {`{{company}}`}, or {`{{email}}`} to
+                    personalize your emails based on your recipient data.
+                  </p>
+                </div>
+              </div>
+
+              {/* Attachments */}
+              <div className="space-y-3">
+                <Label htmlFor="attachments" className="text-base font-medium">
+                  Attachments
+                </Label>
+                <div className="flex items-center gap-2">
+                  <input type="file" id="attachments" multiple onChange={handleFileAttachment} className="hidden" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => document.getElementById("attachments")?.click()}
+                    className="flex items-center gap-2"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                    Add Files
+                  </Button>
+                  <span className="text-sm text-gray-500">
+                    {attachments.length > 0 ? `${attachments.length} file(s) selected` : "No files selected"}
+                  </span>
+                </div>
+
+                {attachments.length > 0 && (
+                  <div className="space-y-2">
+                    {attachments.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                        <div className="flex items-center gap-3">
+                          <FileText className="h-4 w-4 text-gray-500" />
+                          <div>
+                            <p className="font-medium text-sm">{file.name}</p>
+                            <p className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)} KB</p>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeAttachment(index)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3 pt-4 border-t">
+                <Button onClick={handlePreview} disabled={!canSend} variant="outline" className="flex-1">
+                  <Eye className="h-4 w-4 mr-2" />
+                  Preview Emails ({emailData.length})
+                </Button>
+              </div>
+            </TabsContent>
+
+            {/* CSV Upload Tab */}
             <TabsContent value="csv" className="mt-4">
               <CSVUpload onDataLoad={setCsvData} csvData={csvData} />
             </TabsContent>
 
-            <TabsContent value="manual" className="mt-4">
+            {/* Preview Tab */}
+            <TabsContent value="preview" className="mt-4">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-600">Add recipients manually</p>
+                  <p className="text-sm text-gray-600">Preview your email</p>
                   <Button onClick={addManualEmail} size="sm" variant="outline">
                     <Plus className="h-4 w-4 mr-2" />
                     Add Recipient
