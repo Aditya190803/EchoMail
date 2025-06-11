@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Eye, Send, X } from "lucide-react"
+import { Eye, Send, X, Paperclip } from "lucide-react"
 import type { PersonalizedEmail } from "@/types/email"
 
 interface EmailPreviewProps {
@@ -30,20 +30,47 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
           <div className="max-h-96 overflow-y-auto space-y-4">
             {emails.slice(0, 3).map((email, index) => (
               <div key={index} className="border rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-3">
                   <Badge variant="outline">{email.to}</Badge>
+                  {email.attachments && email.attachments.length > 0 && (
+                    <Badge variant="secondary" className="flex items-center gap-1">
+                      <Paperclip className="h-3 w-3" />
+                      {email.attachments.length} attachment{email.attachments.length > 1 ? "s" : ""}
+                    </Badge>
+                  )}
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <div>
-                    <span className="font-medium">Subject: </span>
-                    {email.subject}
+                    <span className="font-medium text-gray-700">Subject: </span>
+                    <span className="font-semibold">{email.subject}</span>
                   </div>
                   <div>
-                    <span className="font-medium">Message: </span>
-                    <div className="mt-1 p-2 bg-gray-50 rounded text-sm">
-                      {email.message.length > 200 ? email.message.substring(0, 200) + "..." : email.message}
+                    <span className="font-medium text-gray-700">Message: </span>
+                    <div className="mt-2 p-3 bg-gray-50 rounded-lg border">
+                      <div
+                        className="prose prose-sm max-w-none"
+                        dangerouslySetInnerHTML={{
+                          __html: email.message.length > 300 ? email.message.substring(0, 300) + "..." : email.message,
+                        }}
+                      />
                     </div>
                   </div>
+                  {email.attachments && email.attachments.length > 0 && (
+                    <div>
+                      <span className="font-medium text-gray-700">Attachments: </span>
+                      <div className="mt-2 space-y-1">
+                        {email.attachments.map((attachment, attachIndex) => (
+                          <div
+                            key={attachIndex}
+                            className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-2 rounded"
+                          >
+                            <Paperclip className="h-3 w-3" />
+                            {attachment.name}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

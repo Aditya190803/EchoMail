@@ -5,6 +5,12 @@ export interface EmailData {
   attachments?: File[]
 }
 
+export interface AttachmentData {
+  name: string
+  type: string
+  data: string // base64 encoded
+}
+
 export interface CSVRow {
   email: string
   [key: string]: string
@@ -15,6 +21,7 @@ export interface PersonalizedEmail {
   subject: string
   message: string
   originalRowData: CSVRow
+  attachments?: AttachmentData[]
 }
 
 export interface SendStatus {

@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
           email.to,
           personalizedSubject,
           personalizedMessage,
-          email.attachments,
+          email.attachments, // Now properly formatted as AttachmentData[]
         )
 
         results.push({

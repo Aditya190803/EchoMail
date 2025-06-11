@@ -1,9 +1,15 @@
+export interface AttachmentData {
+  name: string
+  type: string
+  data: string // base64 encoded
+}
+
 export async function sendEmailViaAPI(
   accessToken: string,
   to: string,
   subject: string,
   htmlBody: string,
-  attachments?: File[],
+  attachments?: AttachmentData[],
 ) {
   const boundary = "boundary_" + Math.random().toString(36).substr(2, 9)
 
@@ -19,16 +25,13 @@ export async function sendEmailViaAPI(
   ]
 
   if (attachments && attachments.length > 0) {
-    for (const file of attachments) {
-      const buffer = await file.arrayBuffer()
-      const base64 = Buffer.from(buffer).toString("base64")
-
+    for (const attachment of attachments) {
       email.push(`--${boundary}`)
-      email.push(`Content-Type: ${file.type}; name="${file.name}"`)
-      email.push(`Content-Disposition: attachment; filename="${file.name}"`)
+      email.push(`Content-Type: ${attachment.type}; name="${attachment.name}"`)
+      email.push(`Content-Disposition: attachment; filename="${attachment.name}"`)
       email.push("Content-Transfer-Encoding: base64")
       email.push("")
-      email.push(base64)
+      email.push(attachment.data)
     }
   }
 

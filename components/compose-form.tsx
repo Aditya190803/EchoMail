@@ -5,17 +5,36 @@ import type React from "react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Paperclip, Eye } from "lucide-react"
+import { Paperclip, Eye, X } from "lucide-react"
 import { CSVUpload } from "./csv-upload"
 import { EmailPreview } from "./email-preview"
-import type { CSVRow, PersonalizedEmail, SendStatus } from "@/types/email"
+import { RichTextEditor } from "./rich-text-editor"
+import type { CSVRow, PersonalizedEmail, SendStatus, AttachmentData } from "@/types/email"
 
-// Simple client-side placeholder replacement
+// Simple client-side placeholder replacement for HTML content
 function replacePlaceholders(template: string, data: Record<string, string>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => data[key] || match)
+}
+
+// Convert File to base64
+async function fileToBase64(file: File): Promise<AttachmentData> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.readAsDataURL(file)
+    reader.onload = () => {
+      const result = reader.result as string
+      // Remove the data URL prefix (e.g., "data:image/png;base64,")
+      const base64Data = result.split(",")[1]
+      resolve({
+        name: file.name,
+        type: file.type,
+        data: base64Data,
+      })
+    }
+    reader.onerror = reject
+  })
 }
 
 export function ComposeForm() {
@@ -36,16 +55,28 @@ export function ComposeForm() {
     setAttachments((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const generatePersonalizedEmails = (): PersonalizedEmail[] => {
+  const generatePersonalizedEmails = async (): Promise<PersonalizedEmail[]> => {
+    // Convert all files to base64
+    const attachmentData: AttachmentData[] = []
+    for (const file of attachments) {
+      try {
+        const base64Attachment = await fileToBase64(file)
+        attachmentData.push(base64Attachment)
+      } catch (error) {
+        console.error(`Failed to convert file ${file.name} to base64:`, error)
+      }
+    }
+
     return csvData.map((row) => ({
       to: row.email,
       subject: replacePlaceholders(subject, row),
       message: replacePlaceholders(message, row),
       originalRowData: row,
+      attachments: attachmentData,
     }))
   }
 
-  const handlePreview = () => {
+  const handlePreview = async () => {
     if (csvData.length === 0) {
       alert("Please upload CSV data first")
       return
@@ -61,26 +92,23 @@ export function ComposeForm() {
     setIsLoading(true)
     setSendStatus([])
 
-    const personalizedEmails = generatePersonalizedEmails()
-
-    // Initialize status
-    const initialStatus = personalizedEmails.map((email) => ({
-      email: email.to,
-      status: "pending" as const,
-    }))
-    setSendStatus(initialStatus)
-
     try {
+      const personalizedEmails = await generatePersonalizedEmails()
+
+      // Initialize status
+      const initialStatus = personalizedEmails.map((email) => ({
+        email: email.to,
+        status: "pending" as const,
+      }))
+      setSendStatus(initialStatus)
+
       const response = await fetch("/api/send-email", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          personalizedEmails: personalizedEmails.map((email) => ({
-            ...email,
-            attachments,
-          })),
+          personalizedEmails,
         }),
       })
 
@@ -101,7 +129,22 @@ export function ComposeForm() {
     }
   }
 
-  const personalizedEmails = generatePersonalizedEmails()
+  const getPersonalizedEmailsForPreview = (): PersonalizedEmail[] => {
+    // For preview, we don't need to convert files to base64
+    return csvData.map((row) => ({
+      to: row.email,
+      subject: replacePlaceholders(subject, row),
+      message: replacePlaceholders(message, row),
+      originalRowData: row,
+      attachments: attachments.map((file) => ({
+        name: file.name,
+        type: file.type,
+        data: "", // Empty for preview
+      })),
+    }))
+  }
+
+  const personalizedEmailsForPreview = getPersonalizedEmailsForPreview()
 
   return (
     <div className="space-y-6">
@@ -109,7 +152,7 @@ export function ComposeForm() {
         <CardHeader>
           <CardTitle>Compose Email</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           <div>
             <Label htmlFor="subject">Subject</Label>
             <Input
@@ -117,23 +160,32 @@ export function ComposeForm() {
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Enter email subject (use {{placeholders}} for personalization)"
+              className="mt-1"
             />
           </div>
 
           <div>
-            <Label htmlFor="message">Message</Label>
-            <Textarea
-              id="message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Enter email message (use {{placeholders}} for personalization)"
-              rows={8}
-            />
+            <Label htmlFor="message" className="text-base font-medium">
+              Message
+            </Label>
+            <div className="mt-2">
+              <RichTextEditor
+                content={message}
+                onChange={setMessage}
+                placeholder="Compose your email message here. Use {{placeholders}} for personalization..."
+              />
+            </div>
+            <div className="mt-2 text-sm text-gray-600">
+              <p>
+                💡 <strong>Tip:</strong> Use placeholders like {`{name}`} or {`{company}`} to personalize your emails
+                based on CSV data.
+              </p>
+            </div>
           </div>
 
           <div>
             <Label htmlFor="attachments">Attachments</Label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mt-1">
               <input type="file" id="attachments" multiple onChange={handleFileAttachment} className="hidden" />
               <Button
                 type="button"
@@ -146,12 +198,16 @@ export function ComposeForm() {
               </Button>
             </div>
             {attachments.length > 0 && (
-              <div className="mt-2 space-y-1">
+              <div className="mt-3 space-y-2">
                 {attachments.map((file, index) => (
-                  <div key={index} className="flex items-center justify-between text-sm bg-gray-50 p-2 rounded">
-                    <span>{file.name}</span>
+                  <div key={index} className="flex items-center justify-between text-sm bg-gray-50 p-3 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Paperclip className="h-4 w-4 text-gray-500" />
+                      <span className="font-medium">{file.name}</span>
+                      <span className="text-gray-500">({(file.size / 1024).toFixed(1)} KB)</span>
+                    </div>
                     <Button type="button" variant="ghost" size="sm" onClick={() => removeAttachment(index)}>
-                      Remove
+                      <X className="h-4 w-4" />
                     </Button>
                   </div>
                 ))}
@@ -159,14 +215,15 @@ export function ComposeForm() {
             )}
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 pt-4 border-t">
             <Button
               onClick={handlePreview}
               disabled={!subject.trim() || !message.trim() || csvData.length === 0}
               variant="outline"
+              className="flex-1"
             >
               <Eye className="h-4 w-4 mr-2" />
-              Preview
+              Preview Emails
             </Button>
           </div>
         </CardContent>
@@ -205,7 +262,7 @@ export function ComposeForm() {
 
       {showPreview && (
         <EmailPreview
-          emails={personalizedEmails}
+          emails={personalizedEmailsForPreview}
           onSend={handleSend}
           onClose={() => setShowPreview(false)}
           isLoading={isLoading}
