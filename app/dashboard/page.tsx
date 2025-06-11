@@ -21,7 +21,6 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { AuthButton } from "@/components/auth-button"
-import { getSupabaseClient } from "@/lib/supabase"
 
 interface EmailCampaign {
   id: string
@@ -34,11 +33,9 @@ interface EmailCampaign {
 }
 
 export default function DashboardPage() {
-  const supabase = getSupabaseClient();
   const { data: session, status } = useSession()
   const router = useRouter()
   const [emailHistory, setEmailHistory] = useState<EmailCampaign[]>([])
-  const [loadingHistory, setLoadingHistory] = useState(true)
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -47,27 +44,47 @@ export default function DashboardPage() {
   }, [status, router])
 
   useEffect(() => {
-    async function fetchHistory() {
-      if (!session?.user?.email) return
-      setLoadingHistory(true)
-      const { data, error } = await supabase
-        .from("campaigns")
-        .select("id, subject, recipients, sent, failed, date, status")
-        .eq("user_email", session.user.email)
-        .order("date", { ascending: false })
-      if (error) {
-        setEmailHistory([])
-      } else {
-        setEmailHistory(data || [])
-      }
-      setLoadingHistory(false)
+    // Load email history from localStorage (in a real app, this would come from a database)
+    const savedHistory = localStorage.getItem("emailHistory")
+    if (savedHistory) {
+      setEmailHistory(JSON.parse(savedHistory))
+    } else {
+      // Demo data for better UX
+      const demoData: EmailCampaign[] = [
+        {
+          id: "1",
+          subject: "Welcome to our newsletter",
+          recipients: 150,
+          sent: 148,
+          failed: 2,
+          date: "2024-01-15",
+          status: "completed",
+        },
+        {
+          id: "2",
+          subject: "Product launch announcement",
+          recipients: 89,
+          sent: 89,
+          failed: 0,
+          date: "2024-01-12",
+          status: "completed",
+        },
+        {
+          id: "3",
+          subject: "Monthly update",
+          recipients: 203,
+          sent: 195,
+          failed: 8,
+          date: "2024-01-08",
+          status: "completed",
+        },
+      ]
+      setEmailHistory(demoData)
+      localStorage.setItem("emailHistory", JSON.stringify(demoData))
     }
-    if (status === "authenticated") {
-      fetchHistory()
-    }
-  }, [status, session])
+  }, [])
 
-  if (status === "loading" || loadingHistory) {
+  if (status === "loading") {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card className="w-full max-w-md">
@@ -96,21 +113,21 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row justify-between items-center py-4 gap-4 md:gap-0">
+          <div className="flex justify-between items-center py-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 rounded-lg">
                 <Mail className="h-6 w-6 text-blue-600" />
               </div>
               <div>
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900">EchoMail Dashboard</h1>
-                <p className="text-xs sm:text-sm text-gray-600">Welcome back, {session?.user?.name}</p>
+                <h1 className="text-xl font-bold text-gray-900">EchoMail Dashboard</h1>
+                <p className="text-sm text-gray-600">Welcome back, {session?.user?.name}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <Button asChild>
                 <Link href="/compose" className="flex items-center gap-2">
                   <Plus className="h-4 w-4" />
-                  <span className="hidden sm:inline">New Campaign</span>
+                  New Campaign
                 </Link>
               </Button>
               <AuthButton />
@@ -121,9 +138,9 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-2 sm:px-4 py-6">
+        <div className="px-4 py-6 sm:px-0">
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -182,7 +199,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Button asChild className="h-20 flex-col gap-2">
                   <Link href="/compose">
                     <Plus className="h-6 w-6" />
@@ -227,15 +244,15 @@ export default function DashboardPage() {
                   {emailHistory.map((campaign) => (
                     <div
                       key={campaign.id}
-                      className="flex flex-col md:flex-row items-start md:items-center justify-between p-4 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors gap-4"
+                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors"
                     >
-                      <div className="flex items-center gap-4 w-full md:w-auto">
+                      <div className="flex items-center gap-4">
                         <div className="p-2 bg-white rounded-lg">
                           <Mail className="h-5 w-5 text-gray-600" />
                         </div>
                         <div>
-                          <h4 className="font-medium text-gray-900 break-words max-w-xs md:max-w-none">{campaign.subject}</h4>
-                          <div className="flex flex-wrap items-center gap-4 mt-1">
+                          <h4 className="font-medium text-gray-900">{campaign.subject}</h4>
+                          <div className="flex items-center gap-4 mt-1">
                             <span className="text-sm text-gray-600 flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
                               {new Date(campaign.date).toLocaleDateString()}
@@ -247,7 +264,7 @@ export default function DashboardPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex flex-col sm:flex-row items-end md:items-center gap-2 md:gap-4 w-full md:w-auto">
+                      <div className="flex items-center gap-4">
                         <div className="text-right">
                           <div className="flex items-center gap-2 mb-1">
                             <CheckCircle className="h-4 w-4 text-green-600" />

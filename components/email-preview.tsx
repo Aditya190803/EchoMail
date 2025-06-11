@@ -17,8 +17,8 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <Card className="w-full max-w-4xl max-h-[90vh] overflow-hidden">
-        <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-0">
-          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
             <Eye className="h-5 w-5" />
             Email Preview ({emails.length} emails)
           </CardTitle>
@@ -29,8 +29,8 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
         <CardContent className="space-y-4">
           <div className="max-h-96 overflow-y-auto space-y-4">
             {emails.slice(0, 3).map((email, index) => (
-              <div key={index} className="border rounded-lg p-4 text-xs sm:text-sm">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mb-3">
+              <div key={index} className="border rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-3">
                   <Badge variant="outline">{email.to}</Badge>
                   {email.attachments && email.attachments.length > 0 && (
                     <Badge variant="secondary" className="flex items-center gap-1">
@@ -46,7 +46,7 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
                   </div>
                   <div>
                     <span className="font-medium text-gray-700">Message: </span>
-                    <div className="mt-2 p-3 bg-gray-50 rounded-lg border overflow-x-auto">
+                    <div className="mt-2 p-3 bg-gray-50 rounded-lg border">
                       <div
                         className="prose prose-sm max-w-none"
                         dangerouslySetInnerHTML={{
@@ -75,15 +75,15 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
               </div>
             ))}
             {emails.length > 3 && (
-              <div className="text-center text-gray-500 text-xs sm:text-sm">... and {emails.length - 3} more emails</div>
+              <div className="text-center text-gray-500 text-sm">... and {emails.length - 3} more emails</div>
             )}
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t">
+          <div className="flex gap-2 pt-4 border-t">
             <Button onClick={onSend} disabled={isLoading} className="flex-1">
               <Send className="h-4 w-4 mr-2" />
               {isLoading ? "Sending..." : `Send ${emails.length} Emails`}
             </Button>
-            <Button variant="outline" onClick={onClose} className="flex-1 sm:flex-initial">
+            <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
           </div>
