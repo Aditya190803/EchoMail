@@ -1,8 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { authOptions } from "@/lib/auth"
 import { sendEmailViaAPI, replacePlaceholders } from "@/lib/gmail"
-import { supabaseAdmin } from "@/lib/supabase"
+import { db } from "@/lib/firebase"
+import { collection, addDoc, serverTimestamp } from "firebase/firestore"
 
 export async function POST(request: NextRequest) {
   try {
@@ -77,35 +78,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Always save campaign to Supabase, regardless of email success/failure
+    // Always save campaign to Firebase, regardless of email success/failure
     const successCount = results.filter(r => r.status === "success").length
     const failedCount = results.filter(r => r.status === "error").length
     
-    try {
-      const campaignData = {
-        subject: campaignSubject,
-        recipients: personalizedEmails.length,
-        sent: successCount,
-        failed: failedCount,
-        date: new Date().toISOString(),
-        status: failedCount === 0 ? "completed" : (successCount === 0 ? "failed" : "partial"),
-        user_email: session.user.email
-      }
-
-      console.log("Saving campaign to Supabase:", campaignData)
-      
-      const { data, error } = await supabaseAdmin.from("email_campaigns").insert(campaignData)
-      
-      if (error) {
-        console.error("Supabase insert error:", error)
-        // Don't fail the request if Supabase fails, just log it
-      } else {
-        console.log("Campaign saved successfully to Supabase:", data)
-      }
-    } catch (supabaseError) {
-      console.error("Failed to save campaign to Supabase:", supabaseError)
-      // Continue anyway, don't fail the email sending response
-    }
+    // Note: Campaign data is now saved by the frontend component to avoid duplicates
+    // This allows for more detailed campaign data including content, attachments, etc.
 
     return NextResponse.json({ 
       results,
