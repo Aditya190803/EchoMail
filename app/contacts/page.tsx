@@ -40,7 +40,20 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { AuthButton } from "@/components/auth-button"
-import { supabase } from "@/lib/supabase"
+import { db } from "@/lib/firebase"
+import { 
+  collection, 
+  addDoc, 
+  deleteDoc, 
+  doc, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot, 
+  serverTimestamp,
+  Timestamp,
+  getDocs
+} from "firebase/firestore"
 
 interface Contact {
   id: string
@@ -49,7 +62,7 @@ interface Contact {
   company?: string
   phone?: string
   tags?: string[]
-  created_at: string
+  created_at: Timestamp | string
   user_email: string
 }
 
@@ -68,17 +81,91 @@ export default function ContactsPage() {
     phone: "",
   })
   const [importStatus, setImportStatus] = useState<string>("")
+  const [firebaseStatus, setFirebaseStatus] = useState<string>("")
+  // Test Firebase connection
+  const testFirebase = async () => {
+    try {
+      setFirebaseStatus("Testing Firebase connection...")
+      console.log("Testing Firebase connection...")
+      
+      // Try to read from contacts collection
+      const contactsRef = collection(db, "contacts")
+      const snapshot = await getDocs(contactsRef)
+      
+      console.log("Firebase read test successful, total docs count:", snapshot.size)
+      
+      // Try to read user-specific contacts
+      if (session?.user?.email) {
+        const userQuery = query(
+          contactsRef,
+          where("user_email", "==", session.user.email)
+        )
+        const userSnapshot = await getDocs(userQuery)
+        console.log("User-specific contacts:", userSnapshot.size)
+        
+        setFirebaseStatus(`✅ Firebase connected! Total: ${snapshot.size} docs, Your contacts: ${userSnapshot.size}`)
+      } else {
+        setFirebaseStatus(`✅ Firebase connected! Found ${snapshot.size} documents in contacts collection.`)
+      }
+      
+    } catch (error) {
+      console.error("Firebase test error:", error)
+      setFirebaseStatus(`❌ Firebase error: ${(error as Error).message}`)
+    }
+    
+    setTimeout(() => setFirebaseStatus(""), 5000)
+  }
+
+  // Manual refresh function
+  const refreshContacts = async () => {
+    if (!session?.user?.email) return
+    
+    try {
+      console.log("Manually refreshing contacts...")
+      const contactsRef = collection(db, "contacts")
+      const q = query(
+        contactsRef,
+        where("user_email", "==", session.user.email)
+      )
+      
+      const snapshot = await getDocs(q)
+      console.log("Manual refresh - found contacts:", snapshot.size)
+      
+      const contactsData: Contact[] = []
+      snapshot.forEach((doc) => {
+        console.log("Manual refresh doc:", doc.id, doc.data())
+        contactsData.push({
+          id: doc.id,
+          ...doc.data()
+        } as Contact)
+      })
+      
+      setContacts(contactsData)
+      setFirebaseStatus(`🔄 Manually refreshed: Found ${contactsData.length} contacts`)
+      
+      setTimeout(() => setFirebaseStatus(""), 3000)
+      
+    } catch (error) {
+      console.error("Manual refresh error:", error)
+      setFirebaseStatus(`❌ Refresh error: ${(error as Error).message}`)
+      setTimeout(() => setFirebaseStatus(""), 5000)
+    }
+  }
 
   // Fix hydration mismatch by only rendering after mount
   useEffect(() => {
     setIsMounted(true)
   }, [])
-
   // Safe date formatting to prevent hydration mismatches
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateValue: string | Timestamp) => {
     if (!isMounted) return "" // Prevent SSR/client mismatch
     try {
-      return new Date(dateString).toLocaleDateString()
+      if (typeof dateValue === 'string') {
+        return new Date(dateValue).toLocaleDateString()
+      } else if (dateValue && typeof dateValue.toDate === 'function') {
+        return dateValue.toDate().toLocaleDateString()
+      }
+      return "Invalid date"
     } catch (error) {
       return "Invalid date"
     }
@@ -89,100 +176,111 @@ export default function ContactsPage() {
       router.push("/")
     }
   }, [status, router])
-
   useEffect(() => {
-    async function fetchContacts() {
-      if (!session?.user?.email) return
-      
-      try {
-        const { data, error } = await supabase
-          .from("contacts")
-          .select("*")
-          .eq("user_email", session.user.email)
-          .order("created_at", { ascending: false })
-        
-        if (!error && data) {
-          setContacts(data as Contact[])
-        } else {
-          console.error("Error fetching contacts:", error)
-        }
-      } catch (e) {
-        console.error("Failed to fetch contacts:", e)
-      }
+    if (!session?.user?.email) {
+      console.log("No user email, skipping contacts fetch")
+      return
     }
     
-    if (session?.user?.email) {
-      // Initial fetch
-      fetchContacts()
+    console.log("Setting up Firebase listener for user:", session.user.email)
+    
+    // Set up real-time listener for contacts
+    const contactsRef = collection(db, "contacts")
+    
+    // First try to get all contacts to see if there are any
+    getDocs(contactsRef).then((allSnapshot) => {
+      console.log("Total contacts in database (all users):", allSnapshot.size)
+      allSnapshot.forEach((doc) => {
+        console.log("All contacts doc:", doc.id, doc.data())
+      })
+    }).catch((error) => {
+      console.error("Error getting all contacts:", error)
+    })
+    
+    const q = query(
+      contactsRef,
+      where("user_email", "==", session.user.email),
+      orderBy("created_at", "desc")
+    )
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log("Firebase snapshot received, docs count:", snapshot.size)
+      const contactsData: Contact[] = []
+      snapshot.forEach((doc) => {
+        console.log("Contact doc:", doc.id, doc.data())
+        contactsData.push({
+          id: doc.id,
+          ...doc.data()
+        } as Contact)
+      })
+      console.log("Setting contacts:", contactsData)
+      setContacts(contactsData)
+    }, (error) => {
+      console.error("Error fetching contacts:", error)
+      // Try a simpler query without orderBy in case that's the issue
+      console.log("Trying simpler query without orderBy...")
+      const simpleQuery = query(
+        contactsRef,
+        where("user_email", "==", session.user.email)
+      )
       
-      // Set up real-time subscription
-      const channel = supabase
-        .channel('contacts_changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'contacts',
-            filter: `user_email=eq.${session.user.email}`
-          },
-          (payload) => {
-            console.log('Real-time contact update:', payload)
-            // Refetch data when any change occurs
-            fetchContacts()
-          }
-        )
-        .subscribe()
-      
-      return () => {
-        supabase.removeChannel(channel)
-      }
-    }
+      getDocs(simpleQuery).then((simpleSnapshot) => {
+        console.log("Simple query result:", simpleSnapshot.size)
+        const contactsData: Contact[] = []
+        simpleSnapshot.forEach((doc) => {
+          contactsData.push({
+            id: doc.id,
+            ...doc.data()
+          } as Contact)
+        })
+        setContacts(contactsData)
+      }).catch((simpleError) => {
+        console.error("Simple query also failed:", simpleError)
+      })
+    })
+    
+    return () => unsubscribe()
   }, [session])
 
   const addContact = async () => {
-    if (!session?.user?.email || !newContact.email.trim()) return
+    if (!session?.user?.email || !newContact.email.trim()) {
+      console.log("Cannot add contact - missing user email or contact email")
+      return
+    }
     
+    console.log("Adding contact:", newContact, "for user:", session.user.email)
     setIsLoading(true)
     try {
-      const { data, error } = await supabase
-        .from("contacts")
-        .insert({
-          email: newContact.email.trim(),
-          name: newContact.name.trim() || null,
-          company: newContact.company.trim() || null,
-          phone: newContact.phone.trim() || null,
-          user_email: session.user.email,
-        })
-      
-      if (!error) {
-        setNewContact({ email: "", name: "", company: "", phone: "" })
-        setShowAddForm(false)
-      } else {
-        console.error("Error adding contact:", error)
-        alert("Failed to add contact. Please try again.")
+      const contactsRef = collection(db, "contacts")
+      const contactData = {
+        email: newContact.email.trim(),
+        name: newContact.name.trim() || null,
+        company: newContact.company.trim() || null,
+        phone: newContact.phone.trim() || null,
+        user_email: session.user.email,
+        created_at: serverTimestamp()
       }
-    } catch (e) {
-      console.error("Failed to add contact:", e)
-      alert("Failed to add contact. Please try again.")
+      
+      console.log("Contact data to save:", contactData)
+      const docRef = await addDoc(contactsRef, contactData)
+      console.log("Contact saved with ID:", docRef.id)
+      
+      setNewContact({ email: "", name: "", company: "", phone: "" })
+      setShowAddForm(false)
+    } catch (error) {
+      console.error("Error adding contact:", error)
+      alert("Failed to add contact. Please try again. Error: " + (error as Error).message)
     }
     setIsLoading(false)
   }
-
   const deleteContact = async (contactId: string) => {
+    if (!session?.user?.email) return
+    
     try {
-      const { error } = await supabase
-        .from("contacts")
-        .delete()
-        .eq("id", contactId)
-        .eq("user_email", session?.user?.email)
-      
-      if (error) {
-        console.error("Error deleting contact:", error)
-        alert("Failed to delete contact. Please try again.")
-      }
-    } catch (e) {
-      console.error("Failed to delete contact:", e)
+      const contactRef = doc(db, "contacts", contactId)
+      await deleteDoc(contactRef)
+    } catch (error) {
+      console.error("Error deleting contact:", error)
       alert("Failed to delete contact. Please try again.")
     }
   }
@@ -236,22 +334,29 @@ export default function ContactsPage() {
           .filter(contact => contact.email && contact.email.includes('@'))
 
         if (contactsToImport.length > 0 && session?.user?.email) {
-          const contactsWithUser = contactsToImport.map(contact => ({
-            ...contact,
-            user_email: session.user!.email,
-            name: contact.name || null,
-            company: contact.company || null,
-            phone: contact.phone || null,
-          }))
+          const contactsRef = collection(db, "contacts")
+          
+          // Add contacts one by one to avoid batch limitations
+          let successCount = 0
+          for (const contact of contactsToImport) {
+            try {
+              await addDoc(contactsRef, {
+                email: contact.email,
+                name: contact.name || null,
+                company: contact.company || null,
+                phone: contact.phone || null,
+                user_email: session.user.email,
+                created_at: serverTimestamp()
+              })
+              successCount++
+            } catch (error) {
+              console.error("Error importing contact:", contact.email, error)
+            }
+          }
 
-          const { error } = await supabase
-            .from("contacts")
-            .insert(contactsWithUser)
-
-          if (!error) {
-            setImportStatus(`Successfully imported ${contactsToImport.length} contacts`)
+          if (successCount > 0) {
+            setImportStatus(`Successfully imported ${successCount} contacts`)
           } else {
-            console.error("Import error:", error)
             setImportStatus("Error importing contacts")
           }
         } else {
@@ -343,8 +448,15 @@ export default function ContactsPage() {
               <DialogContent className="mx-4 max-w-md">
                 <DialogHeader>
                   <DialogTitle>Add New Contact</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
+                </DialogHeader>                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Name *</label>
+                    <Input
+                      placeholder="John Doe"
+                      value={newContact.name}
+                      onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
+                    />
+                  </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Email *</label>
                     <Input
@@ -352,14 +464,6 @@ export default function ContactsPage() {
                       placeholder="john@example.com"
                       value={newContact.email}
                       onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Name</label>
-                    <Input
-                      placeholder="John Doe"
-                      value={newContact.name}
-                      onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
                     />
                   </div>
                   <div>
@@ -381,7 +485,7 @@ export default function ContactsPage() {
                   <div className="flex gap-2">
                     <Button 
                       onClick={addContact} 
-                      disabled={isLoading || !newContact.email.trim()}
+                      disabled={isLoading || !newContact.name.trim() || !newContact.email.trim()}
                       className="flex-1"
                     >
                       {isLoading ? "Adding..." : "Add Contact"}
@@ -417,8 +521,7 @@ export default function ContactsPage() {
               />
             </div>
           </div>
-          
-          {/* Import Status */}
+            {/* Import Status */}
           {importStatus && (
             <div className={`p-3 rounded-md text-sm ${
               importStatus.includes("Successfully") 
@@ -433,6 +536,36 @@ export default function ContactsPage() {
                 )}
                 {importStatus}
               </div>
+            </div>
+          )}
+            {/* Firebase Test */}
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={testFirebase}
+              className="text-xs"
+              size="sm"
+            >
+              Test Firebase Connection
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={refreshContacts}
+              className="text-xs"
+              size="sm"
+            >
+              🔄 Refresh Contacts
+            </Button>
+          </div>
+          
+          {/* Firebase Status */}
+          {firebaseStatus && (
+            <div className={`p-3 rounded-md text-sm ${
+              firebaseStatus.includes("✅") 
+                ? "bg-green-50 text-green-700 border border-green-200" 
+                : "bg-red-50 text-red-700 border border-red-200"
+            }`}>
+              {firebaseStatus}
             </div>
           )}
         </div>

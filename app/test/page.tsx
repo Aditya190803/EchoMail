@@ -5,7 +5,17 @@ import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { testSupabaseConnection, supabase } from "@/lib/supabase"
+import { db } from "@/lib/firebase"
+import { 
+  collection, 
+  addDoc, 
+  deleteDoc, 
+  doc, 
+  getDocs, 
+  query, 
+  where, 
+  serverTimestamp 
+} from "firebase/firestore"
 import { 
   Database, 
   CheckCircle, 
@@ -21,7 +31,6 @@ export default function TestPage() {
   const [connectionStatus, setConnectionStatus] = useState<'loading' | 'success' | 'error' | 'untested'>('untested')
   const [error, setError] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<any>({})
-
   const runFullTest = async () => {
     if (!session?.user?.email) {
       setError("Please sign in first")
@@ -34,77 +43,57 @@ export default function TestPage() {
 
     try {
       // Test 1: Basic connection
-      const connection = await testSupabaseConnection()
-      results.connection = connection.success
-
-      if (!connection.success) {
-        throw new Error("Database connection failed")
-      }
+      const campaignsRef = collection(db, "email_campaigns")
+      const contactsRef = collection(db, "contacts")
+      
+      // Test reading collections
+      await getDocs(query(campaignsRef))
+      await getDocs(query(contactsRef))
+      results.connection = true
 
       // Test 2: Create a test contact
-      const testContact = {
+      const testContactData = {
         email: "test@example.com",
         name: "Test Contact",
         company: "Test Company",
-        user_email: session.user.email
+        user_email: session.user.email,
+        created_at: serverTimestamp()
       }
 
-      const { data: insertData, error: insertError } = await supabase
-        .from("contacts")
-        .insert(testContact)
-        .select()
-
-      results.contactInsert = !insertError
-      
-      if (insertError) {
-        throw new Error(`Contact insert failed: ${insertError.message}`)
-      }
+      const contactDocRef = await addDoc(contactsRef, testContactData)
+      results.contactInsert = !!contactDocRef.id
 
       // Test 3: Read contacts
-      const { data: contacts, error: selectError } = await supabase
-        .from("contacts")
-        .select("*")
-        .eq("user_email", session.user.email)
-
-      results.contactRead = !selectError && contacts && contacts.length > 0
+      const contactsQuery = query(contactsRef, where("user_email", "==", session.user.email))
+      const contactsSnapshot = await getDocs(contactsQuery)
+      results.contactRead = !contactsSnapshot.empty
 
       // Test 4: Create test campaign
-      const testCampaign = {
+      const testCampaignData = {
         subject: "Test Campaign",
         recipients: 1,
         sent: 1,
         failed: 0,
-        user_email: session.user.email
+        user_email: session.user.email,
+        date: serverTimestamp(),
+        status: "completed"
       }
 
-      const { data: campaignData, error: campaignError } = await supabase
-        .from("email_campaigns")
-        .insert(testCampaign)
-        .select()
-
-      results.campaignInsert = !campaignError
+      const campaignDocRef = await addDoc(campaignsRef, testCampaignData)
+      results.campaignInsert = !!campaignDocRef.id
 
       // Test 5: Read campaigns
-      const { data: campaigns, error: campaignSelectError } = await supabase
-        .from("email_campaigns")
-        .select("*")
-        .eq("user_email", session.user.email)
-
-      results.campaignRead = !campaignSelectError && campaigns && campaigns.length > 0
+      const campaignsQuery = query(campaignsRef, where("user_email", "==", session.user.email))
+      const campaignsSnapshot = await getDocs(campaignsQuery)
+      results.campaignRead = !campaignsSnapshot.empty
 
       // Clean up test data
-      if (insertData && insertData[0]) {
-        await supabase
-          .from("contacts")
-          .delete()
-          .eq("id", insertData[0].id)
+      if (contactDocRef.id) {
+        await deleteDoc(doc(db, "contacts", contactDocRef.id))
       }
 
-      if (campaignData && campaignData[0]) {
-        await supabase
-          .from("email_campaigns")
-          .delete()
-          .eq("id", campaignData[0].id)
+      if (campaignDocRef.id) {
+        await deleteDoc(doc(db, "email_campaigns", campaignDocRef.id))
       }
 
       setTestResults(results)
@@ -198,7 +187,7 @@ export default function TestPage() {
             <div className="p-4 bg-green-50 border border-green-200 rounded">
               <h4 className="font-semibold text-green-800 mb-2">🎉 All Tests Passed!</h4>
               <p className="text-sm text-green-700">
-                Your Supabase integration is working correctly. You can now:
+                Your Firebase integration is working correctly. You can now:
               </p>
               <ul className="text-sm text-green-700 mt-2 list-disc list-inside">
                 <li>Manage contacts in the contacts page</li>

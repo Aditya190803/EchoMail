@@ -4,75 +4,59 @@ import { useState } from "react"
 import { useSession, signIn } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { supabase } from "@/lib/supabase"
+import { db } from "@/lib/firebase"
+import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore"
 import Link from "next/link"
 
 export default function TestEmailPage() {
   const { data: session } = useSession()
   const [testResult, setTestResult] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
-
   const testDatabaseTables = async () => {
     setIsLoading(true)
     try {
-      // Test email_campaigns table
-      const { data: campaigns, error: campaignsError } = await supabase
-        .from("email_campaigns")
-        .select("id")
-        .limit(1)
+      // Test email_campaigns collection
+      const campaignsRef = collection(db, "email_campaigns")
+      const campaignsSnapshot = await getDocs(query(campaignsRef, limit(1)))
       
-      // Test contacts table
-      const { data: contacts, error: contactsError } = await supabase
-        .from("contacts")
-        .select("id")
-        .limit(1)
+      // Test contacts collection
+      const contactsRef = collection(db, "contacts")
+      const contactsSnapshot = await getDocs(query(contactsRef, limit(1)))
       
-      let result = "🧪 Database Table Tests:\n\n"
+      let result = "🧪 Firebase Collection Tests:\n\n"
       
-      if (campaignsError) {
-        result += `❌ email_campaigns table: ${campaignsError.message}\n`
-      } else {
-        result += `✅ email_campaigns table: EXISTS\n`
+      try {
+        result += `✅ email_campaigns collection: EXISTS (${campaignsSnapshot.size} docs)\n`
+      } catch (error) {
+        result += `❌ email_campaigns collection: ERROR - ${error}\n`
       }
       
-      if (contactsError) {
-        result += `❌ contacts table: ${contactsError.message}\n`
-      } else {
-        result += `✅ contacts table: EXISTS\n`
+      try {
+        result += `✅ contacts collection: EXISTS (${contactsSnapshot.size} docs)\n`
+      } catch (error) {
+        result += `❌ contacts collection: ERROR - ${error}\n`
       }
       
       setTestResult(result)
     } catch (error) {
-      setTestResult(`❌ Database test error: ${error}`)
+      setTestResult(`❌ Firebase test error: ${error}`)
     }
     setIsLoading(false)
   }
 
-  const testSupabaseConnection = async () => {
+  const testFirebaseConnection = async () => {
     setIsLoading(true)
     try {
-      // First test basic connection
-      const { data, error } = await supabase
-        .from("email_campaigns")
-        .select("id")
-        .limit(1)
+      // Test basic connection
+      const campaignsRef = collection(db, "email_campaigns")
+      const snapshot = await getDocs(query(campaignsRef, limit(1)))
       
-      if (error) {
-        setTestResult(`❌ Supabase connection failed: ${error.message}`)
-      } else {
-        // Get count using a different approach
-        const { count, error: countError } = await supabase
-          .from("email_campaigns")
-          .select("*", { count: "exact", head: true })
-        
-        if (countError) {
-          setTestResult(`✅ Supabase connection successful, but count failed: ${countError.message}`)
-        } else {
-          setTestResult(`✅ Supabase connection successful! Found ${count || 0} campaigns`)
-        }
-      }
+      // Get count
+      const allSnapshot = await getDocs(campaignsRef)
+      
+      setTestResult(`✅ Firebase connection successful! Found ${allSnapshot.size} campaigns`)
     } catch (error) {
-      setTestResult(`❌ Supabase test error: ${error}`)
+      setTestResult(`❌ Firebase test error: ${error}`)
     }
     setIsLoading(false)
   }
@@ -107,7 +91,7 @@ export default function TestEmailPage() {
       const testEmail = {
         to: session.user.email,
         subject: "Test Email from EchoMail - " + new Date().toLocaleTimeString(),
-        message: "This is a test email to verify Supabase integration is working correctly. Sent at: " + new Date().toLocaleString(),
+        message: "This is a test email to verify Firebase integration is working correctly. Sent at: " + new Date().toLocaleString(),
         originalRowData: {},
         attachments: []
       }
@@ -123,23 +107,29 @@ export default function TestEmailPage() {
       })
 
       const result = await response.json()
-      
-      if (response.ok) {
+        if (response.ok) {
         setTestResult(`✅ Email API call completed!\n\nResponse: ${JSON.stringify(result, null, 2)}`)
         
-        // Check if campaign was saved to Supabase
+        // Check if campaign was saved to Firebase
         setTimeout(async () => {
-          const { data: campaigns, error } = await supabase
-            .from("email_campaigns")
-            .select("*")
-            .eq("user_email", session.user?.email)
-            .order("date", { ascending: false })
-            .limit(1)
-          
-          if (!error && campaigns?.length > 0) {
-            setTestResult(prev => prev + `\n\n✅ Campaign saved to Supabase:\n${JSON.stringify(campaigns[0], null, 2)}`)
-          } else {
-            setTestResult(prev => prev + `\n\n❌ Campaign not found in Supabase.\nError: ${error?.message || "No campaigns found"}`)
+          try {
+            const campaignsRef = collection(db, "email_campaigns")
+            const q = query(
+              campaignsRef,
+              where("user_email", "==", session.user?.email || ""),
+              orderBy("date", "desc"),
+              limit(1)
+            )
+            const snapshot = await getDocs(q)
+            
+            if (!snapshot.empty) {
+              const latestCampaign = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() }
+              setTestResult(prev => prev + `\n\n✅ Campaign saved to Firebase:\n${JSON.stringify(latestCampaign, null, 2)}`)
+            } else {
+              setTestResult(prev => prev + `\n\n❌ Campaign not found in Firebase.\nNo campaigns found`)
+            }
+          } catch (error) {
+            setTestResult(prev => prev + `\n\n❌ Error checking Firebase: ${error}`)
           }
         }, 3000)
       } else {
@@ -157,7 +147,7 @@ export default function TestEmailPage() {
       <div className="max-w-2xl mx-auto">
         <Card>
           <CardHeader>
-            <CardTitle>Email & Supabase Test</CardTitle>
+            <CardTitle>Email & Firebase Test</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -170,11 +160,11 @@ export default function TestEmailPage() {
               </Button>
               
               <Button 
-                onClick={testSupabaseConnection}
+                onClick={testFirebaseConnection}
                 disabled={isLoading}
                 className="w-full"
               >
-                Test Supabase Connection & Count
+                Test Firebase Connection & Count
               </Button>
               
               <Button 
