@@ -15,15 +15,100 @@ interface CSVUploadProps {
 
 export function CSVUpload({ onDataLoad, csvData }: CSVUploadProps) {
   const [isDragging, setIsDragging] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleFileUpload = (file: File) => {
+    setError(null)
+    
     Papa.parse(file, {
       complete: (results) => {
-        const data = results.data as CSVRow[]
-        onDataLoad(data.filter((row) => row.email)) // Filter out rows without email
+        try {
+          console.log("CSV parse results:", results)
+          
+          if (results.errors && results.errors.length > 0) {
+            console.error("CSV parsing errors:", results.errors)
+            setError(`CSV parsing errors: ${results.errors.map(e => e.message).join(', ')}`)
+            return
+          }
+          
+          const data = results.data as any[]
+          console.log("Raw CSV data:", data)
+          
+          if (!data || data.length === 0) {
+            setError("No data found in CSV file")
+            return
+          }
+          
+          // Find the email column with case-insensitive matching
+          const firstRow = data[0]
+          if (!firstRow || typeof firstRow !== 'object') {
+            setError("Invalid CSV format")
+            return
+          }
+          
+          // Look for email column with different case variations
+          const emailColumns = ['email', 'Email', 'EMAIL', 'e-mail', 'E-mail', 'E-Mail', 'email_address', 'Email_Address', 'emailaddress']
+          let emailKey: string | null = null
+          
+          console.log("Available columns:", Object.keys(firstRow))
+          
+          for (const key of Object.keys(firstRow)) {
+            const normalizedKey = key.toLowerCase().trim()
+            if (emailColumns.some(col => col.toLowerCase() === normalizedKey) || 
+                normalizedKey.includes('email') || 
+                normalizedKey.includes('mail')) {
+              emailKey = key
+              break
+            }
+          }
+          
+          if (!emailKey) {
+            const availableColumns = Object.keys(firstRow).join(', ')
+            setError(`No email column found. Available columns: ${availableColumns}. Please make sure your CSV has a column named 'email', 'Email', 'EMAIL', or similar.`)
+            return
+          }
+          
+          console.log("Found email column:", emailKey)
+          
+          // Normalize the data to use 'email' as the key and validate
+          const validRows = data
+            .map((row) => {
+              if (!row || typeof row !== 'object') return null
+              
+              // Create normalized row with 'email' key
+              const normalizedRow: any = { ...row }
+              if (emailKey !== 'email' && row[emailKey]) {
+                normalizedRow.email = row[emailKey]
+              }
+              
+              return normalizedRow
+            })
+            .filter((row) => {
+              if (!row) return false
+              const email = row.email
+              return email && typeof email === 'string' && email.trim().length > 0 && email.includes('@')
+            }) as CSVRow[]
+          
+          console.log("Valid CSV rows:", validRows)
+          
+          if (validRows.length === 0) {
+            setError(`No valid email addresses found. Found column "${emailKey}" but no valid email addresses. Make sure emails contain @ symbol.`)
+            return
+          }
+          
+          onDataLoad(validRows)
+          console.log(`Successfully loaded ${validRows.length} contacts from CSV`)
+        } catch (err) {
+          console.error("Error processing CSV:", err)
+          setError("Error processing CSV file")
+        }
       },
       header: true,
       skipEmptyLines: true,
+      error: (error) => {
+        console.error("Papa Parse error:", error)
+        setError(`Failed to parse CSV: ${error.message}`)
+      }
     })
   }
 
@@ -48,6 +133,18 @@ export function CSVUpload({ onDataLoad, csvData }: CSVUploadProps) {
 
   return (
     <div className="w-full">
+      {error && (
+        <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-xs text-red-600">{error}</p>
+          <button 
+            onClick={() => setError(null)}
+            className="text-xs text-red-500 underline mt-1"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+      
       {csvData.length === 0 ? (
         <div
           className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors ${

@@ -68,6 +68,7 @@ export function RichTextEditor({ content, onChange, placeholder = "Compose your 
       }),
     ],
     content,
+    immediatelyRender: false, // Fix SSR hydration mismatch
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML())
     },

@@ -16,7 +16,16 @@ import { RichTextEditor } from "./rich-text-editor"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { supabase } from "@/lib/supabase"
+import { db } from "@/lib/firebase"
+import { 
+  collection, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot,
+  addDoc,
+  serverTimestamp
+} from "firebase/firestore"
 import type { CSVRow, PersonalizedEmail, SendStatus, AttachmentData } from "@/types/email"
 
 interface Contact {
@@ -71,30 +80,146 @@ export function ComposeForm() {
   const [showSuccess, setShowSuccess] = useState(false)
   const [sendProgress, setSendProgress] = useState(0)
   const [activeTab, setActiveTab] = useState("csv")
+  const [campaignSaved, setCampaignSaved] = useState(false)
 
-  // Fetch contacts from Supabase
-  useEffect(() => {
-    async function fetchContacts() {
-      if (!session?.user?.email) return
-      
-      try {
-        const { data, error } = await supabase
-          .from("contacts")
-          .select("id, email, name, company")
-          .eq("user_email", session.user.email)
-          .order("name", { ascending: true })
-        
-        if (!error && data) {
-          setContacts(data as Contact[])
-        }
-      } catch (e) {
-        console.error("Failed to fetch contacts:", e)
+  // Upload attachments to Cloudinary via API
+  const uploadAttachments = async (attachmentFiles: File[]): Promise<{url: string, public_id: string, fileName: string, fileSize: number}[]> => {
+    try {
+      const formData = new FormData()
+      attachmentFiles.forEach(file => {
+        formData.append('files', file)
+      })
+
+      const response = await fetch('/api/upload-attachment', {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.statusText}`)
       }
+
+      const result = await response.json()
+      
+      if (!result.success) {
+        throw new Error('Upload failed')
+      }
+
+      // Return only successful uploads
+      return result.uploads
+        .filter((upload: any) => !upload.error)
+        .map((upload: any) => ({
+          url: upload.url,
+          public_id: upload.public_id,
+          fileName: upload.fileName,
+          fileSize: upload.fileSize
+        }))
+    } catch (error) {
+      console.error('Error uploading attachments:', error)
+      throw error
     }
+  }
+  // Save campaign data to Firebase  // Save campaign data to Firebase
+  const saveCampaignData = async (emailData: any[], sendResults: SendStatus[], attachmentData: {url: string, public_id: string, fileName: string, fileSize: number}[]) => {
+    if (!session?.user?.email || campaignSaved) return // Prevent duplicate saves
     
-    if (session?.user?.email) {
-      fetchContacts()
+    setCampaignSaved(true) // Mark as saved
+    
+    try {
+      const campaignsRef = collection(db, "email_campaigns")
+      
+      // Count successful and failed sends
+      const sentCount = sendResults.filter(result => result.status === "success").length
+      const failedCount = sendResults.filter(result => result.status === "error").length
+      
+      // Prepare recipient list (email addresses) - ensure we get the email from each data structure
+      const recipients = emailData.map(item => {
+        if (typeof item === 'string') return item
+        if (item.email) return item.email
+        if (item.to) return item.to
+        return ''
+      }).filter(Boolean)
+      
+      // Prepare attachment data with Cloudinary info
+      const attachmentInfo = attachmentData.map((attachment) => ({
+        fileName: attachment.fileName,
+        fileUrl: attachment.url,
+        fileSize: attachment.fileSize,
+        cloudinary_public_id: attachment.public_id
+      }))
+      
+      const campaignData = {
+        subject: subject.trim(),
+        content: message.trim(),
+        recipients: recipients,
+        sent: sentCount,
+        failed: failedCount,
+        status: failedCount > 0 ? (sentCount > 0 ? "completed" : "failed") : "completed",
+        user_email: session.user.email,
+        created_at: serverTimestamp(),
+        campaign_type: activeTab === "csv" ? "bulk" : activeTab === "contacts" ? "contact_list" : "manual",
+        attachments: attachmentInfo.length > 0 ? attachmentInfo : undefined,
+        send_results: sendResults // Store detailed results
+      }
+      
+      console.log("Saving campaign data:", {
+        subject: campaignData.subject,
+        recipients: `Array of ${recipients.length} emails`,
+        sent: sentCount,
+        failed: failedCount,
+        status: campaignData.status,
+        content: campaignData.content.substring(0, 100) + "..."
+      })
+      
+      // Validate data before saving
+      if (recipients.length === 0) {
+        console.error("Cannot save campaign: No recipients found")
+        return
+      }
+      
+      if (!campaignData.subject.trim()) {
+        console.error("Cannot save campaign: No subject")
+        return
+      }
+      
+      await addDoc(campaignsRef, campaignData)
+      console.log("Campaign data saved successfully to Firebase")
+    } catch (error) {
+      console.error("Error saving campaign data:", error)
     }
+  }// Fetch contacts from Firebase
+  useEffect(() => {
+    if (!session?.user?.email) return
+
+    // Set up real-time listener for contacts
+    const contactsRef = collection(db, "contacts")
+    const q = query(
+      contactsRef,
+      where("user_email", "==", session.user.email)
+    )
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const contactsData: Contact[] = []
+      snapshot.forEach((doc) => {
+        contactsData.push({
+          id: doc.id,
+          ...doc.data()
+        } as Contact)
+      })
+      
+      // Sort contacts client-side by name
+      contactsData.sort((a, b) => {
+        const nameA = (a.name || a.email || "").toLowerCase()
+        const nameB = (b.name || b.email || "").toLowerCase()
+        return nameA.localeCompare(nameB)
+      })
+      
+      setContacts(contactsData)
+    }, (error) => {
+      console.error("Error fetching contacts:", error)
+    })
+    
+    return () => unsubscribe()
   }, [session])
 
   // Contact selection functions
@@ -202,12 +327,13 @@ export function ComposeForm() {
     }
     if (!subject.trim() || !message.trim()) {
       alert("Please fill in subject and message")
-      return
-    }
+      return    }
     setShowPreview(true)
   }
-
+  
   const handleSend = async () => {
+    if (isLoading) return // Prevent duplicate calls
+    
     setIsLoading(true)
     setSendStatus([])
     setShowSuccess(false)
@@ -220,13 +346,19 @@ export function ComposeForm() {
         email: email.to,
         status: "pending" as const,
       }))
-      setSendStatus(initialStatus)
+      setSendStatus(initialStatus)      // Upload attachments to Cloudinary first
+      let attachmentData: {url: string, public_id: string, fileName: string, fileSize: number}[] = []
+      if (attachments.length > 0) {
+        setSendProgress(10) // 10% for uploading attachments
+        attachmentData = await uploadAttachments(attachments)
+        setSendProgress(30) // 30% after attachments uploaded
+      }
 
       const response = await fetch("/api/send-email", {
-        method: "POST",        headers: {
+        method: "POST",
+        headers: {
           "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+        },        body: JSON.stringify({
           personalizedEmails,
         }),
       })
@@ -243,7 +375,17 @@ export function ComposeForm() {
 
       const successCount = results.filter((result: SendStatus) => result.status === "success").length
       const totalCount = results.length
-      setSendProgress(100)
+      setSendProgress(90) // 90% after emails sent
+
+      // Use personalizedEmails to get the actual recipient list for campaign storage
+      const recipientData = personalizedEmails.map(email => ({
+        email: email.to,
+        originalData: email.originalRowData
+      }))
+
+      // Save campaign data to Firebase
+      await saveCampaignData(recipientData, results, attachmentData)
+      setSendProgress(100) // 100% after saving campaign data
 
       if (successCount === totalCount) {
         setShowSuccess(true)
@@ -613,6 +755,5 @@ export function ComposeForm() {
           )}
         </CardContent>
       </Card>
-    </div>
-  )
+    </div>  )
 }
