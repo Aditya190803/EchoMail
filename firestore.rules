@@ -1,0 +1,23 @@
+// Firestore Security Rules
+// These rules need to be set in the Firebase Console under Firestore Database > Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow authenticated users to read/write their own data
+    match /contacts/{document} {
+      allow read, write: if request.auth != null && request.auth.token.email == resource.data.user_email;
+      allow create: if request.auth != null && request.auth.token.email == request.resource.data.user_email;
+    }
+    
+    match /email_campaigns/{document} {
+      allow read, write: if request.auth != null && request.auth.token.email == resource.data.user_email;
+      allow create: if request.auth != null && request.auth.token.email == request.resource.data.user_email;
+    }
+    
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
