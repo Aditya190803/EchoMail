@@ -532,15 +532,14 @@ export default function AnalyticsPage() {
                         Delivery Details
                       </h4>
                       <div className="bg-white rounded p-3 max-h-32 overflow-y-auto">
-                        <div className="space-y-1">
-                          {campaign.send_results.slice(0, 10).map((result: any, index: number) => (
+                        <div className="space-y-1">                          {campaign.send_results.slice(0, 10).map((result: any, index: number) => (
                             <div key={index} className="text-xs flex items-center justify-between">
                               <span className="text-gray-600">{result.email || 'Unknown'}</span>
                               <Badge
-                                variant={result.success ? "default" : "destructive"}
+                                variant={result.status === "success" ? "default" : "destructive"}
                                 className="text-xs"
                               >
-                                {result.success ? "Sent" : "Failed"}
+                                {result.status === "success" ? "Sent" : "Failed"}
                               </Badge>
                             </div>
                           ))}

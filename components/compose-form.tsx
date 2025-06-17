@@ -76,7 +76,8 @@ export function ComposeForm() {
   
   // Handle chunk loading errors
   useChunkErrorHandler()
-    const [subject, setSubject] = useState("")
+  
+  const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
   const [csvData, setCsvData] = useState<CSVRow[]>([])
   const [manualEmails, setManualEmails] = useState<ManualEmail[]>([{ email: "", name: "" }])
@@ -131,7 +132,25 @@ export function ComposeForm() {
   }
   // Save campaign data to Firebase  // Save campaign data to Firebase
   const saveCampaignData = async (emailData: any[], sendResults: SendStatus[], attachmentData: {url: string, public_id: string, fileName: string, fileSize: number}[]) => {
-    if (!session?.user?.email || campaignSaved) return // Prevent duplicate saves
+    console.log("saveCampaignData called with:", {
+      hasSession: !!session,
+      hasUserEmail: !!session?.user?.email,
+      userEmail: session?.user?.email,
+      campaignSaved: campaignSaved,
+      emailDataLength: emailData.length,
+      sendResultsLength: sendResults.length,
+      attachmentDataLength: attachmentData.length
+    })
+    
+    if (!session?.user?.email) {
+      console.error("Cannot save campaign: No session or user email")
+      return
+    }
+    
+    if (campaignSaved) {
+      console.log("Campaign already saved, skipping...")
+      return
+    }
     
     setCampaignSaved(true) // Mark as saved
     
@@ -157,8 +176,7 @@ export function ComposeForm() {
         fileSize: attachment.fileSize,
         cloudinary_public_id: attachment.public_id
       }))
-      
-      const campaignData = {
+        const campaignData = {
         subject: subject.trim(),
         content: message.trim(),
         recipients: recipients,
@@ -168,7 +186,7 @@ export function ComposeForm() {
         user_email: session.user.email,
         created_at: serverTimestamp(),
         campaign_type: getCampaignType(),
-        attachments: attachmentInfo.length > 0 ? attachmentInfo : undefined,
+        ...(attachmentInfo.length > 0 && { attachments: attachmentInfo }),
         send_results: sendResults // Store detailed results
       }
       
@@ -180,8 +198,7 @@ export function ComposeForm() {
         status: campaignData.status,
         content: campaignData.content.substring(0, 100) + "..."
       })
-      
-      // Validate data before saving
+        // Validate data before saving
       if (recipients.length === 0) {
         console.error("Cannot save campaign: No recipients found")
         return
@@ -196,8 +213,19 @@ export function ComposeForm() {
       console.log("Campaign data saved successfully to Firebase")
     } catch (error) {
       console.error("Error saving campaign data:", error)
+      console.error("Error details:", {
+        errorMessage: error instanceof Error ? error.message : "Unknown error",
+        errorStack: error instanceof Error ? error.stack : undefined,
+        campaignDataInfo: {
+          subject: subject.trim(),
+          emailDataLength: emailData.length,
+          hasUserEmail: !!session?.user?.email
+        }      })
+      // Don't throw the error, just log it so email sending continues
     }
-  }// Fetch contacts from Firebase
+  }
+  
+  // Fetch contacts from Firebase
   useEffect(() => {
     if (!session?.user?.email) return
 
@@ -251,10 +279,11 @@ export function ComposeForm() {
       return [...prev, ...newSelections]
     })
   }
-
   const clearContactSelection = () => {
     setSelectedContacts([])
-  }  // Helper function to toggle source selection
+  }
+
+  // Helper function to toggle source selection
   const toggleSource = (source: string) => {
     setActiveSources(prev => {
       if (prev.includes(source)) {
@@ -349,24 +378,24 @@ export function ComposeForm() {
       subject: replacePlaceholders(subject, row),
       message: replacePlaceholders(message, row),
       originalRowData: row,
-      attachments: attachmentData,
-    }))
+      attachments: attachmentData,    }))
   }
-  
+
   const handlePreview = async () => {
     const emailData = getAllEmailData()
-
+    
     if (emailData.length === 0) {
       alert("Please add email recipients first")
       return
     }
+    
     if (!subject.trim() || !message.trim()) {
       alert("Please fill in subject and message")
       return
     }
     setShowPreview(true)
   }
-  
+
   const handleSend = async () => {
     if (isLoading) return // Prevent duplicate calls
     
@@ -374,6 +403,7 @@ export function ComposeForm() {
     setSendStatus([])
     setShowSuccess(false)
     setSendProgress(0)
+    setCampaignSaved(false) // Mark campaign as not yet saved for this new send operation
 
     try {
       const personalizedEmails = await generatePersonalizedEmails()
@@ -382,7 +412,9 @@ export function ComposeForm() {
         email: email.to,
         status: "pending" as const,
       }))
-      setSendStatus(initialStatus)      // Upload attachments to Cloudinary first
+      setSendStatus(initialStatus)
+      
+      // Upload attachments to Cloudinary first
       let attachmentData: {url: string, public_id: string, fileName: string, fileSize: number}[] = []
       if (attachments.length > 0) {
         setSendProgress(10) // 10% for uploading attachments
@@ -391,8 +423,7 @@ export function ComposeForm() {
       }
 
       const response = await fetch("/api/send-email", {
-        method: "POST",
-        headers: {
+        method: "POST",        headers: {
           "Content-Type": "application/json",
         },        body: JSON.stringify({
           personalizedEmails,
@@ -412,14 +443,20 @@ export function ComposeForm() {
       const successCount = results.filter((result: SendStatus) => result.status === "success").length
       const totalCount = results.length
       setSendProgress(90) // 90% after emails sent
-
+      
       // Use personalizedEmails to get the actual recipient list for campaign storage
       const recipientData = personalizedEmails.map(email => ({
         email: email.to,
         originalData: email.originalRowData
       }))
 
-      // Save campaign data to Firebase
+      console.log("About to save campaign data:", {
+        recipientDataLength: recipientData.length,
+        resultsLength: results.length,
+        attachmentDataLength: attachmentData.length,
+        subject: subject,
+        hasSession: !!session
+      })      // Save campaign data to Firebase
       await saveCampaignData(recipientData, results, attachmentData)
       setSendProgress(100) // 100% after saving campaign data
 
@@ -441,7 +478,8 @@ export function ComposeForm() {
       setShowPreview(false)
     }
   }
-    const getPersonalizedEmailsForPreview = (): PersonalizedEmail[] => {
+
+  const getPersonalizedEmailsForPreview = (): PersonalizedEmail[] => {
     const emailData = getAllEmailData()
 
     // Ensure emailData is always an array before mapping
@@ -458,10 +496,10 @@ export function ComposeForm() {
         name: file.name,
         type: file.type,
         data: "",
-      })),
-    }))
+      })),    }))
   }
-    const personalizedEmailsForPreview = getPersonalizedEmailsForPreview()
+
+  const personalizedEmailsForPreview = getPersonalizedEmailsForPreview()
   const successCount = (sendStatus || []).filter((status) => status.status === "success").length
   const errorCount = (sendStatus || []).filter((status) => status.status === "error").length
   
@@ -839,8 +877,8 @@ export function ComposeForm() {
               onClose={() => setShowPreview(false)}
               isLoading={isLoading}
             />
-          )}
-        </CardContent>
+          )}        </CardContent>
       </Card>
-    </div>  )
+    </div>
+  )
 }
