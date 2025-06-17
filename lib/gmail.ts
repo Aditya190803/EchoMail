@@ -1,3 +1,5 @@
+import { formatEmailHTML, sanitizeEmailHTML } from './email-formatter'
+
 export interface AttachmentData {
   name: string
   type: string
@@ -53,8 +55,9 @@ export async function sendEmailViaAPI(
   // Properly encode the subject line to handle UTF-8 characters
   const encodedSubject = encodeSubject(subject)
   
-  // Sanitize the HTML body for proper UTF-8 handling
-  const sanitizedHtmlBody = sanitizeText(htmlBody)
+  // Sanitize and format the HTML body for email clients
+  const sanitizedHtmlBody = sanitizeEmailHTML(htmlBody)
+  const formattedHtmlBody = formatEmailHTML(sanitizedHtmlBody)
 
   const email = [
     `From: ${fromEmail}`,
@@ -68,7 +71,7 @@ export async function sendEmailViaAPI(
     "Content-Type: text/html; charset=utf-8",
     "Content-Transfer-Encoding: 8bit",
     "",
-    sanitizedHtmlBody,
+    formattedHtmlBody,
   ]
 
   if (attachments && attachments.length > 0) {

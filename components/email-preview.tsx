@@ -3,8 +3,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Eye, Send, X, Paperclip } from "lucide-react"
+import { Eye, Send, X, Paperclip, Mail } from "lucide-react"
 import type { PersonalizedEmail } from "@/types/email"
+import { getEmailPreviewHTML } from "@/lib/email-formatter"
 
 interface EmailPreviewProps {
   emails: PersonalizedEmail[]
@@ -29,8 +30,8 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
         <CardContent className="space-y-3 p-3">
           <div className="bg-blue-50 p-3 rounded-lg mb-3">
             <p className="text-xs text-blue-800 flex items-center gap-1">
-              <Eye className="h-3 w-3" />
-              <strong>Full Preview:</strong> All email content is now shown completely, even for long emails (1000+ lines).
+              <Mail className="h-3 w-3" />
+              <strong>Gmail Preview:</strong> Shows exactly how emails will appear in Gmail with proper formatting and spacing.
             </p>
           </div>
           <div className="max-h-[75vh] overflow-y-auto space-y-4">
@@ -54,11 +55,10 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
                   <div>
                     <span className="text-sm font-medium text-gray-700">Message: </span>
                     <div className="mt-2 p-3 bg-gray-50 rounded border max-h-96 overflow-y-auto">
-                      <div
-                        className="prose prose-sm max-w-none text-sm leading-relaxed"
-                        dangerouslySetInnerHTML={{
-                          __html: email.message,
-                        }}
+                      <iframe
+                        srcDoc={getEmailPreviewHTML(email.message)}
+                        className="w-full h-64 border-0 bg-white rounded"
+                        title={`Email preview for ${email.to}`}
                       />
                     </div>
                   </div>

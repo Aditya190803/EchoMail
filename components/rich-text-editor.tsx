@@ -42,7 +42,7 @@ interface RichTextEditorProps {
   placeholder?: string
 }
 
-export function RichTextEditor({ content, onChange, placeholder = "Compose your email message..." }: RichTextEditorProps) {
+export function RichTextEditor({ content, onChange, placeholder = "" }: RichTextEditorProps) {
   const [linkUrl, setLinkUrl] = useState("")
   const [imageUrl, setImageUrl] = useState("")
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
@@ -71,11 +71,9 @@ export function RichTextEditor({ content, onChange, placeholder = "Compose your 
     immediatelyRender: false, // Fix SSR hydration mismatch
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML())
-    },
-    editorProps: {
+    },    editorProps: {
       attributes: {
-        class: "prose prose-sm max-w-none focus:outline-none min-h-[150px] p-2 text-sm",
-        'data-placeholder': placeholder,
+        class: "max-w-none focus:outline-none min-h-[150px] p-2 text-sm [&_p]:my-3 [&_p]:leading-normal [&_h1]:my-4 [&_h2]:my-4 [&_h3]:my-3 [&_ul]:my-3 [&_ol]:my-3 [&_li]:my-1 [&_blockquote]:my-3 [&_blockquote]:pl-4 [&_blockquote]:border-l-2 [&_blockquote]:border-gray-300 [&_blockquote]:italic [&_a]:text-blue-600 [&_a]:underline",
         spellcheck: "true",
       },
       handlePaste: (view, event, slice) => {

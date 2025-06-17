@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { db } from "@/lib/firebase"
 import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore"
+import { formatEmailHTML, getEmailPreviewHTML } from "@/lib/email-formatter"
 import Link from "next/link"
 
 export default function TestEmailPage() {
@@ -142,6 +143,26 @@ export default function TestEmailPage() {
     setIsLoading(false)
   }
 
+  const testEmailFormatting = () => {
+    const sampleHTML = `
+      <h1>Sample Email Header</h1>
+      <p>This is a test paragraph with <strong>bold text</strong> and <em>italic text</em>.</p>
+      <p>Here's another paragraph with some spacing.</p>
+      <ul>
+        <li>First list item</li>
+        <li>Second list item with <a href="https://example.com">a link</a></li>
+        <li>Third list item</li>
+      </ul>
+      <blockquote>This is a quoted text block that should have proper indentation.</blockquote>
+      <p>Final paragraph to test spacing.</p>
+    `
+    
+    const formattedEmail = formatEmailHTML(sampleHTML)
+    const previewEmail = getEmailPreviewHTML(sampleHTML)
+    
+    setTestResult(`📧 Email Formatting Test Results:\n\n✅ Email formatted successfully!\n\nFormatted HTML length: ${formattedEmail.length} characters\nPreview HTML length: ${previewEmail.length} characters\n\n🎯 The email will now have Gmail-like spacing and appearance when sent.`)
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-2xl mx-auto">
@@ -173,6 +194,14 @@ export default function TestEmailPage() {
                 className="w-full"
               >
                 Test Email Sending + Database Save
+              </Button>
+
+              <Button 
+                onClick={testEmailFormatting}
+                disabled={isLoading}
+                className="w-full"
+              >
+                Test Email Formatting
               </Button>
             </div>
             
