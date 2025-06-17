@@ -26,18 +26,15 @@ import {
   addDoc,
   serverTimestamp
 } from "firebase/firestore"
+import { replacePlaceholders } from "@/lib/gmail"
 import type { CSVRow, PersonalizedEmail, SendStatus, AttachmentData } from "@/types/email"
+import { useChunkErrorHandler } from "@/components/error-boundary"
 
 interface Contact {
   id: string
   email: string
   name?: string
   company?: string
-}
-
-// Simple client-side placeholder replacement for HTML content
-function replacePlaceholders(template: string, data: Record<string, string>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (match, key) => data[key] || match)
 }
 
 // Convert File to base64
@@ -64,9 +61,23 @@ interface ManualEmail {
   [key: string]: string
 }
 
+// Helper function to sanitize text input for proper UTF-8 handling
+const sanitizeInput = (text: string): string => {
+  // Normalize Unicode characters and replace problematic characters
+  return text
+    .normalize('NFC')
+    .replace(/[\u2018\u2019]/g, "'") // Replace smart quotes
+    .replace(/[\u201C\u201D]/g, '"') // Replace smart double quotes
+    .replace(/[\u2013\u2014]/g, '-') // Replace en-dash and em-dash
+    .replace(/[\u2026]/g, '...') // Replace ellipsis
+}
+
 export function ComposeForm() {
   const { data: session } = useSession()
-  const [subject, setSubject] = useState("")
+  
+  // Handle chunk loading errors
+  useChunkErrorHandler()
+    const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
   const [csvData, setCsvData] = useState<CSVRow[]>([])
   const [manualEmails, setManualEmails] = useState<ManualEmail[]>([{ email: "", name: "" }])
@@ -477,11 +488,10 @@ export function ComposeForm() {
           <div className="space-y-2">
             <Label htmlFor="subject" className="text-sm font-medium">
               Subject Line
-            </Label>
-            <Input
+            </Label>            <Input
               id="subject"
               value={subject}
-              onChange={(e) => setSubject(e.target.value)}
+              onChange={(e) => setSubject(sanitizeInput(e.target.value))}
               placeholder="Enter email subject (use {{placeholders}} for personalization)"
               className="text-sm w-full"
             />
@@ -495,7 +505,10 @@ export function ComposeForm() {
             <Label htmlFor="message" className="text-sm font-medium">
               Email Message
             </Label>
-            <RichTextEditor content={message} onChange={setMessage} />
+            <RichTextEditor 
+              content={message} 
+              onChange={(content) => setMessage(sanitizeInput(content))} 
+            />
             <div className="bg-blue-50 p-2 rounded-lg">
               <p className="text-xs text-blue-800">
                 💡 <strong>Pro Tip:</strong> Use placeholders like {`{{name}}`}, {`{{company}}`}, or {`{{email}}`} to

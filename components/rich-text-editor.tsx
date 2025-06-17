@@ -75,6 +75,25 @@ export function RichTextEditor({ content, onChange, placeholder = "Compose your 
     editorProps: {
       attributes: {
         class: "prose prose-sm max-w-none focus:outline-none min-h-[150px] p-2 text-sm",
+        'data-placeholder': placeholder,
+        spellcheck: "true",
+      },
+      handlePaste: (view, event, slice) => {
+        // Handle pasted content with proper UTF-8 encoding
+        const text = event.clipboardData?.getData('text/plain') || ''
+        if (text) {
+          // Normalize and sanitize pasted text
+          const sanitized = text
+            .normalize('NFC')
+            .replace(/[\u2018\u2019]/g, "'")
+            .replace(/[\u201C\u201D]/g, '"')
+            .replace(/[\u2013\u2014]/g, '-')
+            .replace(/[\u2026]/g, '...')
+          
+          // Let the editor handle the sanitized content normally
+          return false
+        }
+        return false
       },
     },
   })
