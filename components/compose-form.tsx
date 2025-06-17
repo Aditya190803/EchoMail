@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Paperclip, Eye, X, Send, CheckCircle, AlertCircle, Users, FileText, Plus, Trash2, Search } from "lucide-react"
 import { CSVUpload } from "./csv-upload"
 import { EmailPreview } from "./email-preview"
@@ -90,7 +89,7 @@ export function ComposeForm() {
   const [sendStatus, setSendStatus] = useState<SendStatus[]>([])
   const [showSuccess, setShowSuccess] = useState(false)
   const [sendProgress, setSendProgress] = useState(0)
-  const [activeTab, setActiveTab] = useState("csv")
+  const [activeSources, setActiveSources] = useState<string[]>(["csv"])
   const [campaignSaved, setCampaignSaved] = useState(false)
 
   // Upload attachments to Cloudinary via API
@@ -168,7 +167,7 @@ export function ComposeForm() {
         status: failedCount > 0 ? (sentCount > 0 ? "completed" : "failed") : "completed",
         user_email: session.user.email,
         created_at: serverTimestamp(),
-        campaign_type: activeTab === "csv" ? "bulk" : activeTab === "contacts" ? "contact_list" : "manual",
+        campaign_type: getCampaignType(),
         attachments: attachmentInfo.length > 0 ? attachmentInfo : undefined,
         send_results: sendResults // Store detailed results
       }
@@ -255,6 +254,49 @@ export function ComposeForm() {
 
   const clearContactSelection = () => {
     setSelectedContacts([])
+  }  // Helper function to toggle source selection
+  const toggleSource = (source: string) => {
+    setActiveSources(prev => {
+      if (prev.includes(source)) {
+        return prev.filter(s => s !== source)
+      } else {
+        return [...prev, source]
+      }
+    })
+  }
+
+  // Helper function to get all email data from active sources
+  const getAllEmailData = (): any[] => {
+    const allEmailData: any[] = []
+    
+    if (activeSources.includes("csv")) {
+      allEmailData.push(...(csvData || []))
+    }
+    
+    if (activeSources.includes("manual")) {
+      const validManualEmails = (manualEmails || []).filter((email) => email.email.trim())
+      allEmailData.push(...validManualEmails)
+    }
+    
+    if (activeSources.includes("contacts")) {
+      const contactEmails = (selectedContacts || []).map(contact => ({
+        email: contact.email,
+        name: contact.name || "",
+        company: contact.company || ""
+      }))
+      allEmailData.push(...contactEmails)
+    }
+    
+    return allEmailData
+  }
+
+  // Helper function to determine campaign type
+  const getCampaignType = (): string => {
+    if (activeSources.length > 1) return "mixed"
+    if (activeSources.includes("csv")) return "bulk"
+    if (activeSources.includes("contacts")) return "contact_list"
+    if (activeSources.includes("manual")) return "manual"
+    return "unknown"
   }
 
   const getFilteredContacts = () => {
@@ -284,7 +326,6 @@ export function ComposeForm() {
   const updateManualEmail = (index: number, field: string, value: string) => {
     setManualEmails((prev) => prev.map((email, i) => (i === index ? { ...email, [field]: value } : email)))
   }
-
   const generatePersonalizedEmails = async (): Promise<PersonalizedEmail[]> => {
     const attachmentData: AttachmentData[] = []
     for (const file of attachments) {
@@ -296,22 +337,11 @@ export function ComposeForm() {
       }
     }
 
-    let emailData: any[] = []
-    if (activeTab === "csv") {
-      emailData = csvData || []
-    } else if (activeTab === "manual") {
-      emailData = (manualEmails || []).filter((email) => email.email.trim())
-    } else if (activeTab === "contacts") {
-      emailData = (selectedContacts || []).map(contact => ({
-        email: contact.email,
-        name: contact.name || "",
-        company: contact.company || ""
-      }))
-    }
+    const emailData = getAllEmailData()
 
     // Ensure emailData is always an array before mapping
     if (!Array.isArray(emailData)) {
-      emailData = []
+      return []
     }
 
     return emailData.map((row) => ({
@@ -322,15 +352,9 @@ export function ComposeForm() {
       attachments: attachmentData,
     }))
   }
+  
   const handlePreview = async () => {
-    let emailData: any[] = []
-    if (activeTab === "csv") {
-      emailData = csvData || []
-    } else if (activeTab === "manual") {
-      emailData = (manualEmails || []).filter((email) => email.email.trim())
-    } else if (activeTab === "contacts") {
-      emailData = selectedContacts || []
-    }
+    const emailData = getAllEmailData()
 
     if (emailData.length === 0) {
       alert("Please add email recipients first")
@@ -338,7 +362,8 @@ export function ComposeForm() {
     }
     if (!subject.trim() || !message.trim()) {
       alert("Please fill in subject and message")
-      return    }
+      return
+    }
     setShowPreview(true)
   }
   
@@ -416,24 +441,12 @@ export function ComposeForm() {
       setShowPreview(false)
     }
   }
-  
-  const getPersonalizedEmailsForPreview = (): PersonalizedEmail[] => {
-    let emailData: any[] = []
-    if (activeTab === "csv") {
-      emailData = csvData || []
-    } else if (activeTab === "manual") {
-      emailData = (manualEmails || []).filter((email) => email.email.trim())
-    } else if (activeTab === "contacts") {
-      emailData = (selectedContacts || []).map(contact => ({
-        email: contact.email,
-        name: contact.name || "",
-        company: contact.company || ""
-      }))
-    }
+    const getPersonalizedEmailsForPreview = (): PersonalizedEmail[] => {
+    const emailData = getAllEmailData()
 
     // Ensure emailData is always an array before mapping
     if (!Array.isArray(emailData)) {
-      emailData = []
+      return []
     }
 
     return emailData.map((row) => ({
@@ -448,19 +461,11 @@ export function ComposeForm() {
       })),
     }))
   }
-  
-  const personalizedEmailsForPreview = getPersonalizedEmailsForPreview()
+    const personalizedEmailsForPreview = getPersonalizedEmailsForPreview()
   const successCount = (sendStatus || []).filter((status) => status.status === "success").length
   const errorCount = (sendStatus || []).filter((status) => status.status === "error").length
   
-  let emailData: any[] = []
-  if (activeTab === "csv") {
-    emailData = csvData || []
-  } else if (activeTab === "manual") {
-    emailData = (manualEmails || []).filter((email) => email.email.trim())
-  } else if (activeTab === "contacts") {
-    emailData = selectedContacts || []
-  }
+  const emailData = getAllEmailData()
   
   const canSend = subject.trim() && message.trim() && emailData.length > 0
 
@@ -546,9 +551,7 @@ export function ComposeForm() {
                 ))}
               </div>
             </div>
-          </div>
-
-          {/* Recipients Section */}
+          </div>          {/* Recipients Section */}
           <Card className="shadow-sm w-full">
             <CardHeader className="p-3">
               <CardTitle className="flex items-center gap-2 text-sm">
@@ -557,108 +560,179 @@ export function ComposeForm() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0">
-              <Tabs value={activeTab} onValueChange={setActiveTab}>                <TabsList className="grid w-full grid-cols-3 h-8">
-                  <TabsTrigger value="csv" className="text-xs">CSV Upload</TabsTrigger>
-                  <TabsTrigger value="manual" className="text-xs">Manual Entry</TabsTrigger>
-                  <TabsTrigger value="contacts" className="text-xs">Contacts</TabsTrigger>
-                </TabsList>
-                <TabsContent value="csv" className="mt-3">
-                  <CSVUpload onDataLoad={setCsvData} csvData={csvData} />
-                </TabsContent>
-                <TabsContent value="manual" className="mt-3">
-                  <div className="space-y-2">
-                    {manualEmails.map((email, idx) => (
-                      <div key={idx} className="flex flex-col gap-2 w-full">
-                        <div className="flex gap-2">
-                          <Input
-                            type="email"
-                            placeholder="Email"
-                            value={email.email}
-                            onChange={(e) => updateManualEmail(idx, "email", e.target.value)}
-                            className="flex-1 text-xs h-8"
-                          />
+              {/* Source Selection */}
+              <div className="space-y-3">
+                <div className="text-xs text-gray-600 mb-2">Choose one or more recipient sources:</div>
+                <div className="grid grid-cols-1 gap-2">
+                  {/* CSV Upload Source */}
+                  <div className={`border rounded-lg p-3 ${activeSources.includes("csv") ? "border-blue-500 bg-blue-50" : "border-gray-200"}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <input
+                        type="checkbox"
+                        id="csv-source"
+                        checked={activeSources.includes("csv")}
+                        onChange={() => toggleSource("csv")}
+                        className="rounded border-gray-300"
+                      />
+                      <label htmlFor="csv-source" className="text-sm font-medium">CSV Upload</label>
+                      {csvData.length > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          {csvData.length} contacts
+                        </Badge>
+                      )}
+                    </div>
+                    {activeSources.includes("csv") && (
+                      <CSVUpload onDataLoad={setCsvData} csvData={csvData} />
+                    )}
+                  </div>
+
+                  {/* Manual Entry Source */}
+                  <div className={`border rounded-lg p-3 ${activeSources.includes("manual") ? "border-blue-500 bg-blue-50" : "border-gray-200"}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <input
+                        type="checkbox"
+                        id="manual-source"
+                        checked={activeSources.includes("manual")}
+                        onChange={() => toggleSource("manual")}
+                        className="rounded border-gray-300"
+                      />
+                      <label htmlFor="manual-source" className="text-sm font-medium">Manual Entry</label>
+                      {manualEmails.filter((email) => email.email.trim()).length > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          {manualEmails.filter((email) => email.email.trim()).length} contacts
+                        </Badge>
+                      )}
+                    </div>
+                    {activeSources.includes("manual") && (
+                      <div className="space-y-2">
+                        {manualEmails.map((email, idx) => (
+                          <div key={idx} className="flex flex-col gap-2 w-full">
+                            <div className="flex gap-2">
+                              <Input
+                                type="email"
+                                placeholder="Email"
+                                value={email.email}
+                                onChange={(e) => updateManualEmail(idx, "email", e.target.value)}
+                                className="flex-1 text-xs h-8"
+                              />
+                              <Input
+                                type="text"
+                                placeholder="Name"
+                                value={email.name}
+                                onChange={(e) => updateManualEmail(idx, "name", e.target.value)}
+                                className="flex-1 text-xs h-8"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeManualEmail(idx)}
+                                className="text-red-500 h-8 w-8 p-0"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                        <Button type="button" variant="outline" onClick={addManualEmail} size="sm" className="w-full h-8 text-xs">
+                          <Plus className="h-3 w-3 mr-1" /> Add Recipient
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Contacts Source */}
+                  <div className={`border rounded-lg p-3 ${activeSources.includes("contacts") ? "border-blue-500 bg-blue-50" : "border-gray-200"}`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <input
+                        type="checkbox"
+                        id="contacts-source"
+                        checked={activeSources.includes("contacts")}
+                        onChange={() => toggleSource("contacts")}
+                        className="rounded border-gray-300"
+                      />
+                      <label htmlFor="contacts-source" className="text-sm font-medium">Contacts</label>
+                      {selectedContacts.length > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          {selectedContacts.length} selected
+                        </Badge>
+                      )}
+                    </div>
+                    {activeSources.includes("contacts") && (
+                      <div className="space-y-2">
+                        {/* Search Bar */}
+                        <div className="flex items-center gap-2">
                           <Input
                             type="text"
-                            placeholder="Name"
-                            value={email.name}
-                            onChange={(e) => updateManualEmail(idx, "name", e.target.value)}
+                            placeholder="Search contacts..."
+                            value={contactSearch}
+                            onChange={(e) => setContactSearch(e.target.value)}
                             className="flex-1 text-xs h-8"
                           />
                           <Button
-                            type="button"
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
-                            onClick={() => removeManualEmail(idx)}
-                            className="text-red-500 h-8 w-8 p-0"
+                            onClick={selectAllFilteredContacts}
+                            className="h-8"
                           >
-                            <Trash2 className="h-3 w-3" />
+                            <Plus className="h-4 w-4 mr-1" /> Add All
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={clearContactSelection}
+                            className="h-8"
+                          >
+                            Clear
                           </Button>
                         </div>
+                        {/* Contact List */}
+                        <div className="max-h-60 overflow-y-auto">
+                          {getFilteredContacts().length === 0 ? (
+                            <p className="text-xs text-gray-500 py-2 text-center">No contacts found</p>
+                          ) : (
+                            getFilteredContacts().map((contact) => (
+                              <div
+                                key={contact.id}
+                                className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer
+                                ${selectedContacts.find(c => c.id === contact.id) ? "bg-blue-50" : "hover:bg-gray-100"}`}
+                                onClick={() => toggleContactSelection(contact)}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{contact.name || "Unnamed Contact"}</p>
+                                  <p className="text-xs text-gray-500 truncate">{contact.email}</p>
+                                </div>
+                                {selectedContacts.find(c => c.id === contact.id) && (
+                                  <CheckCircle className="h-5 w-5 text-blue-600" />
+                                )}
+                              </div>
+                            ))
+                          )}
+                        </div>
                       </div>
-                    ))}
-                    <Button type="button" variant="outline" onClick={addManualEmail} size="sm" className="w-full h-8 text-xs">
-                      <Plus className="h-3 w-3 mr-1" /> Add Recipient
-                    </Button>
+                    )}
                   </div>
-                  {manualEmails.filter((email) => email.email.trim()).length > 0 && (
-                    <div className="mt-2 text-xs text-gray-500">
-                      📧 {manualEmails.filter((email) => email.email.trim()).length} recipient(s) ready to send
-                    </div>
-                  )}
-                </TabsContent>
-                <TabsContent value="contacts" className="mt-3">
-                  <div className="space-y-2">
-                    {/* Search Bar */}
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="text"
-                        placeholder="Search contacts..."
-                        value={contactSearch}
-                        onChange={(e) => setContactSearch(e.target.value)}
-                        className="flex-1 text-xs h-8"
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={selectAllFilteredContacts}
-                        className="h-8"
-                      >
-                        <Plus className="h-4 w-4 mr-1" /> Add All
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={clearContactSelection}
-                        className="h-8"
-                      >
-                        Clear
-                      </Button>
-                    </div>                    {/* Contact List */}
-                    <div className="max-h-60 overflow-y-auto">
-                      {getFilteredContacts().length === 0 ? (
-                        <p className="text-xs text-gray-500 py-2 text-center">No contacts found</p>
-                      ) : (
-                        getFilteredContacts().map((contact) => (
-                          <div
-                            key={contact.id}
-                            className={`flex items-center justify-between gap-2 p-2 rounded-lg cursor-pointer
-                            ${selectedContacts.find(c => c.id === contact.id) ? "bg-blue-50" : "hover:bg-gray-100"}`}
-                            onClick={() => toggleContactSelection(contact)}
-                          >
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{contact.name || "Unnamed Contact"}</p>
-                              <p className="text-xs text-gray-500 truncate">{contact.email}</p>
-                            </div>
-                            {selectedContacts.find(c => c.id === contact.id) && (
-                              <CheckCircle className="h-5 w-5 text-blue-600" />
-                            )}
-                          </div>
-                        ))
-                      )}
-                    </div>
+                </div>                {/* Summary */}
+                {activeSources.length === 0 ? (
+                  <div className="mt-3 p-2 bg-yellow-50 rounded-lg">
+                    <p className="text-xs text-yellow-800">
+                      ⚠️ Please select at least one recipient source above
+                    </p>
                   </div>
-                </TabsContent>
-              </Tabs>
+                ) : emailData.length > 0 ? (
+                  <div className="mt-3 p-2 bg-green-50 rounded-lg">
+                    <p className="text-xs text-green-800">
+                      📧 Total: {emailData.length} recipient(s) ready to send from {activeSources.length} source(s)
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-3 p-2 bg-blue-50 rounded-lg">
+                    <p className="text-xs text-blue-800">
+                      📝 Add recipients to the selected source(s) above
+                    </p>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
