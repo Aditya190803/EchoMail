@@ -4,6 +4,20 @@ export interface AttachmentData {
   data: string // base64 encoded
 }
 
+// Helper function to sanitize and encode text for proper UTF-8 handling
+function sanitizeText(text: string): string {
+  // Normalize Unicode characters and ensure proper UTF-8 encoding
+  return text.normalize('NFC').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"')
+}
+
+// Helper function to encode subject line for proper UTF-8 handling
+function encodeSubject(subject: string): string {
+  // Always encode for consistent UTF-8 handling, even for ASCII characters
+  const sanitized = sanitizeText(subject)
+  const encoded = Buffer.from(sanitized, 'utf8').toString('base64')
+  return `=?UTF-8?B?${encoded}?=`
+}
+
 export async function sendEmailViaAPI(
   accessToken: string,
   to: string,
@@ -11,6 +25,14 @@ export async function sendEmailViaAPI(
   htmlBody: string,
   attachments?: AttachmentData[],
 ) {
+  console.log('Sending email with UTF-8 encoding:', {
+    to,
+    subject,
+    subjectLength: subject.length,
+    hasSpecialChars: /[^\x00-\x7F]/.test(subject),
+    bodyLength: htmlBody.length
+  })
+  
   const boundary = "boundary_" + Math.random().toString(36).substr(2, 9)
 
   // First, get the user's email address to use as 'From'
@@ -28,24 +50,35 @@ export async function sendEmailViaAPI(
   const userProfile = await userResponse.json()
   const fromEmail = userProfile.emailAddress
 
+  // Properly encode the subject line to handle UTF-8 characters
+  const encodedSubject = encodeSubject(subject)
+  
+  // Sanitize the HTML body for proper UTF-8 handling
+  const sanitizedHtmlBody = sanitizeText(htmlBody)
+
   const email = [
     `From: ${fromEmail}`,
     `To: ${to}`,
-    `Subject: ${subject}`,
+    `Subject: ${encodedSubject}`,
     `MIME-Version: 1.0`,
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    `Content-Transfer-Encoding: 8bit`,
     "",
     `--${boundary}`,
     "Content-Type: text/html; charset=utf-8",
+    "Content-Transfer-Encoding: 8bit",
     "",
-    htmlBody,
+    sanitizedHtmlBody,
   ]
 
   if (attachments && attachments.length > 0) {
     for (const attachment of attachments) {
+      // Always encode attachment filename for consistent UTF-8 handling
+      const encodedFilename = `=?UTF-8?B?${Buffer.from(attachment.name, 'utf8').toString('base64')}?=`
+        
       email.push(`--${boundary}`)
-      email.push(`Content-Type: ${attachment.type}; name="${attachment.name}"`)
-      email.push(`Content-Disposition: attachment; filename="${attachment.name}"`)
+      email.push(`Content-Type: ${attachment.type}; name="${encodedFilename}"`)
+      email.push(`Content-Disposition: attachment; filename="${encodedFilename}"`)
       email.push("Content-Transfer-Encoding: base64")
       email.push("")
       email.push(attachment.data)
@@ -54,7 +87,8 @@ export async function sendEmailViaAPI(
 
   email.push(`--${boundary}--`)
 
-  const encodedEmail = Buffer.from(email.join("\n"))
+  // Explicitly encode as UTF-8 to handle international characters properly
+  const encodedEmail = Buffer.from(email.join("\n"), 'utf8')
     .toString("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_")

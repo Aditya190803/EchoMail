@@ -4,6 +4,7 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { Providers } from "./providers"
 import { Footer } from "@/components/footer"
+import { ErrorBoundary } from "@/components/error-boundary"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -41,7 +42,9 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/favicon.ico" />
       </head>
       <body className={inter.className}>
-        <Providers>{children}</Providers>
+        <ErrorBoundary>
+          <Providers>{children}</Providers>
+        </ErrorBoundary>
         <Footer />
       </body>
     </html>
