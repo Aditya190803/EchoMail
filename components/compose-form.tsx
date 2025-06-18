@@ -772,18 +772,34 @@ export function ComposeForm() {
                 )}
               </div>
             </CardContent>
-          </Card>
-
-          {/* Action Buttons */}
-          <div className="flex flex-col gap-2 pt-2">
-            <Button
-              onClick={handlePreview}
-              disabled={!canSend || isLoading}
-              className="w-full h-10 text-sm"
-            >
-              <Eye className="h-4 w-4 mr-2" />
-              Preview & Send
-            </Button>
+          </Card>          {/* Action Buttons - Sticky at bottom */}
+          <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-lg p-4">
+            <div className="max-w-2xl mx-auto">
+              <Button
+                onClick={handlePreview}
+                disabled={!canSend || isLoading}
+                className="w-full h-12 text-sm font-medium shadow-lg bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                Preview & Send
+              </Button>
+              {/* Status indicators */}
+              {activeSources.length === 0 && (
+                <p className="text-xs text-amber-600 mt-2 text-center">
+                  ⚠️ Please select at least one recipient source above
+                </p>
+              )}
+              {emailData.length === 0 && activeSources.length > 0 && (
+                <p className="text-xs text-blue-600 mt-2 text-center">
+                  📝 Add recipients to the selected source(s)
+                </p>
+              )}
+              {emailData.length > 0 && (
+                <p className="text-xs text-green-600 mt-2 text-center">
+                  📧 Ready to send to {emailData.length} recipient(s)
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Send Progress */}

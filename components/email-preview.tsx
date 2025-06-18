@@ -18,14 +18,26 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 z-50">
       <Card className="w-full max-w-4xl max-h-[95vh] overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between p-3">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Eye className="h-4 w-4" />
-            Email Preview ({emails.length} emails)
-          </CardTitle>
-          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
-            <X className="h-4 w-4" />
-          </Button>
+        <CardHeader className="flex flex-col space-y-3 p-3 border-b bg-white sticky top-0 z-10">
+          <div className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Eye className="h-4 w-4" />
+              Email Preview ({emails.length} emails)
+            </CardTitle>
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          {/* Action Buttons - Always visible at top */}
+          <div className="flex flex-col gap-2">
+            <Button onClick={onSend} disabled={isLoading} className="w-full h-10 shadow-lg">
+              <Send className="h-4 w-4 mr-2" />
+              {isLoading ? "Sending..." : `Send ${emails.length} Emails`}
+            </Button>
+            <Button variant="outline" onClick={onClose} className="w-full h-8">
+              Cancel
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3 p-3">
           <div className="bg-blue-50 p-3 rounded-lg mb-3">
@@ -34,7 +46,7 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
               <strong>Gmail Preview:</strong> Shows exactly how emails will appear in Gmail with proper formatting and spacing.
             </p>
           </div>
-          <div className="max-h-[75vh] overflow-y-auto space-y-4">
+          <div className="max-h-[65vh] overflow-y-auto space-y-4">
             {emails.map((email, index) => (
               <div key={index} className="border rounded-lg p-3 bg-white">
                 <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -81,15 +93,6 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
                 </div>
               </div>
             ))}
-          </div>
-          <div className="flex flex-col gap-2 pt-3 border-t">
-            <Button onClick={onSend} disabled={isLoading} className="w-full h-10">
-              <Send className="h-4 w-4 mr-2" />
-              {isLoading ? "Sending..." : `Send ${emails.length} Emails`}
-            </Button>
-            <Button variant="outline" onClick={onClose} className="w-full h-8">
-              Cancel
-            </Button>
           </div>
         </CardContent>
       </Card>

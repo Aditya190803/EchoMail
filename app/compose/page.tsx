@@ -53,9 +53,9 @@ export default function ComposePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b sticky top-0 z-10">
+      <header className="bg-white shadow-sm border-b sticky top-0 z-10 flex-shrink-0">
         <div className="w-full px-2">
           <div className="flex flex-col sm:flex-row justify-between items-center py-2 gap-2">
             <div className="flex items-center gap-2">
@@ -81,8 +81,10 @@ export default function ComposePage() {
       </header>
 
       {/* Main Content */}
-      <main className="w-full py-3 px-1">
-        <ComposeForm />
+      <main className="flex-1 w-full py-3 px-1 overflow-auto pb-32">
+        <div className="pb-8">
+          <ComposeForm />
+        </div>
       </main>
     </div>
   )
