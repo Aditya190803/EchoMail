@@ -10,7 +10,6 @@ import Image from "@tiptap/extension-image"
 import Underline from "@tiptap/extension-underline"
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
-import { Slice } from '@tiptap/pm/model'
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
@@ -37,52 +36,8 @@ import {
   Code,
   Minus,
 } from "lucide-react"
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-
-// Custom paste handling extension to clean up spacing while preserving formatting
-const PasteHandler = Extension.create({
-  name: 'pasteHandler',
-  
-  addProseMirrorPlugins() {
-    return [
-      new Plugin({
-        key: new PluginKey('pasteHandler'),
-        props: {
-          handlePaste: (view, event, slice) => {
-            // Let TipTap handle the paste first, then clean up
-            setTimeout(() => {
-              const { state, dispatch } = view
-              let { tr } = state
-              let modified = false
-              
-              // Find and remove consecutive empty paragraphs
-              state.doc.descendants((node, pos) => {
-                if (node.type.name === 'paragraph' && node.content.size === 0) {
-                  // Look ahead to see if next node is also empty paragraph
-                  const nextPos = pos + node.nodeSize
-                  const nextNode = state.doc.nodeAt(nextPos)
-                  
-                  if (nextNode && nextNode.type.name === 'paragraph' && nextNode.content.size === 0) {
-                    tr = tr.delete(pos, pos + node.nodeSize)
-                    modified = true
-                  }
-                }
-              })
-              
-              if (modified) {
-                dispatch(tr)
-              }
-            }, 10)
-            
-            // Return false to let default paste handling continue
-            return false
-          }
-        }
-      })
-    ]
-  }
-})
 
 interface RichTextEditorProps {
   content: string
@@ -95,9 +50,14 @@ export function RichTextEditor({ content, onChange, placeholder = "" }: RichText
   const [imageUrl, setImageUrl] = useState("")
   const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
   const [isImageDialogOpen, setIsImageDialogOpen] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
 
-  const editor = useEditor({
-    extensions: [
+  // Ensure we're only rendering on the client to prevent hydration issues
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  const editor = useEditor({    extensions: [
       StarterKit.configure({
         // Configure paragraph to not add extra spacing
         paragraph: {
@@ -107,7 +67,6 @@ export function RichTextEditor({ content, onChange, placeholder = "" }: RichText
         },
       }),
       Underline,
-      PasteHandler, // Add our custom paste handler
       TextAlign.configure({
         types: ["heading", "paragraph"],
       }),
@@ -132,6 +91,61 @@ export function RichTextEditor({ content, onChange, placeholder = "" }: RichText
         class: "max-w-none focus:outline-none min-h-[150px] p-2 font-sans text-[14px] leading-[1.4] text-[#222222] [&_p]:my-[0.5em] [&_p]:leading-[1.4] [&_p]:text-[14px] [&_p]:text-[#222222] [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_p:empty]:hidden [&_br]:leading-[0] [&_h1]:my-4 [&_h1]:text-[24px] [&_h1]:leading-[1.4] [&_h1]:text-[#222222] [&_h2]:my-4 [&_h2]:text-[18px] [&_h2]:leading-[1.4] [&_h2]:text-[#222222] [&_h3]:my-4 [&_h3]:text-[16px] [&_h3]:leading-[1.4] [&_h3]:text-[#222222] [&_ul]:my-4 [&_ul]:text-[14px] [&_ul]:leading-[1.4] [&_ul]:text-[#222222] [&_ol]:my-4 [&_ol]:text-[14px] [&_ol]:leading-[1.4] [&_ol]:text-[#222222] [&_li]:my-1 [&_li]:text-[14px] [&_li]:leading-[1.4] [&_li]:text-[#222222] [&_blockquote]:my-4 [&_blockquote]:pl-4 [&_blockquote]:border-l-2 [&_blockquote]:border-[#dcdcdc] [&_blockquote]:text-[14px] [&_blockquote]:leading-[1.4] [&_blockquote]:text-[#222222] [&_a]:text-[#1a0dab] [&_a]:underline [&_code]:text-[12px] [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_strong]:text-[#222222] [&_b]:text-[#222222] [&_em]:text-[#222222] [&_i]:text-[#222222]",
         spellcheck: "true",
         style: "font-family: Arial, sans-serif; font-size: 14px; line-height: 1.4; color: #222222; word-spacing: normal; letter-spacing: normal;",
+      },
+      handlePaste: (view, event, slice) => {
+        // Handle pasted HTML content for emoji conversion
+        const htmlData = event.clipboardData?.getData('text/html') || ''
+        if (htmlData) {
+          // Clean up emoji images in pasted HTML
+          let cleanedHtml = cleanupEmojiImages(htmlData)
+          
+          // Also clean up spacing issues in the HTML
+          cleanedHtml = cleanedHtml
+            // Remove excessive empty paragraphs
+            .replace(/<p><\/p>/gi, '')
+            .replace(/<p[^>]*>\s*<\/p>/gi, '')
+            .replace(/<p[^>]*>\s*<br[^>]*>\s*<\/p>/gi, '')
+            // Remove multiple consecutive paragraph breaks
+            .replace(/(<\/p>\s*<p[^>]*>){2,}/gi, '</p><p>')
+            // Remove multiple line breaks
+            .replace(/(<br\s*\/?>\s*){2,}/gi, '<br>')
+            // Clean up leading/trailing empty paragraphs
+            .replace(/^\s*<p[^>]*><\/p>\s*/gi, '')
+            .replace(/\s*<p[^>]*><\/p>\s*$/gi, '')
+            // Remove excessive whitespace between tags
+            .replace(/>\s{2,}</g, '><')
+            .trim()
+          
+          // If the HTML was cleaned up, insert cleaned content
+          if (cleanedHtml !== htmlData) {
+            editor?.commands.insertContent(cleanedHtml)
+            return true // Prevent default paste behavior
+          }
+        }
+        
+        // Handle pasted text content with proper UTF-8 encoding and spacing cleanup
+        const text = event.clipboardData?.getData('text/plain') || ''
+        if (text) {
+          // Normalize and sanitize pasted text, and remove excessive line breaks
+          const sanitized = text
+            .normalize('NFC')
+            .replace(/[\u2018\u2019]/g, "'")
+            .replace(/[\u201C\u201D]/g, '"')
+            .replace(/[\u2013\u2014]/g, '-')
+            .replace(/[\u2026]/g, '...')
+            // Remove excessive line breaks in plain text
+            .replace(/\n{3,}/g, '\n\n')
+            .replace(/\n\s+\n/g, '\n\n')
+            .trim()
+          
+          // Insert the cleaned text if it was modified
+          if (sanitized !== text) {
+            editor?.commands.insertContent(sanitized)
+            return true
+          }
+        }
+        
+        return false
       },
     },
   })

@@ -314,26 +314,7 @@ export function sanitizeEmailHTML(htmlContent: string): string {
  * Cleans up emoji image tags by converting them to Unicode text
  */
 export function cleanupEmojiImages(html: string): string {
-  return html
-    // Convert emoji images to Unicode text using alt attribute
-    .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*alt="([^"]*)"[^>]*>/gi, '$1')
-    // Convert emoji images with data-emoji attribute
-    .replace(/<img[^>]*data-emoji="([^"]*)"[^>]*>/gi, '$1')
-    // Convert emoji images with Unicode in filename
-    .replace(/<img[^>]*src="[^"]*\/([^"\/]*\.(?:png|svg|gif))"[^>]*>/gi, (match, filename) => {
-      // Try to extract emoji from filename if it contains Unicode
-      const unicodeMatch = filename.match(/u([0-9a-f]{4,6})/i);
-      if (unicodeMatch) {
-        try {
-          return String.fromCodePoint(parseInt(unicodeMatch[1], 16));
-        } catch (e) {
-          return ''; // Remove if conversion fails
-        }
-      }
-      return ''; // Remove unrecognized emoji images
-    })
-    // Remove any remaining emoji image tags
-    .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*>/gi, '');
+  return convertEmojiImagesToText(html);
 }
 
 /**
@@ -413,12 +394,20 @@ export function convertEmojiImagesToText(html: string): string {
   if (!html) return '';
   
   return html
-    // Convert emoji images with alt text to Unicode
+    // First, try to convert emoji images with alt text to Unicode (most common)
     .replace(/<img[^>]*alt="([^"]*)"[^>]*class="[^"]*emoji[^"]*"[^>]*>/gi, '$1')
     .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*alt="([^"]*)"[^>]*>/gi, '$1')
     
     // Convert emoji images with data-emoji attribute
     .replace(/<img[^>]*data-emoji="([^"]*)"[^>]*>/gi, '$1')
+    
+    // Convert any img tag that has "emoji" in the class and alt text
+    .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*alt="([^"]*)"[^>]*>/gi, '$1')
+    .replace(/<img[^>]*alt="([^"]*)"[^>]*class="[^"]*emoji[^"]*"[^>]*>/gi, '$1')
+    
+    // Convert TipTap editor emoji images (common pattern)
+    .replace(/<img[^>]*src="[^"]*emoji[^"]*"[^>]*alt="([^"]*)"[^>]*>/gi, '$1')
+    .replace(/<img[^>]*alt="([^"]*)"[^>]*src="[^"]*emoji[^"]*"[^>]*>/gi, '$1')
     
     // Convert emoji images with Unicode in src path (common pattern)
     .replace(/<img[^>]*src="[^"]*[\/\\]([0-9a-f]{4,6})\.(?:png|svg|gif)"[^>]*>/gi, (match, unicode) => {
@@ -453,9 +442,9 @@ export function convertEmojiImagesToText(html: string): string {
       };
       
       return emojiMap[emojiName.toLowerCase()] || '';
-    })
-    
-    // Remove any remaining emoji image tags
+    })    
+    // Fallback: Remove any remaining emoji image tags that couldn't be converted
     .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*>/gi, '')
-    .replace(/<img[^>]*emoji[^>]*>/gi, '');
+    .replace(/<img[^>]*emoji[^>]*>/gi, '')
+    .replace(/<img[^>]*src="[^"]*emoji[^"]*"[^>]*>/gi, '');
 }

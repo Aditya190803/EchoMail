@@ -12,13 +12,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Debug: Log if content contains emoji images
+    const hasEmojiImages = htmlContent.includes('<img') && (
+      htmlContent.includes('emoji') || 
+      htmlContent.includes('data-emoji') ||
+      htmlContent.match(/<img[^>]*alt="[^"]*"/gi)
+    )
+
     const formattedHTML = formatEmailHTML(htmlContent)
     
     return NextResponse.json({
       success: true,
       formattedHTML,
       originalLength: htmlContent.length,
-      formattedLength: formattedHTML.length
+      formattedLength: formattedHTML.length,
+      debug: {
+        hadEmojiImages: hasEmojiImages,
+        originalSnippet: htmlContent.substring(0, 200),
+        processedSnippet: formattedHTML.substring(formattedHTML.indexOf('<body>') + 6, formattedHTML.indexOf('<body>') + 206)
+      }
     })
   } catch (error) {
     console.error('Email formatting error:', error)
