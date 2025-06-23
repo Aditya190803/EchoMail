@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { db } from "@/lib/firebase"
 import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore"
-import { formatEmailHTML, getEmailPreviewHTML, convertEmojiImagesToText } from "@/lib/email-formatter"
+import { getInstantEmailPreview, convertEmojiImagesToText } from "@/lib/email-formatter-client"
 import Link from "next/link"
 
 export default function TestEmailPage() {

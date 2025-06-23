@@ -21,9 +21,7 @@ export function formatEmailHTML(htmlContent: string): string {
     }
 
     // First convert any emoji images to Unicode text
-    const contentWithTextEmojis = convertEmojiImagesToText(htmlContent);
-
-    // Basic HTML content cleaning and preparation
+    const contentWithTextEmojis = convertEmojiImagesToText(htmlContent);    // Basic HTML content cleaning and preparation
     const sanitizedContent = sanitizeEmailHTML(contentWithTextEmojis);
       // Create MJML template with proper list styling
     const mjmlTemplate = `
@@ -142,17 +140,14 @@ export function formatEmailHTML(htmlContent: string): string {
         </mj-head>
         <mj-body>
           <mj-section padding="20px">
-            <mj-column>
-              <mj-text padding="0" css-class="email-content">
+            <mj-column>              <mj-text padding="0" css-class="email-content">
                 ${sanitizedContent}
               </mj-text>
             </mj-column>
           </mj-section>
         </mj-body>
       </mjml>
-    `;
-
-    // Compile MJML to HTML
+    `;    // Compile MJML to HTML
     const { html, errors } = mjml2html(mjmlTemplate, {
       validationLevel: 'soft',
       fonts: {
@@ -164,7 +159,7 @@ export function formatEmailHTML(htmlContent: string): string {
       console.warn('MJML compilation warnings:', errors);
     }
 
-    return html;  } catch (error) {
+    return html;} catch (error) {
     console.error('MJML compilation failed:', error);
     return getFallbackHTML(htmlContent);
   }
@@ -302,13 +297,14 @@ export function sanitizeEmailHTML(htmlContent: string): string {
       return match;
     })
     // Remove any remaining emoji image tags that couldn't be converted
-    .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*>/gi, '')
-    // Remove script tags
+    .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*>/gi, '')    // Remove script tags
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    // Remove dangerous attributes but keep formatting
-    .replace(/\s(on\w+|javascript:)[^>]*/gi, '')
-    // Clean up extra whitespace
-    .replace(/\s+/g, ' ')
+    // Remove dangerous attributes but keep formatting (be more specific)
+    .replace(/\s(on\w+)=["'][^"']*["']/gi, '') // Remove onXXX event handlers
+    .replace(/\sjavascript:[^"\s>]*/gi, '') // Remove javascript: URLs
+    // Clean up excessive whitespace but preserve line structure
+    .replace(/[ \t]+/g, ' ') // Only collapse spaces and tabs, not newlines
+    .replace(/\n\s*\n\s*\n+/g, '\n\n') // Collapse multiple newlines to max 2
     .trim();
     
   return sanitized;

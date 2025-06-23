@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Eye, Send, X, Paperclip, Mail } from "lucide-react"
 import type { PersonalizedEmail } from "@/types/email"
-import { getEmailPreviewHTML } from "@/lib/email-formatter"
+import { getInstantEmailPreview } from "@/lib/email-formatter-client"
+import { useState, useEffect } from "react"
 
 interface EmailPreviewProps {
   emails: PersonalizedEmail[]
@@ -15,6 +16,43 @@ interface EmailPreviewProps {
 }
 
 export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPreviewProps) {
+  const [iframeErrors, setIframeErrors] = useState<Set<number>>(new Set())
+  const [previewHtml, setPreviewHtml] = useState<{ [key: number]: string }>({})
+
+  // Load formatted HTML for each email
+  useEffect(() => {
+    const loadPreviews = async () => {
+      const newPreviews: { [key: number]: string } = {}
+      
+      for (let i = 0; i < emails.length; i++) {
+        try {
+          const response = await fetch('/api/format-email-preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ htmlContent: emails[i].message }),
+          })
+          
+          if (response.ok) {
+            const result = await response.json()
+            newPreviews[i] = result.formattedHTML
+          } else {
+            newPreviews[i] = getInstantEmailPreview(emails[i].message)
+          }
+        } catch (error) {
+          newPreviews[i] = getInstantEmailPreview(emails[i].message)
+        }
+      }
+      
+      setPreviewHtml(newPreviews)
+    }
+    
+    loadPreviews()
+  }, [emails])
+
+  const handleIframeError = (index: number) => {
+    setIframeErrors(prev => new Set(prev).add(index))
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 z-50">
       <Card className="w-full max-w-4xl max-h-[95vh] overflow-hidden">
@@ -66,12 +104,22 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
                   </div>
                   <div>
                     <span className="text-sm font-medium text-gray-700">Message: </span>
-                    <div className="mt-2 p-3 bg-gray-50 rounded border max-h-96 overflow-y-auto">
-                      <iframe
-                        srcDoc={getEmailPreviewHTML(email.message)}
-                        className="w-full h-64 border-0 bg-white rounded"
-                        title={`Email preview for ${email.to}`}
-                      />
+                    <div className="mt-2 bg-gray-50 rounded border">
+                      {iframeErrors.has(index) ? (
+                        // Fallback: render HTML directly
+                        <div 
+                          className="w-full p-4 bg-white rounded border-0 prose prose-sm max-w-none max-h-80 overflow-y-auto"
+                          dangerouslySetInnerHTML={{ __html: previewHtml[index] || getInstantEmailPreview(email.message) }}
+                        />
+                      ) : (
+                        // Primary: use iframe
+                        <iframe
+                          srcDoc={previewHtml[index] || getInstantEmailPreview(email.message)}
+                          className="w-full h-80 border-0 bg-white rounded"
+                          title={`Email preview for ${email.to}`}
+                          onError={() => handleIframeError(index)}
+                        />
+                      )}
                     </div>
                   </div>
                   {email.attachments && email.attachments.length > 0 && (

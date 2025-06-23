@@ -25,10 +25,18 @@ const nextConfig = {
       config.externals = [
         ...(config.externals || []),
         'mjml',
+        'mjml-core',
         'clean-css',
         'html-minifier',
       ];
     }
+
+    // Suppress MJML webpack warnings
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      { module: /mjml/ },
+      { message: /Critical dependency: the request of a dependency is an expression/ },
+    ];
 
     if (dev && !isServer) {
       config.optimization = {
