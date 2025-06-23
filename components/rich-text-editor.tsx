@@ -8,8 +8,6 @@ import TextAlign from "@tiptap/extension-text-align"
 import Link from "@tiptap/extension-link"
 import Image from "@tiptap/extension-image"
 import Underline from "@tiptap/extension-underline"
-import { Extension } from '@tiptap/core'
-import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Input } from "@/components/ui/input"
@@ -56,14 +54,21 @@ export function RichTextEditor({ content, onChange, placeholder = "" }: RichText
   useEffect(() => {
     setIsMounted(true)
   }, [])
-
-  const editor = useEditor({    extensions: [
+  const editor = useEditor({
+    extensions: [
       StarterKit.configure({
-        // Configure paragraph to not add extra spacing
+        // Configure paragraph behavior for consistent spacing
         paragraph: {
           HTMLAttributes: {
             class: 'editor-paragraph',
           },
+        },
+        // Configure hard break to be more predictable
+        hardBreak: {
+          HTMLAttributes: {
+            class: 'editor-break',
+          },
+          keepMarks: false,
         },
       }),
       Underline,
@@ -86,9 +91,8 @@ export function RichTextEditor({ content, onChange, placeholder = "" }: RichText
     immediatelyRender: false, // Fix SSR hydration mismatch
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML())
-    },    editorProps: {
-      attributes: {
-        class: "max-w-none focus:outline-none min-h-[150px] p-2 font-sans text-[14px] leading-[1.4] text-[#222222] [&_p]:my-[0.5em] [&_p]:leading-[1.4] [&_p]:text-[14px] [&_p]:text-[#222222] [&_p:first-child]:mt-0 [&_p:last-child]:mb-0 [&_p:empty]:hidden [&_br]:leading-[0] [&_h1]:my-4 [&_h1]:text-[24px] [&_h1]:leading-[1.4] [&_h1]:text-[#222222] [&_h2]:my-4 [&_h2]:text-[18px] [&_h2]:leading-[1.4] [&_h2]:text-[#222222] [&_h3]:my-4 [&_h3]:text-[16px] [&_h3]:leading-[1.4] [&_h3]:text-[#222222] [&_ul]:my-4 [&_ul]:text-[14px] [&_ul]:leading-[1.4] [&_ul]:text-[#222222] [&_ol]:my-4 [&_ol]:text-[14px] [&_ol]:leading-[1.4] [&_ol]:text-[#222222] [&_li]:my-1 [&_li]:text-[14px] [&_li]:leading-[1.4] [&_li]:text-[#222222] [&_blockquote]:my-4 [&_blockquote]:pl-4 [&_blockquote]:border-l-2 [&_blockquote]:border-[#dcdcdc] [&_blockquote]:text-[14px] [&_blockquote]:leading-[1.4] [&_blockquote]:text-[#222222] [&_a]:text-[#1a0dab] [&_a]:underline [&_code]:text-[12px] [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_strong]:text-[#222222] [&_b]:text-[#222222] [&_em]:text-[#222222] [&_i]:text-[#222222]",
+    },    editorProps: {      attributes: {
+        class: "max-w-none focus:outline-none min-h-[150px] p-2 font-sans text-[14px] leading-[1.4] text-[#222222]",
         spellcheck: "true",
         style: "font-family: Arial, sans-serif; font-size: 14px; line-height: 1.4; color: #222222; word-spacing: normal; letter-spacing: normal;",
       },
@@ -171,9 +175,22 @@ export function RichTextEditor({ content, onChange, placeholder = "" }: RichText
       setIsImageDialogOpen(false)
     }
   }, [editor, imageUrl])
-
-  if (!editor) {
-    return null
+  if (!editor || !isMounted) {
+    return (
+      <div className="border rounded-lg overflow-hidden relative bg-white">
+        <div className="border-b bg-gray-50 p-1">
+          <div className="flex items-center gap-0.5 min-w-[280px] h-8">
+            {/* Skeleton toolbar */}
+            <div className="h-6 w-6 bg-gray-200 rounded animate-pulse"></div>
+            <div className="h-6 w-6 bg-gray-200 rounded animate-pulse"></div>
+            <div className="h-6 w-6 bg-gray-200 rounded animate-pulse"></div>
+          </div>
+        </div>
+        <div className="min-h-[150px] max-h-[300px] p-2">
+          <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+        </div>
+      </div>
+    )
   }
 
   const ToolbarButton = ({
@@ -200,9 +217,8 @@ export function RichTextEditor({ content, onChange, placeholder = "" }: RichText
       {children}
     </Button>
   )
-
   return (
-    <div className="border rounded-lg overflow-hidden relative bg-white">
+    <div className="border rounded-lg overflow-hidden relative bg-white" suppressHydrationWarning>
       {/* Toolbar */}
       <div className="border-b bg-gray-50 p-1 overflow-x-auto">
         <div className="flex items-center gap-0.5 min-w-[280px]">
@@ -308,15 +324,16 @@ export function RichTextEditor({ content, onChange, placeholder = "" }: RichText
             <Redo className="h-3 w-3" />
           </ToolbarButton>
         </div>
-      </div>
-
-      {/* Editor Content */}
-      <div className="min-h-[150px] max-h-[300px] overflow-y-auto">
-        <EditorContent editor={editor} className="prose prose-sm max-w-none text-sm" />
+      </div>      {/* Editor Content */}
+      <div className="min-h-[150px] max-h-[300px] overflow-y-auto" suppressHydrationWarning>
+        <EditorContent 
+          editor={editor} 
+          className="[&_.ProseMirror]:outline-none [&_.ProseMirror]:p-2 [&_.ProseMirror]:min-h-[130px] [&_.ProseMirror_p]:my-3 [&_.ProseMirror_p]:leading-relaxed [&_.ProseMirror_br]:block [&_.ProseMirror_br]:my-1 [&_.ProseMirror]:text-sm [&_.ProseMirror]:leading-relaxed" 
+        />
       </div>
 
       {/* Placeholder when empty */}
-      {editor.isEmpty && <div className="absolute top-12 left-2 text-gray-400 pointer-events-none text-sm">{placeholder}</div>}
+      {editor.isEmpty && <div className="absolute top-12 left-2 text-gray-400 pointer-events-none text-sm" suppressHydrationWarning>{placeholder}</div>}
     </div>
   )
 }
