@@ -1,425 +1,465 @@
+// MJML import only on server side
+let mjml2html: any = null;
+if (typeof window === 'undefined') {
+  try {
+    mjml2html = require('mjml');
+  } catch (error) {
+    console.warn('MJML not available:', error);
+  }
+}
+
 /**
- * Email formatting utilities to ensure consistent spacing and styling
- * across different email clients, especially to match Gmail's appearance
+ * Formats email content using MJML for better email client compatibility
+ * Ensures proper list indentation and bullet styling
  */
-
 export function formatEmailHTML(htmlContent: string): string {
-  // Remove any existing HTML structure and extract just the body content
-  const cleanContent = htmlContent
-    .replace(/<html[^>]*>/gi, '')
-    .replace(/<\/html>/gi, '')
-    .replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '')
-    .replace(/<body[^>]*>/gi, '')
-    .replace(/<\/body>/gi, '')
-    .trim()
+  try {
+    // Check if MJML is available (server-side only)
+    if (!mjml2html) {
+      console.warn('MJML not available, using fallback HTML');
+      return getFallbackHTML(htmlContent);
+    }
 
-  // Process content to match Gmail's exact structure
-  const bodyContent = processContentForGmail(cleanContent)
-  // Email-safe CSS that perfectly mimics Gmail's exact styling
-  const emailCSS = `
-    <style type="text/css">      /* Exact Gmail reset and base styles */
-      * {
-        box-sizing: border-box;
-        font-size: 14px !important;
-        line-height: 1.4 !important;
-        color: #222222 !important;
-        font-family: Arial, sans-serif !important;
+    // First convert any emoji images to Unicode text
+    const contentWithTextEmojis = convertEmojiImagesToText(htmlContent);
+
+    // Basic HTML content cleaning and preparation
+    const sanitizedContent = sanitizeEmailHTML(contentWithTextEmojis);
+      // Create MJML template with proper list styling
+    const mjmlTemplate = `
+      <mjml>
+        <mj-head>          <mj-attributes>
+            <mj-all font-family="Aptos, sans-serif" font-size="16px" line-height="14.95px" />
+            <mj-text padding="0" />
+            <mj-section padding="0" />
+            <mj-column padding="0" />
+          </mj-attributes>
+          <mj-style>
+            /* Apply your desired styling */
+            .email-content {
+              margin: 0in !important;
+              line-height: 14.95px !important;
+              font-family: Aptos, sans-serif !important;
+              padding: 0 !important;
+            }
+              /* Paragraph spacing with your preferred styling */
+            .email-content p {
+              margin: 0in 0 16px 0 !important;
+              padding: 0 !important;
+              line-height: 14.95px !important;
+              font-family: Aptos, sans-serif !important;
+            }
+            
+            /* Remove extra spacing from last paragraph */
+            .email-content p:last-child {
+              margin-bottom: 0 !important;
+            }
+              /* Heading spacing with your preferred styling */
+            .email-content h1, .email-content h2, .email-content h3,
+            .email-content h4, .email-content h5, .email-content h6 {
+              margin: 0in 0 12px 0 !important;
+              padding: 0 !important;
+              line-height: 14.95px !important;
+              font-family: Aptos, sans-serif !important;
+            }
+              /* List spacing and styling with tab-like indentation */
+            .email-content ul, .email-content ol {
+              margin: 0in 0 16px 0 !important;
+              padding: 0 0 0 0.5in !important; /* Tab-like indentation (0.5 inch) */
+              font-family: Aptos, sans-serif !important;
+            }
+            
+            .email-content li {
+              margin: 0in 0 6px 0 !important;
+              padding: 0 !important;
+              list-style-position: outside !important;
+              line-height: 14.95px !important;
+              font-family: Aptos, sans-serif !important;
+            }
+            
+            /* Nested list indentation - each level indents like pressing tab */
+            .email-content ul ul, .email-content ol ol, 
+            .email-content ul ol, .email-content ol ul {
+              margin: 6px 0 6px 0 !important;
+              padding: 0 0 0 0.5in !important; /* Additional tab indentation */
+            }
+            
+            /* Third level indentation */
+            .email-content ul ul ul, .email-content ol ol ol,
+            .email-content ul ol ul, .email-content ol ul ol {
+              padding: 0 0 0 0.5in !important; /* Another tab level */
+            }
+            
+            .email-content ul li {
+              list-style-type: disc !important;
+            }
+            
+            .email-content ol li {
+              list-style-type: decimal !important;
+            }
+            
+            /* Nested list spacing */
+            .email-content ul ul,
+            .email-content ol ol,
+            .email-content ul ol,
+            .email-content ol ul {
+              margin: 6px 0 6px 0 !important;
+              padding: 0 0 0 20px !important;
+            }
+            
+            /* Blockquote spacing */
+            .email-content blockquote {
+              margin: 0 0 16px 0 !important;
+              padding: 12px 0 12px 16px !important;
+              border-left: 3px solid #ccc !important;
+              font-style: italic !important;
+            }
+            
+            /* Remove spacing from first and last elements */
+            .email-content > :first-child {
+              margin-top: 0 !important;
+            }
+            
+            .email-content > :last-child {
+              margin-bottom: 0 !important;
+            }
+            
+            /* Link styling */
+            .email-content a {
+              color: #0066cc !important;
+              text-decoration: underline !important;
+            }
+            
+            /* Strong and emphasis */
+            .email-content strong {
+              font-weight: bold !important;
+            }
+            
+            .email-content em {
+              font-style: italic !important;
+            }
+          </mj-style>
+        </mj-head>
+        <mj-body>
+          <mj-section padding="20px">
+            <mj-column>
+              <mj-text padding="0" css-class="email-content">
+                ${sanitizedContent}
+              </mj-text>
+            </mj-column>
+          </mj-section>
+        </mj-body>
+      </mjml>
+    `;
+
+    // Compile MJML to HTML
+    const { html, errors } = mjml2html(mjmlTemplate, {
+      validationLevel: 'soft',
+      fonts: {
+        'Arial': 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
       }
-      
-      body, table, td, p, a, li, blockquote, div {
-        -webkit-text-size-adjust: 100%;
-        -ms-text-size-adjust: 100%;
-        margin: 0;
-        padding: 0;
-        font-size: 14px !important;
-        line-height: 1.4 !important;
-        color: #222222 !important;
-        font-family: Arial, sans-serif !important;
-      }}      /* Gmail's exact body styling */
-      body {
-        font-family: Arial, sans-serif !important;
-        font-size: 14px !important;
-        line-height: 1.4 !important;
-        color: #222222 !important;
-        background-color: #ffffff !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        width: 100% !important;
-        min-width: 100% !important;
-        word-spacing: normal !important;
-        letter-spacing: normal !important;
-      }      /* Gmail's content wrapper - no extra containers */
-      .gmail-content {
-        font-family: Arial, sans-serif !important;
-        font-size: 14px !important;
-        line-height: 1.4 !important;
-        color: #222222 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-      }
-        margin: 0 !important;
-        padding: 0 !important;
-      }
-      
-      /* Ensure first element in content has no top margin */
-      .gmail-content > :first-child {
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-      }
-      
-      /* Ensure last element in content has no bottom margin */
-      .gmail-content > :last-child {
-        margin-bottom: 0 !important;
-        padding-bottom: 0 !important;
-      }      /* Gmail's exact paragraph styling */
-      p {
-        font-family: Arial, sans-serif !important;
-        font-size: 14px !important;
-        line-height: 1.4 !important;
-        color: #222222 !important;
-        margin: 0 0 1em 0 !important;
-        padding: 0 !important;
-        word-spacing: normal !important;
-        letter-spacing: normal !important;
-        font-weight: normal !important;
-      }
-        /* Remove margin from last paragraph like Gmail */
-      p:last-child {
-        margin-bottom: 0 !important;
-      }
-      
-      /* Remove margin from first paragraph to eliminate leading space */
-      p:first-child {
-        margin-top: 0 !important;
-      }      /* Gmail's exact div styling */
-      div {
-        font-family: Arial, sans-serif !important;
-        font-size: 14px !important;
-        line-height: 1.4 !important;
-        color: #222222 !important;
-        margin: 0 !important;
-        padding: 0 !important;
-        word-spacing: normal !important;
-        letter-spacing: normal !important;
-      }
-      
-      /* Gmail's line break handling */
-      br {
-        line-height: 1.4 !important;
-      }
-        word-spacing: normal !important;
-        letter-spacing: normal !important;
-      }
-      
-      /* Ensure proper spacing for content blocks */
-      div + div {
-        margin-top: 1em !important;
-      }      /* Heading styles matching Gmail exactly */
-      h1 {
-        font-size: 24px !important;
-        font-weight: bold !important;
-        margin: 0 0 1em 0 !important;
-        padding: 0 !important;
-        color: #222222 !important;
-        line-height: 1.4 !important;
-        font-family: Arial, sans-serif !important;
-        word-spacing: normal !important;
-        letter-spacing: normal !important;
-      }
-      
-      h2 {
-        font-size: 18px !important;
-        font-weight: bold !important;
-        margin: 0 0 1em 0 !important;
-        padding: 0 !important;
-        color: #222222 !important;
-        line-height: 1.4 !important;
-        font-family: Arial, sans-serif !important;
-        word-spacing: normal !important;
-        letter-spacing: normal !important;
-      }
-      
-      h3 {
-        font-size: 16px !important;
-        font-weight: bold !important;
-        margin: 0 0 1em 0 !important;
-        padding: 0 !important;
-        color: #222222 !important;
-        line-height: 1.4 !important;
-        font-family: Arial, sans-serif !important;
-        word-spacing: normal !important;
-        letter-spacing: normal !important;
-      }
-        font-family: Arial, sans-serif !important;
-        word-spacing: normal !important;
-        letter-spacing: normal !important;
-      }        /* List styles matching Gmail exactly */
-      ul, ol {
-        margin: 0 0 1em 0 !important;
-        padding-left: 30px !important;
-        font-family: Arial, sans-serif !important;
-        font-size: 14px !important;
-        line-height: 1.4 !important;
-        color: #222222 !important;
-        word-spacing: normal !important;
-        letter-spacing: normal !important;
-      }
-      
-      li {
-        margin: 0 0 0.3em 0 !important;
-        padding: 0 !important;
-        font-size: 14px !important;
-        line-height: 1.4 !important;
-        color: #222222 !important;
-        font-family: Arial, sans-serif !important;
-        word-spacing: normal !important;
-        letter-spacing: normal !important;
-      }
-        letter-spacing: normal !important;
-      }
-      
-      li:last-child {
-        margin-bottom: 0 !important;
-      }
-      
-      /* Nested lists */
-      ul ul, ol ol, ul ol, ol ul {
-        margin: 0.3em 0 0.3em 0 !important;
-        padding-left: 25px !important;
-      }
-        /* Link styles matching Gmail */
-      a {
-        color: #1a0dab !important;
-        text-decoration: underline !important;
-      }
-      
-      a:hover {
-        color: #1a0dab !important;
-        text-decoration: underline !important;
-      }      /* Blockquote styles matching Gmail exactly */
-      blockquote {
-        margin: 0 0 1em 0 !important;
-        padding: 0 0 0 15px !important;
-        border-left: 2px solid #dcdcdc !important;
-        color: #222222 !important;
-        font-style: normal !important;
-        font-size: 14px !important;
-        line-height: 1.4 !important;
-        font-family: Arial, sans-serif !important;
-        word-spacing: normal !important;
-        letter-spacing: normal !important;
-      }
-      }
-        /* Code styles matching Gmail */
-      code {
-        background-color: #f5f5f5 !important;
-        padding: 2px 4px !important;
-        border-radius: 3px !important;
-        font-family: 'Courier New', Courier, monospace !important;
-        font-size: 12px !important;
-        color: #d73a49 !important;
-        word-spacing: normal !important;
-        letter-spacing: normal !important;
-      }
-      
-      /* Image styles */
-      img {
-        max-width: 100% !important;
-        height: auto !important;
-        border: none !important;
-        outline: none !important;
-      }      /* Strong and emphasis matching Gmail */
-      strong, b {
-        font-weight: bold !important;
-        color: #222222 !important;
-        font-family: Arial, sans-serif !important;
-        font-size: inherit !important;
-        word-spacing: normal !important;
-        letter-spacing: normal !important;
-      }
-      
-      em, i {
-        font-style: italic !important;
-        color: #222222 !important;
-        font-family: Arial, sans-serif !important;
-        font-size: inherit !important;
-        word-spacing: normal !important;
-        letter-spacing: normal !important;
-      }
-      
-      /* Underline */
-      u {
-        text-decoration: underline !important;
-      }
-      
-      /* Text alignment */
-      .text-left { text-align: left !important; }
-      .text-center { text-align: center !important; }
-      .text-right { text-align: right !important; }
-      .text-justify { text-align: justify !important; }      /* Ensure Gmail-style rendering across all clients */
-      @media screen and (-webkit-min-device-pixel-ratio: 0) {
-        .gmail-content, .gmail-content * {
-          font-size: 14px !important;
-          line-height: 1.4 !important;
-          font-family: Arial, sans-serif !important;
-          color: #222222 !important;
-          word-spacing: normal !important;
-          letter-spacing: normal !important;
+    });
+
+    if (errors && errors.length > 0) {
+      console.warn('MJML compilation warnings:', errors);
+    }
+
+    return html;  } catch (error) {
+    console.error('MJML compilation failed:', error);
+    return getFallbackHTML(htmlContent);
+  }
+}
+
+/**
+ * Fallback HTML formatter when MJML is not available
+ */
+function getFallbackHTML(htmlContent: string): string {
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">        <style>
+          body { 
+            margin: 0in;
+            line-height: 14.95px;
+            font-family: Aptos, sans-serif;
+            font-size: 16px;
+            padding: 20px; 
+            color: #333;
+          }
+            /* Paragraph spacing with your preferred styling */
+          p { 
+            margin: 0in 0 16px 0 !important;            padding: 0 !important;
+            line-height: 14.95px !important;
+            font-family: Aptos, sans-serif !important;
+          }
+          
+          /* Remove extra spacing from last paragraph */
+          p:last-child {
+            margin-bottom: 0 !important;
+          }
+          
+          /* Heading spacing with your preferred styling */
+          h1, h2, h3, h4, h5, h6 {
+            margin: 0in 0 12px 0 !important;
+            padding: 0 !important;
+            line-height: 14.95px !important;
+            font-family: Aptos, sans-serif !important;
+          }          /* List styling with tab-like indentation */
+          ul, ol { 
+            margin: 0in 0 16px 0 !important; 
+            padding: 0 0 0 0.5in !important; /* Tab-like indentation (0.5 inch) */
+            font-family: Aptos, sans-serif !important;
+          }
+          
+          li { 
+            margin: 0in 0 6px 0 !important; 
+            padding: 0 !important;
+            list-style-position: outside !important; 
+            line-height: 14.95px !important;
+            font-family: Aptos, sans-serif !important;
+          }
+          
+          /* Nested list indentation - each level indents like pressing tab */
+          ul ul, ol ol, ul ol, ol ul {
+            margin: 6px 0 6px 0 !important;
+            padding: 0 0 0 0.5in !important; /* Additional tab indentation */
+          }
+          
+          /* Third level indentation */
+          ul ul ul, ol ol ol, ul ol ul, ol ul ol {
+            padding: 0 0 0 0.5in !important; /* Another tab level */
+          }
+          
+          ul li { 
+            list-style-type: disc !important; 
+          }
+          
+          ol li { 
+            list-style-type: decimal !important; 
+          }
+          
+          /* Nested list spacing */
+          ul ul, ol ol, ul ol, ol ul {
+            margin: 6px 0 6px 0 !important;
+            padding: 0 0 0 20px !important;
+          }
+          
+          /* Blockquote spacing */
+          blockquote {
+            margin: 0 0 16px 0 !important;
+            padding: 12px 0 12px 16px !important;
+            border-left: 3px solid #ccc !important;
+            font-style: italic !important;
+          }
+          
+          /* Link styling */
+          a {
+            color: #0066cc !important;
+            text-decoration: underline !important;
+          }
+          
+          /* Strong and emphasis */
+          strong {
+            font-weight: bold !important;
+          }
+          
+          em {
+            font-style: italic !important;
+          }        </style>
+      </head>
+      <body>
+        ${sanitizeEmailHTML(convertEmojiImagesToText(htmlContent))}
+      </body>
+    </html>
+  `;
+}
+
+/**
+ * Sanitizes HTML content while preserving formatting and converting emoji images back to Unicode text
+ */
+export function sanitizeEmailHTML(htmlContent: string): string {
+  if (!htmlContent) return '';
+  
+  // Convert emoji images back to Unicode text
+  let sanitized = htmlContent
+    // Convert emoji images to Unicode text using alt attribute
+    .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*alt="([^"]*)"[^>]*>/gi, '$1')
+    // Convert emoji images with data-emoji attribute
+    .replace(/<img[^>]*data-emoji="([^"]*)"[^>]*>/gi, '$1')
+    // Convert common emoji image patterns with Unicode in src or data attributes
+    .replace(/<img[^>]*src="[^"]*\/([^"\/]*\.(?:png|svg|gif))"[^>]*>/gi, (match, filename) => {
+      // Try to extract emoji from filename if it contains Unicode
+      const unicodeMatch = filename.match(/u([0-9a-f]{4,6})/i);
+      if (unicodeMatch) {
+        try {
+          return String.fromCodePoint(parseInt(unicodeMatch[1], 16));
+        } catch (e) {
+          return match; // Keep original if conversion fails
         }
       }
-        /* Signature styling matching Gmail */
-      .signature {
-        color: #5f6368 !important;
-        font-size: 12px !important;
-        font-family: Arial, sans-serif !important;
-        line-height: 1.4 !important;
-        margin: 1em 0 0 0 !important;
-        padding: 0 !important;
-      }
-        /* Table layout support for Gmail compatibility */
-      table {
-        border-collapse: collapse !important;
-        width: 100% !important;
-        font-family: Arial, sans-serif !important;
-        font-size: 14px !important;
-        line-height: 1.4 !important;
-        color: #222222 !important;
-      }
-      
-      td {
-        padding: 0 !important;
-        vertical-align: top !important;
-        font-family: Arial, sans-serif !important;
-        font-size: 14px !important;
-        line-height: 1.4 !important;
-        color: #222222 !important;
-      }
-    </style>
-  `
-  // Construct Gmail-compatible HTML structure (simplified like Gmail)
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  ${emailCSS}
-</head>
-<body>
-  <div class="gmail-content">
-    ${bodyContent}
-  </div>
-</body>
-</html>`
+      return match;
+    })
+    // Remove any remaining emoji image tags that couldn't be converted
+    .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*>/gi, '')
+    // Remove script tags
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    // Remove dangerous attributes but keep formatting
+    .replace(/\s(on\w+|javascript:)[^>]*/gi, '')
+    // Clean up extra whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
+    
+  return sanitized;
 }
 
 /**
- * Sanitize HTML content for email while preserving formatting
+ * Cleans up emoji image tags by converting them to Unicode text
  */
-export function sanitizeEmailHTML(html: string): string {
-  // Basic sanitization while preserving email-safe HTML
+export function cleanupEmojiImages(html: string): string {
   return html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '') // Remove scripts
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '') // Remove existing styles (will be replaced)
-    .replace(/on\w+="[^"]*"/gi, '') // Remove event handlers
-    .replace(/javascript:/gi, '') // Remove javascript: links
-    .replace(/data:/gi, '') // Remove data: URLs for security
+    // Convert emoji images to Unicode text using alt attribute
+    .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*alt="([^"]*)"[^>]*>/gi, '$1')
+    // Convert emoji images with data-emoji attribute
+    .replace(/<img[^>]*data-emoji="([^"]*)"[^>]*>/gi, '$1')
+    // Convert emoji images with Unicode in filename
+    .replace(/<img[^>]*src="[^"]*\/([^"\/]*\.(?:png|svg|gif))"[^>]*>/gi, (match, filename) => {
+      // Try to extract emoji from filename if it contains Unicode
+      const unicodeMatch = filename.match(/u([0-9a-f]{4,6})/i);
+      if (unicodeMatch) {
+        try {
+          return String.fromCodePoint(parseInt(unicodeMatch[1], 16));
+        } catch (e) {
+          return ''; // Remove if conversion fails
+        }
+      }
+      return ''; // Remove unrecognized emoji images
+    })
+    // Remove any remaining emoji image tags
+    .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*>/gi, '');
 }
 
 /**
- * Preview how the email will look with Gmail-like styling
- * This can be used in the compose preview
+ * Generates email preview HTML
  */
-export function getEmailPreviewHTML(htmlContent: string): string {
-  const sanitized = sanitizeEmailHTML(htmlContent)
-  return formatEmailHTML(sanitized)
-}
-
-/**
- * Process content to match Gmail's exact HTML structure
- */
-function processContentForGmail(htmlContent: string): string {
-  // Remove TipTap's editor classes and attributes that don't match Gmail
-  let processed = htmlContent
-    .replace(/class="[^"]*"/g, '') // Remove all classes
-    .replace(/style="[^"]*"/g, '') // Remove inline styles (we'll add our own)
-    .replace(/data-[^=]*="[^"]*"/g, '') // Remove data attributes
-    .replace(/contenteditable="[^"]*"/g, '') // Remove contenteditable
-    .replace(/spellcheck="[^"]*"/g, '') // Remove spellcheck
-    .replace(/\s+/g, ' ') // Normalize whitespace
-    .trim()
-
-  // Ensure proper paragraph structure like Gmail
-  processed = processed
-    .replace(/<div><br><\/div>/g, '<p><br></p>') // Convert empty divs to paragraphs
-    .replace(/<div>/g, '<p>') // Convert divs to paragraphs
-    .replace(/<\/div>/g, '</p>') // Convert closing divs
-    .replace(/<p><\/p>/g, '<p><br></p>') // Empty paragraphs get br
-    .replace(/<p>\s*<br>\s*<\/p>/g, '<p><br></p>') // Clean up br in paragraphs
-
-  // Add inline styles to ALL elements
-  const inlineStyle = 'margin: 0 0 1em 0 !important; padding: 0 !important; font-size: 14px !important; line-height: 1.4 !important; color: #222222 !important; font-family: Arial, sans-serif !important;'
+export function getEmailPreviewHTML(content: string): string {
+  const formattedContent = formatEmailHTML(content);
   
-  processed = processed
-    // Add styles to paragraphs
-    .replace(/<p>/g, `<p style="${inlineStyle}">`)
-    .replace(/<p([^>]*)>/g, `<p$1 style="${inlineStyle}">`)
-    
-    // Add styles to divs
-    .replace(/<div>/g, `<div style="${inlineStyle}">`)
-    .replace(/<div([^>]*)>/g, `<div$1 style="${inlineStyle}">`)
-    
-    // Add styles to spans
-    .replace(/<span>/g, `<span style="${inlineStyle}">`)
-    .replace(/<span([^>]*)>/g, `<span$1 style="${inlineStyle}">`)
-    
-    // Add styles to headings
-    .replace(/<h1>/g, `<h1 style="${inlineStyle}">`)
-    .replace(/<h1([^>]*)>/g, `<h1$1 style="${inlineStyle}">`)
-    .replace(/<h2>/g, `<h2 style="${inlineStyle}">`)
-    .replace(/<h2([^>]*)>/g, `<h2$1 style="${inlineStyle}">`)
-    .replace(/<h3>/g, `<h3 style="${inlineStyle}">`)
-    .replace(/<h3([^>]*)>/g, `<h3$1 style="${inlineStyle}">`)
-    
-    // Add styles to lists
-    .replace(/<ul>/g, `<ul style="${inlineStyle}">`)
-    .replace(/<ul([^>]*)>/g, `<ul$1 style="${inlineStyle}">`)
-    .replace(/<ol>/g, `<ol style="${inlineStyle}">`)
-    .replace(/<ol([^>]*)>/g, `<ol$1 style="${inlineStyle}">`)
-    .replace(/<li>/g, `<li style="${inlineStyle}">`)
-    .replace(/<li([^>]*)>/g, `<li$1 style="${inlineStyle}">`)
-    
-    // Add styles to other elements
-    .replace(/<strong>/g, `<strong style="${inlineStyle}">`)
-    .replace(/<strong([^>]*)>/g, `<strong$1 style="${inlineStyle}">`)
-    .replace(/<b>/g, `<b style="${inlineStyle}">`)
-    .replace(/<b([^>]*)>/g, `<b$1 style="${inlineStyle}">`)
-    .replace(/<em>/g, `<em style="${inlineStyle}">`)
-    .replace(/<em([^>]*)>/g, `<em$1 style="${inlineStyle}">`)
-    .replace(/<i>/g, `<i style="${inlineStyle}">`)
-    .replace(/<i([^>]*)>/g, `<i$1 style="${inlineStyle}">`)
-    .replace(/<u>/g, `<u style="${inlineStyle}">`)
-    .replace(/<u([^>]*)>/g, `<u$1 style="${inlineStyle}">`)
-    .replace(/<blockquote>/g, `<blockquote style="${inlineStyle}">`)
-    .replace(/<blockquote([^>]*)>/g, `<blockquote$1 style="${inlineStyle}">`)
+  return `
+    <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
+      <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin: 0 0 10px 0; color: #666;">Email Preview</h3>
+        <div style="background: white; padding: 20px; border-radius: 4px; border: 1px solid #ddd;">
+          ${formattedContent}
+        </div>
+      </div>
+    </div>
+  `;
+}
 
-  // Remove leading empty elements that cause extra spacing
-  processed = processed
-    .replace(/^(<p[^>]*><br><\/p>|<p[^>]*><\/p>|<br>|<div[^>]*><\/div>)+/i, '') // Remove leading empty elements
-    .replace(/^(<p[^>]*>\s*<\/p>)+/i, '') // Remove leading empty paragraphs with whitespace
-    .replace(/^\s+/, '') // Remove any remaining leading whitespace
-    .trim()
+/**
+ * Formats HTML content for Gmail-specific rendering
+ */
+export function formatGmailHTML(htmlContent: string): string {
+  // For Gmail, we can use the same MJML formatting
+  return formatEmailHTML(htmlContent);
+}
 
-  // Remove trailing empty elements
-  processed = processed
-    .replace(/(<p[^>]*><br><\/p>|<p[^>]*><\/p>|<br>|<div[^>]*><\/div>)+$/i, '') // Remove trailing empty elements
-    .replace(/(<p[^>]*>\s*<\/p>)+$/i, '') // Remove trailing empty paragraphs
-    .replace(/\s+$/, '') // Remove trailing whitespace
-    .trim()
-
-  // If content is empty or only contains empty elements, return empty string
-  if (!processed || processed.match(/^(<p[^>]*><br><\/p>|<p[^>]*><\/p>|<br>|\s)*$/i)) {
-    return ''
+/**
+ * Converts rich text editor content to email-safe HTML
+ */
+export function convertToEmailHTML(editorContent: any): string {
+  if (typeof editorContent === 'string') {
+    return formatEmailHTML(editorContent);
   }
+  
+  // If it's a structured object from a rich text editor
+  if (editorContent && typeof editorContent === 'object') {
+    // Convert to HTML string first (this would depend on your editor format)
+    const htmlString = JSON.stringify(editorContent); // Placeholder - implement based on your editor
+    return formatEmailHTML(htmlString);
+  }
+  
+  return '';
+}
 
-  return processed
+/**
+ * Validates email HTML content
+ */
+export function validateEmailHTML(htmlContent: string): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  
+  if (!htmlContent || htmlContent.trim() === '') {
+    errors.push('Email content is empty');
+  }
+  
+  // Check for potentially problematic content
+  if (htmlContent.includes('<script')) {
+    errors.push('Script tags are not allowed in email content');
+  }
+  
+  if (htmlContent.includes('javascript:')) {
+    errors.push('JavaScript URLs are not allowed in email content');
+  }
+  
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+}
+
+/**
+ * Converts emoji images to Unicode text characters
+ * This should be called before any email formatting to ensure emojis are text-based
+ */
+export function convertEmojiImagesToText(html: string): string {
+  if (!html) return '';
+  
+  return html
+    // Convert emoji images with alt text to Unicode
+    .replace(/<img[^>]*alt="([^"]*)"[^>]*class="[^"]*emoji[^"]*"[^>]*>/gi, '$1')
+    .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*alt="([^"]*)"[^>]*>/gi, '$1')
+    
+    // Convert emoji images with data-emoji attribute
+    .replace(/<img[^>]*data-emoji="([^"]*)"[^>]*>/gi, '$1')
+    
+    // Convert emoji images with Unicode in src path (common pattern)
+    .replace(/<img[^>]*src="[^"]*[\/\\]([0-9a-f]{4,6})\.(?:png|svg|gif)"[^>]*>/gi, (match, unicode) => {
+      try {
+        return String.fromCodePoint(parseInt(unicode, 16));
+      } catch (e) {
+        return '';
+      }
+    })
+    
+    // Convert emoji images with emoji names/codes in src
+    .replace(/<img[^>]*src="[^"]*emoji[^"]*[\/\\]([^"\/\\]+)\.(?:png|svg|gif)"[^>]*>/gi, (match, emojiName) => {
+      // Common emoji name to Unicode mappings
+      const emojiMap: { [key: string]: string } = {
+        'smile': '😊',
+        'heart': '❤️',
+        'thumbs-up': '👍',
+        'fire': '🔥',
+        'star': '⭐',
+        'check': '✅',
+        'cross': '❌',
+        'warning': '⚠️',
+        'info': 'ℹ️',
+        'rocket': '🚀',
+        'email': '📧',
+        'party': '🎉',
+        'thinking': '🤔',
+        'wink': '😉',
+        'laugh': '😂',
+        'cool': '😎',
+        'love': '😍'
+      };
+      
+      return emojiMap[emojiName.toLowerCase()] || '';
+    })
+    
+    // Remove any remaining emoji image tags
+    .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*>/gi, '')
+    .replace(/<img[^>]*emoji[^>]*>/gi, '');
 }

@@ -8,9 +8,28 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
-  },
-  // Fix ChunkLoadError issues
+  },  // Fix ChunkLoadError issues and handle MJML server-side only
   webpack: (config, { dev, isServer }) => {
+    // Exclude MJML and related packages from client-side bundle
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        crypto: false,
+        stream: false,
+        util: false,
+        os: false,
+      };
+      
+      config.externals = [
+        ...(config.externals || []),
+        'mjml',
+        'clean-css',
+        'html-minifier',
+      ];
+    }
+
     if (dev && !isServer) {
       config.optimization = {
         ...config.optimization,
