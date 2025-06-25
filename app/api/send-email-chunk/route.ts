@@ -82,15 +82,21 @@ export async function POST(request: NextRequest) {
         const sentDelta = newChunkSent - chunkSentSoFar
         const failedDelta = newChunkFailed - chunkFailedSoFar
         
+        console.log('Updating progress - sent delta:', sentDelta, 'failed delta:', failedDelta); // Debug log
+        
         // Update cumulative totals
         progress.sent += sentDelta
         progress.failed += failedDelta
         progress.lastUpdate = Date.now()
         global.emailProgress.set(campaignId, progress)
         
+        console.log('New progress state:', progress); // Debug log
+        
         // Update chunk counters
         chunkSentSoFar = newChunkSent
         chunkFailedSoFar = newChunkFailed
+      } else {
+        console.log('Cannot update progress - campaignId:', campaignId || 'undefined', 'has progress:', global.emailProgress?.has(campaignId || '')); // Debug log
       }
     }
 
@@ -99,11 +105,15 @@ export async function POST(request: NextRequest) {
       console.log(`Chunk covers emails ${chunkInfo.startIndex + 1}-${chunkInfo.endIndex + 1} of ${chunkInfo.totalEmails} total`)
     }
 
+    console.log('Chunk API called with campaignId:', campaignId); // Debug log
+    console.log('Processing', personalizedEmails?.length, 'emails in this chunk'); // Debug log
+
     // Initialize or update campaign progress
     if (campaignId) {
       if (!global.emailProgress.has(campaignId)) {
         // Initialize with total campaign size, not just this chunk
         const totalCampaignSize = chunkInfo?.totalEmails || personalizedEmails.length
+        console.log('Initializing campaign progress for:', campaignId, 'total:', totalCampaignSize); // Debug log
         global.emailProgress.set(campaignId, {
           total: totalCampaignSize,
           sent: 0,

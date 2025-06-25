@@ -412,6 +412,7 @@ export function ComposeForm() {
     
     // Generate unique campaign ID for progress tracking
     const newCampaignId = uuidv4()
+    console.log('Generated campaignId:', newCampaignId); // Debug log
     setCampaignId(newCampaignId)
     
     // Close preview and show sending screen
@@ -701,19 +702,33 @@ export function ComposeForm() {
   // Poll progress if campaignId is set and sending screen is active
   useEffect(() => {
     if (!campaignId || !showSendingScreen) return;
+    
+    console.log('Starting polling for campaignId:', campaignId); // Debug log
+    
     let interval: NodeJS.Timeout;
     const poll = async () => {
-      const res = await fetch(`/api/progress?campaignId=${campaignId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setEmailsSent(data.sent);
-        setEmailsRemaining(data.total - data.sent - data.failed);
-        setSendProgress(data.total ? Math.round(((data.sent + data.failed) / data.total) * 100) : 0);
-        setProcessingStatus(data.done ? 'Completed!' : 'Sending...');
+      try {
+        console.log('Polling progress for campaignId:', campaignId); // Debug log
+        const res = await fetch(`/api/progress?campaignId=${campaignId}`);
+        
+        if (res.ok) {
+          const data = await res.json();
+          console.log('Progress data received:', data); // Debug log
+          
+          setEmailsSent(data.sent);
+          setEmailsRemaining(data.total - data.sent - data.failed);
+          setSendProgress(data.total ? Math.round(((data.sent + data.failed) / data.total) * 100) : 0);
+          setProcessingStatus(data.status === 'completed' ? 'Completed!' : 'Sending...');
+        } else {
+          console.error('Failed to fetch progress:', res.status); // Debug log
+        }
+      } catch (error) {
+        console.error('Error polling progress:', error); // Debug log
       }
     };
+    
     interval = setInterval(poll, 1000);
-    poll();
+    poll(); // Initial poll
     return () => clearInterval(interval);
   }, [campaignId, showSendingScreen]);
 
