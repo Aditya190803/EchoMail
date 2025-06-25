@@ -17,6 +17,11 @@ interface PersonalizedEmail {
   attachments?: any[]
 }
 
+// In-memory progress tracker (global for this process)
+const globalEmailProgress: Record<string, { sent: number; failed: number; total: number; done: boolean }> =
+  (global as any).globalEmailProgress || {};
+(global as any).globalEmailProgress = globalEmailProgress;
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -29,7 +34,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized - No user email" }, { status: 401 })
     }
 
-    const { personalizedEmails }: { personalizedEmails: PersonalizedEmail[] } = await request.json()
+    const { personalizedEmails, campaignId }: { personalizedEmails: PersonalizedEmail[]; campaignId: string } = await request.json()
     
     if (!personalizedEmails || !Array.isArray(personalizedEmails) || personalizedEmails.length === 0) {
       return NextResponse.json({ error: "No emails provided" }, { status: 400 })
@@ -38,9 +43,9 @@ export async function POST(request: NextRequest) {
     const results: EmailResult[] = []
 
     // Enhanced batch configuration for better reliability
-    const BATCH_SIZE = 6 // Smaller batches for better stability
-    const ATTACHMENT_BATCH_SIZE = 3 // Even smaller for emails with attachments
-    const BATCH_DELAY = 4000 // 4 seconds between batches for rate limiting
+    const BATCH_SIZE = 10 // Smaller batches for better stability
+    const ATTACHMENT_BATCH_SIZE = 5 // Even smaller for emails with attachments
+    const BATCH_DELAY = 3000 // 3 seconds between batches for rate limiting
     const RETRY_ATTEMPTS = 3
     const RETRY_DELAY = 2000 // 2 seconds between retries
 
@@ -112,6 +117,9 @@ export async function POST(request: NextRequest) {
       console.log(`✅ Completed ${batchType} batch ${batchIndex + 1}: ${successCount}/${batchResults.length} successful`)
     }
 
+    // Initialize progress for this campaign
+    globalEmailProgress[campaignId] = { sent: 0, failed: 0, total: personalizedEmails.length, done: false };
+
     // Process emails with attachments first (smaller batches)
     if (emailsWithAttachments.length > 0) {
       console.log(`📎 Processing ${emailsWithAttachments.length} emails with attachments in batches of ${ATTACHMENT_BATCH_SIZE}`)
@@ -122,6 +130,16 @@ export async function POST(request: NextRequest) {
         
         await processBatch(batch, batchIndex, "attachment")
         
+        // Update progress
+        const sentCount = results.filter(r => r.status === 'success').length;
+        const failedCount = results.filter(r => r.status === 'error').length;
+        globalEmailProgress[campaignId] = {
+          sent: sentCount,
+          failed: failedCount,
+          total: personalizedEmails.length,
+          done: false
+        };
+
         // Add delay between batches if there are more batches to process
         if (i + ATTACHMENT_BATCH_SIZE < emailsWithAttachments.length) {
           console.log(`⏳ Waiting ${BATCH_DELAY}ms before next attachment batch...`)
@@ -146,6 +164,16 @@ export async function POST(request: NextRequest) {
         
         await processBatch(batch, batchIndex, "regular")
         
+        // Update progress
+        const sentCount = results.filter(r => r.status === 'success').length;
+        const failedCount = results.filter(r => r.status === 'error').length;
+        globalEmailProgress[campaignId] = {
+          sent: sentCount,
+          failed: failedCount,
+          total: personalizedEmails.length,
+          done: false
+        };
+
         // Add delay between batches if there are more batches to process
         if (i + BATCH_SIZE < emailsWithoutAttachments.length) {
           console.log(`⏳ Waiting ${BATCH_DELAY}ms before next regular batch...`)
@@ -154,16 +182,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const successCount = results.filter(r => r.status === "success").length
-    const failedCount = results.filter(r => r.status === "error").length
-    
-    console.log(`🎉 Email batch processing complete: ${successCount} sent, ${failedCount} failed out of ${personalizedEmails.length} total`)
+    // Final progress update
+    const sentCount = results.filter(r => r.status === 'success').length;
+    const failedCount = results.filter(r => r.status === 'error').length;
+    globalEmailProgress[campaignId] = {
+      sent: sentCount,
+      failed: failedCount,
+      total: personalizedEmails.length,
+      done: true
+    };
+
+    console.log(`🎉 Email batch processing complete: ${sentCount} sent, ${failedCount} failed out of ${personalizedEmails.length} total`)
 
     return NextResponse.json({ 
       results,
       summary: {
         total: personalizedEmails.length,
-        sent: successCount,
+        sent: sentCount,
         failed: failedCount,
         batched: true,
         batchInfo: {

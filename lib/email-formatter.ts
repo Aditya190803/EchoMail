@@ -4,7 +4,8 @@ if (typeof window === 'undefined') {
   try {
     mjml2html = require('mjml');
   } catch (error) {
-    console.warn('MJML not available:', error);
+    // Silently handle MJML not being available during build
+    mjml2html = null;
   }
 }
 
@@ -16,7 +17,7 @@ export function formatEmailHTML(htmlContent: string): string {
   try {
     // Check if MJML is available (server-side only)
     if (!mjml2html) {
-      console.warn('MJML not available, using fallback HTML');
+      // Silently fall back to basic HTML during build
       return getFallbackHTML(htmlContent);
     }
 
