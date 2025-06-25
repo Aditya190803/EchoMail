@@ -422,7 +422,13 @@ export function ComposeForm() {
         setSendProgress(30) // 30% after attachments uploaded
       }
 
-      const response = await fetch("/api/send-email", {
+      // Determine whether to use batch sending based on email count and attachments
+      const shouldUseBatch = personalizedEmails.length > 5 || attachments.length > 0
+      const apiEndpoint = shouldUseBatch ? "/api/send-email-batch" : "/api/send-email"
+
+      console.log(`Using ${shouldUseBatch ? 'batched' : 'regular'} sending for ${personalizedEmails.length} emails ${attachments.length > 0 ? 'with attachments' : ''}`)
+
+      const response = await fetch(apiEndpoint, {
         method: "POST",        headers: {
           "Content-Type": "application/json",
         },        body: JSON.stringify({
@@ -437,7 +443,9 @@ export function ComposeForm() {
       console.log("Email sending results:", {
         totalEmails: personalizedEmails.length,
         results: results,
-        summary: data.summary
+        summary: data.summary,
+        endpoint: apiEndpoint,
+        batched: shouldUseBatch
       })
 
       const successCount = results.filter((result: SendStatus) => result.status === "success").length
@@ -797,6 +805,11 @@ export function ComposeForm() {
               {emailData.length > 0 && (
                 <p className="text-xs text-green-600 mt-2 text-center">
                   📧 Ready to send to {emailData.length} recipient(s)
+                  {(emailData.length > 5 || attachments.length > 0) && (
+                    <span className="ml-1 text-blue-600">
+                      (📦 Will use smart batch processing for reliability)
+                    </span>
+                  )}
                 </p>
               )}
             </div>

@@ -37,8 +37,32 @@ export async function sendEmailViaAPI(
   
   const boundary = "boundary_" + Math.random().toString(36).substr(2, 9)
 
+  // Timeout configuration
+  const REQUEST_TIMEOUT = 30000 // 30 seconds timeout
+
+  // Helper function to create a request with timeout
+  const fetchWithTimeout = async (url: string, options: RequestInit) => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
+    
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      })
+      clearTimeout(timeoutId)
+      return response
+    } catch (error) {
+      clearTimeout(timeoutId)
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Request timeout after ${REQUEST_TIMEOUT}ms`)
+      }
+      throw error
+    }
+  }
+
   // First, get the user's email address to use as 'From'
-  const userResponse = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
+  const userResponse = await fetchWithTimeout("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
     method: "GET",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -97,7 +121,7 @@ export async function sendEmailViaAPI(
     .replace(/\//g, "_")
     .replace(/=+$/, "")
 
-  const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+  const response = await fetchWithTimeout("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
