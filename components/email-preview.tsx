@@ -18,10 +18,12 @@ interface EmailPreviewProps {
 export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPreviewProps) {
   const [iframeErrors, setIframeErrors] = useState<Set<number>>(new Set())
   const [previewHtml, setPreviewHtml] = useState<{ [key: number]: string }>({})
+  const [loadingPreviews, setLoadingPreviews] = useState(true)
 
   // Load formatted HTML for each email
   useEffect(() => {
     const loadPreviews = async () => {
+      setLoadingPreviews(true)
       const newPreviews: { [key: number]: string } = {}
       
       for (let i = 0; i < emails.length; i++) {
@@ -44,6 +46,7 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
       }
       
       setPreviewHtml(newPreviews)
+      setLoadingPreviews(false)
     }
     
     loadPreviews()
@@ -105,7 +108,12 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
                   <div>
                     <span className="text-sm font-medium text-gray-700">Message: </span>
                     <div className="mt-2 bg-gray-50 rounded border">
-                      {iframeErrors.has(index) ? (
+                      {loadingPreviews ? (
+                        // Loading state - prevent flickering
+                        <div className="w-full h-80 bg-white rounded border-0 flex items-center justify-center">
+                          <div className="text-gray-500 text-sm">Loading formatted preview...</div>
+                        </div>
+                      ) : iframeErrors.has(index) ? (
                         // Fallback: render HTML directly
                         <div 
                           className="w-full p-4 bg-white rounded border-0 prose prose-sm max-w-none max-h-80 overflow-y-auto"
