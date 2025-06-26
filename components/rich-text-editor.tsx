@@ -165,6 +165,24 @@ export function RichTextEditor({ content, onChange, placeholder = "" }: RichText
   const removeLink = useCallback(() => {
     if (editor) {
       editor.chain().focus().unsetLink().run()
+      setLinkUrl("")
+      setIsLinkDialogOpen(false)
+    }
+  }, [editor])
+
+  // Function to handle link dialog opening
+  const handleLinkDialog = useCallback(() => {
+    if (editor) {
+      // Check if there's an existing link at the current selection
+      const { href } = editor.getAttributes('link')
+      if (href) {
+        // Pre-populate the input with existing link URL
+        setLinkUrl(href)
+      } else {
+        // Clear the input for new links
+        setLinkUrl("")
+      }
+      setIsLinkDialogOpen(true)
     }
   }, [editor])
 
@@ -269,20 +287,22 @@ export function RichTextEditor({ content, onChange, placeholder = "" }: RichText
           <Separator orientation="vertical" className="h-4" />
 
           {/* Link */}
+          <Button
+            variant={editor.isActive("link") ? "default" : "ghost"}
+            size="sm"
+            title={editor.isActive("link") ? "Edit Link" : "Add Link"}
+            className={`h-6 w-6 p-0 ${editor.isActive("link") ? "bg-blue-100 text-blue-700" : ""}`}
+            onClick={handleLinkDialog}
+          >
+            <LinkIcon className="h-3 w-3" />
+          </Button>
+
           <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
-            <DialogTrigger asChild>
-              <Button
-                variant={editor.isActive("link") ? "default" : "ghost"}
-                size="sm"
-                title="Add Link"
-                className={`h-6 w-6 p-0 ${editor.isActive("link") ? "bg-blue-100 text-blue-700" : ""}`}
-              >
-                <LinkIcon className="h-3 w-3" />
-              </Button>
-            </DialogTrigger>
             <DialogContent className="w-[95vw] max-w-sm">
               <DialogHeader>
-                <DialogTitle className="text-sm">Add Link</DialogTitle>
+                <DialogTitle className="text-sm">
+                  {editor.isActive("link") ? "Edit Link" : "Add Link"}
+                </DialogTitle>
               </DialogHeader>
               <div className="space-y-3">
                 <div>
@@ -293,14 +313,33 @@ export function RichTextEditor({ content, onChange, placeholder = "" }: RichText
                     onChange={(e) => setLinkUrl(e.target.value)}
                     placeholder="https://example.com"
                     className="text-xs h-8"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && linkUrl) {
+                        addLink()
+                      }
+                      if (e.key === 'Escape') {
+                        setIsLinkDialogOpen(false)
+                      }
+                    }}
                   />
+                  {editor.isActive("link") && (
+                    <p className="text-xs text-gray-600 mt-1">
+                      Current link: {editor.getAttributes('link').href}
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Button onClick={addLink} disabled={!linkUrl} size="sm" className="text-xs">
-                    Add Link
+                    {editor.isActive("link") ? "Update Link" : "Add Link"}
                   </Button>
-                  <Button variant="outline" onClick={removeLink} size="sm" className="text-xs">
-                    Remove Link
+                  {editor.isActive("link") && (
+                    <Button variant="outline" onClick={removeLink} size="sm" className="text-xs">
+                      Remove Link
+                    </Button>
+                  )}
+                  <Button variant="ghost" onClick={() => setIsLinkDialogOpen(false)} size="sm" className="text-xs">
+                    Cancel
                   </Button>
                 </div>
               </div>

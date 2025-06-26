@@ -3,6 +3,46 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { sendEmailViaAPI, replacePlaceholders } from "@/lib/gmail"
 
+// Global state declarations (shared with send-email-chunk)
+declare global {
+  var emailRateLimitState: {
+    isPaused: boolean
+    pauseStartTime: number
+    pauseDuration: number
+    pauseReason?: string
+  }
+}
+
+if (!global.emailRateLimitState) {
+  global.emailRateLimitState = {
+    isPaused: false,
+    pauseStartTime: 0,
+    pauseDuration: 300000, // 5 minutes default pause
+    pauseReason: undefined
+  }
+}
+
+// Global pause management functions (duplicate from send-email-chunk for consistency)
+function checkGlobalPause(): boolean {
+  if (!global.emailRateLimitState.isPaused) {
+    return false
+  }
+  
+  const now = Date.now()
+  const pauseEndTime = global.emailRateLimitState.pauseStartTime + global.emailRateLimitState.pauseDuration
+  
+  if (now >= pauseEndTime) {
+    console.log(`✅ GLOBAL EMAIL PAUSE LIFTED after ${(now - global.emailRateLimitState.pauseStartTime)/1000}s`)
+    global.emailRateLimitState.isPaused = false
+    global.emailRateLimitState.pauseReason = undefined
+    return false
+  }
+  
+  const remainingTime = pauseEndTime - now
+  console.log(`⏸️ GLOBAL EMAIL PAUSE ACTIVE: ${global.emailRateLimitState.pauseReason} - ${Math.ceil(remainingTime/1000)}s remaining`)
+  return true
+}
+
 interface EmailResult {
   email: string
   status: "success" | "error"
@@ -38,6 +78,17 @@ export async function POST(request: NextRequest) {
     
     if (!personalizedEmails || !Array.isArray(personalizedEmails) || personalizedEmails.length === 0) {
       return NextResponse.json({ error: "No emails provided" }, { status: 400 })
+    }
+
+    // Check for global pause before processing any emails
+    if (checkGlobalPause()) {
+      console.log(`⏸️ Batch sending paused due to global rate limit`)
+      return NextResponse.json({ 
+        error: "Email sending temporarily paused due to rate limits",
+        isPaused: true,
+        pauseReason: global.emailRateLimitState.pauseReason,
+        pauseTimeRemaining: (global.emailRateLimitState.pauseStartTime + global.emailRateLimitState.pauseDuration) - Date.now()
+      }, { status: 429 })
     }
 
     const results: EmailResult[] = []

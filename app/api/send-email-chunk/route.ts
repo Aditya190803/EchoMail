@@ -9,14 +9,83 @@ declare global {
     total: number
     sent: number
     failed: number
-    status: 'sending' | 'completed' | 'error'
+    status: 'sending' | 'completed' | 'error' | 'paused'
     startTime: number
     lastUpdate: number
   }>
+  var emailRateLimitState: {
+    isPaused: boolean
+    pauseStartTime: number
+    pauseDuration: number
+    pauseReason?: string
+  }
 }
 
 if (!global.emailProgress) {
   global.emailProgress = new Map()
+}
+
+if (!global.emailRateLimitState) {
+  global.emailRateLimitState = {
+    isPaused: false,
+    pauseStartTime: 0,
+    pauseDuration: 300000, // 5 minutes default pause
+    pauseReason: undefined
+  }
+}
+
+// Global pause management functions
+function triggerGlobalPause(reason: string, durationMs: number = 300000) {
+  console.log(`🚨 TRIGGERING GLOBAL EMAIL PAUSE: ${reason} for ${durationMs/1000}s`)
+  global.emailRateLimitState.isPaused = true
+  global.emailRateLimitState.pauseStartTime = Date.now()
+  global.emailRateLimitState.pauseDuration = durationMs
+  global.emailRateLimitState.pauseReason = reason
+  
+  // Mark all active campaigns as paused
+  for (const [campaignId, progress] of global.emailProgress.entries()) {
+    if (progress.status === 'sending') {
+      progress.status = 'paused'
+      progress.lastUpdate = Date.now()
+      global.emailProgress.set(campaignId, progress)
+    }
+  }
+}
+
+function checkGlobalPause(): boolean {
+  if (!global.emailRateLimitState.isPaused) {
+    return false
+  }
+  
+  const now = Date.now()
+  const pauseEndTime = global.emailRateLimitState.pauseStartTime + global.emailRateLimitState.pauseDuration
+  
+  if (now >= pauseEndTime) {
+    console.log(`✅ GLOBAL EMAIL PAUSE LIFTED after ${(now - global.emailRateLimitState.pauseStartTime)/1000}s`)
+    global.emailRateLimitState.isPaused = false
+    global.emailRateLimitState.pauseReason = undefined
+    
+    // Resume all paused campaigns
+    for (const [campaignId, progress] of global.emailProgress.entries()) {
+      if (progress.status === 'paused') {
+        progress.status = 'sending'
+        progress.lastUpdate = Date.now()
+        global.emailProgress.set(campaignId, progress)
+      }
+    }
+    return false
+  }
+  
+  const remainingTime = pauseEndTime - now
+  console.log(`⏸️ GLOBAL EMAIL PAUSE ACTIVE: ${global.emailRateLimitState.pauseReason} - ${Math.ceil(remainingTime/1000)}s remaining`)
+  return true
+}
+
+async function waitForGlobalPauseToLift(): Promise<void> {
+  while (checkGlobalPause()) {
+    console.log(`⏳ Waiting for global pause to lift...`)
+    await new Promise(resolve => setTimeout(resolve, 5000)) // Check every 5 seconds
+  }
 }
 
 interface EmailResult {
@@ -74,6 +143,17 @@ export async function POST(request: NextRequest) {
     
     if (!personalizedEmails || !Array.isArray(personalizedEmails) || personalizedEmails.length === 0) {
       return NextResponse.json({ error: "No emails provided" }, { status: 400 })
+    }
+
+    // Check for global pause before processing any emails
+    if (checkGlobalPause()) {
+      console.log(`⏸️ Chunk ${chunkIndex + 1} paused due to global rate limit`)
+      return NextResponse.json({ 
+        error: "Email sending temporarily paused due to rate limits",
+        isPaused: true,
+        pauseReason: global.emailRateLimitState.pauseReason,
+        pauseTimeRemaining: (global.emailRateLimitState.pauseStartTime + global.emailRateLimitState.pauseDuration) - Date.now()
+      }, { status: 429 })
     }
 
     // Log request size for debugging
@@ -160,6 +240,23 @@ export async function POST(request: NextRequest) {
 
     // Process emails in micro-batches within this chunk
     async function processBatch(emailBatch: any[], batchIndex: number, batchType: string) {
+      // Check for global pause before processing each batch
+      if (checkGlobalPause()) {
+        console.log(`⏸️ Skipping ${batchType} micro-batch ${batchIndex + 1} due to global pause`)
+        // Create error results for all emails in this batch
+        const pausedResults = emailBatch.map(email => ({
+          email: email.to,
+          status: "error" as const,
+          error: "Batch skipped due to global rate limit pause",
+        }))
+        
+        // Add to main results and update progress
+        results.push(...pausedResults)
+        updateProgress()
+        
+        return pausedResults
+      }
+      
       console.log(`Processing ${batchType} micro-batch ${batchIndex + 1} with ${emailBatch.length} emails in chunk ${chunkIndex + 1}`)
       
       const batchPromises = emailBatch.map(async (email, emailIndex) => {
@@ -194,9 +291,16 @@ export async function POST(request: NextRequest) {
             
             if (attempt < RETRY_ATTEMPTS) {
               if (isRateLimit) {
-                // Use longer delay for rate limit errors
-                console.log(`⏳ Rate limit detected, waiting ${RATE_LIMIT_DELAY / 1000}s before retry...`)
-                await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY))
+                // Trigger global pause on first rate limit hit
+                triggerGlobalPause(`Gmail rate limit hit during chunk ${chunkIndex + 1}`, 300000) // 5 minutes
+                
+                // Return early with pause status - don't continue processing this chunk
+                console.log(`🚨 Triggering global pause due to rate limit, stopping chunk ${chunkIndex + 1}`)
+                return {
+                  email: email.to,
+                  status: "error" as const,
+                  error: "Rate limit hit - global pause triggered",
+                }
               } else {
                 // Use exponential backoff for other errors
                 const delay = RETRY_DELAY * Math.pow(2, attempt - 1)
@@ -223,6 +327,8 @@ export async function POST(request: NextRequest) {
       
       const successCount = batchResults.filter(r => r.status === "success").length
       console.log(`✅ Chunk ${chunkIndex + 1} micro-batch ${batchIndex + 1}: ${successCount}/${batchResults.length} successful`)
+      
+      return batchResults
     }
 
     // Process emails with attachments first (very small batches)
@@ -233,7 +339,13 @@ export async function POST(request: NextRequest) {
         const batch = emailsWithAttachments.slice(i, i + ATTACHMENT_BATCH_SIZE)
         const batchIndex = Math.floor(i / ATTACHMENT_BATCH_SIZE)
         
-        await processBatch(batch, batchIndex, "attachment")
+        const batchResults = await processBatch(batch, batchIndex, "attachment")
+        
+        // If the batch was skipped due to global pause, stop processing
+        if (batchResults.every(r => r.error?.includes("global rate limit pause"))) {
+          console.log(`🚨 Stopping attachment processing due to global pause`)
+          break
+        }
         
         // Add delay between micro-batches
         if (i + ATTACHMENT_BATCH_SIZE < emailsWithAttachments.length) {
@@ -257,7 +369,13 @@ export async function POST(request: NextRequest) {
         const batch = emailsWithoutAttachments.slice(i, i + BATCH_SIZE)
         const batchIndex = Math.floor(i / BATCH_SIZE)
         
-        await processBatch(batch, batchIndex, "regular")
+        const batchResults = await processBatch(batch, batchIndex, "regular")
+        
+        // If the batch was skipped due to global pause, stop processing
+        if (batchResults.every(r => r.error?.includes("global rate limit pause"))) {
+          console.log(`🚨 Stopping regular email processing due to global pause`)
+          break
+        }
         
         // Add delay between micro-batches
         if (i + BATCH_SIZE < emailsWithoutAttachments.length) {

@@ -6,10 +6,16 @@ declare global {
     total: number
     sent: number
     failed: number
-    status: 'sending' | 'completed' | 'error'
+    status: 'sending' | 'completed' | 'error' | 'paused'
     startTime: number
     lastUpdate: number
   }>
+  var emailRateLimitState: {
+    isPaused: boolean
+    pauseStartTime: number
+    pauseDuration: number
+    pauseReason?: string
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -37,7 +43,22 @@ export async function GET(request: NextRequest) {
     }
 
     console.log('Returning progress:', progress); // Debug log
-    return NextResponse.json(progress);
+    
+    // Include global pause state in response
+    const response = {
+      ...progress,
+      globalPause: global.emailRateLimitState ? {
+        isPaused: global.emailRateLimitState.isPaused,
+        pauseStartTime: global.emailRateLimitState.pauseStartTime,
+        pauseDuration: global.emailRateLimitState.pauseDuration,
+        pauseReason: global.emailRateLimitState.pauseReason,
+        pauseTimeRemaining: global.emailRateLimitState.isPaused 
+          ? Math.max(0, (global.emailRateLimitState.pauseStartTime + global.emailRateLimitState.pauseDuration) - Date.now())
+          : 0
+      } : null
+    }
+    
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error in progress API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
