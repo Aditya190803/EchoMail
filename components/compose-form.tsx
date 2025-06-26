@@ -367,16 +367,8 @@ export function ComposeForm() {
     setManualEmails((prev) => prev.map((email, i) => (i === index ? { ...email, [field]: value } : email)))
   }
   const generatePersonalizedEmails = async (): Promise<PersonalizedEmail[]> => {
-    const attachmentData: AttachmentData[] = []
-    for (const file of attachments) {
-      try {
-        const base64Attachment = await fileToBase64(file)
-        attachmentData.push(base64Attachment)
-      } catch (error) {
-        console.error(`Failed to convert file ${file.name} to base64:`, error)
-      }
-    }
-
+    // Note: Attachments will be handled separately via Cloudinary upload
+    // This function no longer processes attachments to reduce payload size
     const emailData = getAllEmailData()
 
     // Ensure emailData is always an array before mapping
@@ -389,7 +381,8 @@ export function ComposeForm() {
       subject: replacePlaceholders(subject, row),
       message: replacePlaceholders(message, row),
       originalRowData: row,
-      attachments: attachmentData,    }))
+      attachments: [], // Will be populated later with Cloudinary URLs
+    }))
   }
 
   const handlePreview = async () => {
@@ -451,12 +444,30 @@ export function ComposeForm() {
       }))
       setSendStatus(initialStatus)
       
-      // Upload attachments to Cloudinary first
-      let attachmentData: {url: string, public_id: string, fileName: string, fileSize: number}[] = []
+      // Convert attachments to base64 and upload to Cloudinary
+      let attachmentData: {base64: string, url: string, public_id: string, fileName: string, fileSize: number, type: string}[] = []
       if (attachments.length > 0) {
-        setProcessingStatus("Uploading attachments...")
-        attachmentData = await uploadAttachments(attachments)
-        setProcessingStatus("Attachments uploaded successfully")
+        setProcessingStatus("Processing attachments...")
+        
+        // First convert to base64
+        const base64Attachments = await Promise.all(
+          attachments.map(file => fileToBase64(file))
+        )
+        
+        // Then upload to Cloudinary
+        const cloudinaryData = await uploadAttachments(attachments)
+        
+        // Combine base64 data with Cloudinary data
+        attachmentData = base64Attachments.map((base64Att, index) => ({
+          base64: base64Att.data,
+          url: cloudinaryData[index]?.url || '',
+          public_id: cloudinaryData[index]?.public_id || '',
+          fileName: base64Att.name,
+          fileSize: cloudinaryData[index]?.fileSize || attachments[index].size,
+          type: base64Att.type
+        }))
+        
+        setProcessingStatus("Attachments processed successfully")
       }
 
       // Determine which sending method to use based on email count
@@ -472,16 +483,29 @@ export function ComposeForm() {
         // Determine chunk size based on campaign size and attachments
         let chunkSize = 50 // Default chunk size
         if (attachments.length > 0) {
-          chunkSize = 25 // Smaller chunks for emails with attachments
+          chunkSize = 15 // Much smaller chunks for emails with attachments (was 25)
         }
         if (totalEmails > 500) {
-          chunkSize = 30 // Even smaller chunks for very large campaigns
+          chunkSize = attachments.length > 0 ? 10 : 20 // Even smaller chunks for very large campaigns with attachments
         }
         
         // Split emails into chunks
         const chunks = []
         for (let i = 0; i < personalizedEmails.length; i += chunkSize) {
-          chunks.push(personalizedEmails.slice(i, i + chunkSize))
+          const chunk = personalizedEmails.slice(i, i + chunkSize)
+          
+          // Add attachment data to each email in this chunk (use base64 directly)
+          if (attachmentData.length > 0) {
+            chunk.forEach(email => {
+              email.attachments = attachmentData.map(att => ({
+                name: att.fileName,
+                type: att.type,
+                data: att.base64 // Use base64 data directly instead of Cloudinary URL
+              }))
+            })
+          }
+          
+          chunks.push(chunk)
         }
         
         setTotalChunks(chunks.length)
@@ -598,6 +622,17 @@ export function ComposeForm() {
         }
 
         console.log(`Using ${shouldUseBatch ? 'batched' : 'regular'} sending for ${personalizedEmails.length} emails ${attachments.length > 0 ? 'with attachments' : ''}`)
+
+        // Add attachment data to emails for non-chunked sending
+        if (attachmentData.length > 0) {
+          personalizedEmails.forEach(email => {
+            email.attachments = attachmentData.map(att => ({
+              name: att.fileName,
+              type: att.type,
+              data: att.base64 // Use base64 data directly instead of Cloudinary URL
+            }))
+          })
+        }
 
         setProcessingStatus("Sending emails...")
         

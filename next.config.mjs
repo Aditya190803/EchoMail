@@ -73,6 +73,8 @@ const nextConfig = {
   experimental: {
     esmExternals: true,
   },
+  // Server-side configuration for larger payloads
+  serverExternalPackages: ['mjml'],
 }
 
 export default nextConfig

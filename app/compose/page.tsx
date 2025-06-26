@@ -9,18 +9,21 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Mail, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { useIsClient } from "@/hooks/useIsClient"
 
 export default function ComposePage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const isClient = useIsClient()
 
   useEffect(() => {
-    if (status === "unauthenticated") {
+    if (isClient && status === "unauthenticated") {
       router.push("/")
     }
-  }, [status, router])
+  }, [status, router, isClient])
 
-  if (status === "loading") {
+  // Show loading state until client hydration and session check complete
+  if (!isClient || status === "loading") {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-2">
         <Card className="w-full max-w-sm">

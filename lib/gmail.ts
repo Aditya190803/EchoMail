@@ -3,7 +3,7 @@ import { formatEmailHTML, sanitizeEmailHTML } from './email-formatter'
 export interface AttachmentData {
   name: string
   type: string
-  data: string // base64 encoded
+  data: string // Can be base64 encoded data OR Cloudinary URL
 }
 
 // Helper function to sanitize and encode text for proper UTF-8 handling
@@ -18,6 +18,23 @@ function encodeSubject(subject: string): string {
   const sanitized = sanitizeText(subject)
   const encoded = Buffer.from(sanitized, 'utf8').toString('base64')
   return `=?UTF-8?B?${encoded}?=`
+}
+
+// Helper function to download attachment from URL and convert to base64
+async function downloadAttachmentToBase64(url: string): Promise<string> {
+  try {
+    const response = await fetch(url)
+    if (!response.ok) {
+      throw new Error(`Failed to download attachment: ${response.statusText}`)
+    }
+    
+    const arrayBuffer = await response.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+    return buffer.toString('base64')
+  } catch (error) {
+    console.error('Error downloading attachment:', error)
+    throw new Error(`Failed to download attachment from ${url}`)
+  }
 }
 
 export async function sendEmailViaAPI(
@@ -102,13 +119,41 @@ export async function sendEmailViaAPI(
     for (const attachment of attachments) {
       // Always encode attachment filename for consistent UTF-8 handling
       const encodedFilename = `=?UTF-8?B?${Buffer.from(attachment.name, 'utf8').toString('base64')}?=`
+      
+      let attachmentData = attachment.data
+      
+      // If attachment.data is a URL (Cloudinary), download and convert to base64
+      // NOTE: This should not happen anymore as we now send base64 directly
+      if (attachment.data.startsWith('http')) {
+        console.warn(`⚠️ Downloading attachment from URL (deprecated): ${attachment.data}`)
+        try {
+          console.log(`📎 Downloading attachment from: ${attachment.data}`)
+          const attachmentResponse = await fetchWithTimeout(attachment.data, {
+            method: 'GET'
+          })
+          
+          if (!attachmentResponse.ok) {
+            throw new Error(`Failed to download attachment: ${attachmentResponse.statusText}`)
+          }
+          
+          const arrayBuffer = await attachmentResponse.arrayBuffer()
+          attachmentData = Buffer.from(arrayBuffer).toString('base64')
+          console.log(`✅ Successfully downloaded and converted attachment: ${attachment.name}`)
+        } catch (error) {
+          console.error(`❌ Failed to download attachment ${attachment.name}:`, error)
+          throw new Error(`Failed to download attachment ${attachment.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
+      } else {
+        // Attachment data is already base64 - use directly
+        console.log(`✅ Using base64 attachment data directly: ${attachment.name}`)
+      }
         
       email.push(`--${boundary}`)
       email.push(`Content-Type: ${attachment.type}; name="${encodedFilename}"`)
       email.push(`Content-Disposition: attachment; filename="${encodedFilename}"`)
       email.push("Content-Transfer-Encoding: base64")
       email.push("")
-      email.push(attachment.data)
+      email.push(attachmentData)
     }
   }
 

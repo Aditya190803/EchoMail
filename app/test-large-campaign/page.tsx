@@ -83,7 +83,7 @@ export default function TestLargeCampaign() {
           email: email,
           company: `TestCompany${Math.floor(index / 10) + 1}`
         },
-        attachments: []
+        attachments: [] // No test attachments - user can upload real files in compose form
       }))
 
       // Initialize status

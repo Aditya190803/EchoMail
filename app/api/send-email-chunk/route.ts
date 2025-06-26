@@ -45,6 +45,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized - No user email" }, { status: 401 })
     }
 
+    // Parse request with size monitoring
+    let requestData
+    try {
+      requestData = await request.json()
+    } catch (error) {
+      console.error('Failed to parse request JSON:', error)
+      return NextResponse.json({ error: "Invalid request data" }, { status: 400 })
+    }
+
     const { 
       personalizedEmails, 
       chunkIndex = 0, 
@@ -61,11 +70,16 @@ export async function POST(request: NextRequest) {
         endIndex: number
       }
       campaignId?: string
-    } = await request.json()
+    } = requestData
     
     if (!personalizedEmails || !Array.isArray(personalizedEmails) || personalizedEmails.length === 0) {
       return NextResponse.json({ error: "No emails provided" }, { status: 400 })
     }
+
+    // Log request size for debugging
+    const requestSize = JSON.stringify(requestData).length
+    console.log(`📧 Processing chunk ${chunkIndex + 1}/${totalChunks} with ${personalizedEmails.length} emails`)
+    console.log(`📦 Request payload size: ${(requestSize / 1024).toFixed(2)} KB`)
 
     // Track progress state for this chunk
     let chunkSentSoFar = 0
@@ -127,12 +141,13 @@ export async function POST(request: NextRequest) {
 
     const results: EmailResult[] = []
 
-    // More aggressive settings for chunk processing
-    const BATCH_SIZE = 4 // Smaller batches for reliability
-    const ATTACHMENT_BATCH_SIZE = 2 // Very small for emails with attachments
-    const BATCH_DELAY = 3000 // 3 seconds between batches
-    const RETRY_ATTEMPTS = 2 // Fewer retries to prevent timeouts
-    const RETRY_DELAY = 1500
+    // More aggressive settings for chunk processing with Gmail rate limiting
+    const BATCH_SIZE = 2 // Very small batches to avoid rate limits
+    const ATTACHMENT_BATCH_SIZE = 1 // Process attachment emails one at a time
+    const BATCH_DELAY = 6000 // 6 seconds between batches
+    const RETRY_ATTEMPTS = 3 // More retries for rate limit handling
+    const RETRY_DELAY = 3000 // Base retry delay
+    const RATE_LIMIT_DELAY = 60000 // 1 minute delay for rate limit errors
 
     // Helper function to check if emails have attachments
     const hasAttachments = (email: any) => email.attachments && email.attachments.length > 0
@@ -170,10 +185,24 @@ export async function POST(request: NextRequest) {
             }
           } catch (error) {
             lastError = error instanceof Error ? error : new Error("Unknown error")
-            console.error(`❌ Chunk ${chunkIndex + 1}: Failed to send to ${email.to} (attempt ${attempt}/${RETRY_ATTEMPTS}):`, lastError.message)
+            const errorMessage = lastError.message
+            
+            // Check if this is a Gmail rate limit error (429)
+            const isRateLimit = errorMessage.includes('429') || errorMessage.includes('rate limit') || errorMessage.includes('rateLimitExceeded')
+            
+            console.error(`❌ Chunk ${chunkIndex + 1}: Failed to send to ${email.to} (attempt ${attempt}/${RETRY_ATTEMPTS}):`, errorMessage)
             
             if (attempt < RETRY_ATTEMPTS) {
-              await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
+              if (isRateLimit) {
+                // Use longer delay for rate limit errors
+                console.log(`⏳ Rate limit detected, waiting ${RATE_LIMIT_DELAY / 1000}s before retry...`)
+                await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY))
+              } else {
+                // Use exponential backoff for other errors
+                const delay = RETRY_DELAY * Math.pow(2, attempt - 1)
+                console.log(`⏳ Waiting ${delay / 1000}s before retry...`)
+                await new Promise(resolve => setTimeout(resolve, delay))
+              }
             }
           }
         }
