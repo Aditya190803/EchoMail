@@ -17,8 +17,6 @@ export default function RealtimeSendPage() {
   const [sendProgress, setSendProgress] = useState(0)
   const [emailsSent, setEmailsSent] = useState(0)
   const [emailsRemaining, setEmailsRemaining] = useState(0)
-  const [currentChunk, setCurrentChunk] = useState(0)
-  const [totalChunks, setTotalChunks] = useState(0)
   const [processingStatus, setProcessingStatus] = useState("")
   const [currentProcessingMethod, setCurrentProcessingMethod] = useState("")
 
@@ -32,58 +30,17 @@ export default function RealtimeSendPage() {
     setEmailsSent(0)
     setEmailsRemaining(totalEmails)
     
-    // Determine sending method based on email count
-    if (totalEmails > 100) {
-      setCurrentProcessingMethod("🚀 Chunked Email Sending")
-      setProcessingStatus("Preparing email batches...")
-      
-      // Simulate chunked sending
-      const chunkSize = 30
-      const chunks = Math.ceil(totalEmails / chunkSize)
-      setTotalChunks(chunks)
-      
-      for (let chunk = 1; chunk <= chunks; chunk++) {
-        setCurrentChunk(chunk)
-        const emailsInThisChunk = Math.min(chunkSize, totalEmails - (chunk - 1) * chunkSize)
-        setProcessingStatus(`Processing batch ${chunk} of ${chunks} (${emailsInThisChunk} emails)`)
-        
-        // Simulate processing time for each chunk
-        for (let i = 0; i < emailsInThisChunk; i++) {
-          await new Promise(resolve => setTimeout(resolve, 100)) // 100ms per email
-          setEmailsSent(prev => prev + 1)
-          setEmailsRemaining(prev => prev - 1)
-          setSendProgress(Math.round(((chunk - 1) * chunkSize + i + 1) / totalEmails * 80))
-        }
-        
-        // Small delay between chunks
-        if (chunk < chunks) {
-          await new Promise(resolve => setTimeout(resolve, 500))
-        }
-      }
-      
-    } else if (totalEmails > 5) {
-      setCurrentProcessingMethod("📦 Batch Email Sending")
-      setProcessingStatus(`Processing ${totalEmails} emails in optimized batches`)
-      
-      // Simulate batch sending
-      for (let i = 0; i < totalEmails; i++) {
-        await new Promise(resolve => setTimeout(resolve, 80)) // 80ms per email
-        setEmailsSent(prev => prev + 1)
-        setEmailsRemaining(prev => prev - 1)
-        setSendProgress(Math.round((i + 1) / totalEmails * 80))
-      }
-      
-    } else {
-      setCurrentProcessingMethod("📧 Direct Email Sending")
-      setProcessingStatus(`Sending ${totalEmails} emails individually`)
-      
-      // Simulate individual sending
-      for (let i = 0; i < totalEmails; i++) {
-        await new Promise(resolve => setTimeout(resolve, 200)) // 200ms per email
-        setEmailsSent(prev => prev + 1)
-        setEmailsRemaining(prev => prev - 1)
-        setSendProgress(Math.round((i + 1) / totalEmails * 80))
-      }
+    // Always use sequential sending (no more chunking/batching)
+    setCurrentProcessingMethod("� Sequential Email Sending")
+    setProcessingStatus(`Sending ${totalEmails} emails one by one...`)
+    
+    // Simulate sequential sending (one email at a time)
+    for (let i = 0; i < totalEmails; i++) {
+      setProcessingStatus(`Sending email ${i + 1} of ${totalEmails}`)
+      await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second per email (realistic)
+      setEmailsSent(prev => prev + 1)
+      setEmailsRemaining(prev => prev - 1)
+      setSendProgress(Math.round((i + 1) / totalEmails * 90))
     }
     
     // Finalize
@@ -138,22 +95,6 @@ export default function RealtimeSendPage() {
                     <div className="text-sm font-medium text-orange-800">Remaining</div>
                   </div>
                 </div>
-
-                {/* Chunk Progress (for large campaigns) */}
-                {totalChunks > 1 && (
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-lg font-semibold text-blue-900">Batch Progress</span>
-                      <span className="text-lg font-bold text-blue-600">{currentChunk} / {totalChunks}</span>
-                    </div>
-                    <div className="w-full bg-blue-200 rounded-full h-4">
-                      <div 
-                        className="bg-blue-600 h-4 rounded-full transition-all duration-500" 
-                        style={{ width: `${totalChunks > 0 ? (currentChunk / totalChunks) * 100 : 0}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
 
                 {/* Processing Method Info */}
                 {currentProcessingMethod && (
@@ -231,7 +172,7 @@ export default function RealtimeSendPage() {
             
             <div className="text-center text-sm text-gray-600">
               <p>This is a simulation that demonstrates the real-time loading screen.</p>
-              <p>Different email counts will show different sending methods.</p>
+              <p>All emails are sent sequentially, one at a time, for maximum reliability.</p>
             </div>
           </CardContent>
         </Card>
