@@ -47,7 +47,7 @@ export function useChunkedEmailSend(): UseChunkedEmailSendResult {
 
   const sendChunkedEmails = useCallback(async (
     personalizedEmails: any[], 
-    chunkSize: number = 50 // Default chunk size of 50 emails
+    chunkSize: number = 5 // Reduced from 50 to 5 emails per chunk to avoid 413 errors
   ): Promise<EmailResult[]> => {
     setIsLoading(true)
     setError(null)
@@ -156,7 +156,7 @@ export function useChunkedEmailSend(): UseChunkedEmailSendResult {
 
           // Add delay between chunks (except for the last one)
           if (chunkIndex < chunks.length - 1) {
-            const delayMs = 2000 // 2 second delay between chunks
+            const delayMs = 5000 // Increased to 5 second delay between chunks
             setProgress(prev => ({
               ...prev,
               status: `Waiting ${delayMs/1000} seconds before next chunk...`

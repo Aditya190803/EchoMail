@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { sendEmailViaAPI, replacePlaceholders } from "@/lib/gmail"
 
+// App Router configuration for larger request bodies
+export const maxDuration = 60 // 60 seconds max duration
+export const dynamic = 'force-dynamic'
+
 // Global state declarations (shared with send-email-chunk)
 declare global {
   var emailRateLimitState: {

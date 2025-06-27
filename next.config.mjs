@@ -69,12 +69,38 @@ const nextConfig = {
     }
     return config
   },
-  // Fix hot reloading issues
+  // Fix hot reloading issues and configure larger payloads
   experimental: {
     esmExternals: true,
+    serverComponentsExternalPackages: ['mjml'],
+    // Increase body parser size limits
+    bodyParserSizeLimit: '10mb',
   },
   // Server-side configuration for larger payloads
   serverExternalPackages: ['mjml'],
+
+  // Add headers for CORS and content-type handling
+  async headers() {
+    return [
+      {
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, PUT, DELETE, OPTIONS',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization',
+          },
+        ],
+      },
+    ]
+  },
 }
 
 export default nextConfig

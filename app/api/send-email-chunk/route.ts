@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { sendEmailViaAPI, replacePlaceholders } from "@/lib/gmail"
 
+// App Router configuration for larger request bodies
+export const maxDuration = 60 // 60 seconds max duration
+export const dynamic = 'force-dynamic'
+
 // Global progress tracking (shared with send-email-batch)
 declare global {
   var emailProgress: Map<string, {
@@ -221,12 +225,12 @@ export async function POST(request: NextRequest) {
 
     const results: EmailResult[] = []
 
-    // More aggressive settings for chunk processing with Gmail rate limiting
-    const BATCH_SIZE = 2 // Very small batches to avoid rate limits
+    // Ultra-conservative settings to avoid payload size limits
+    const BATCH_SIZE = 1 // Process one email at a time
     const ATTACHMENT_BATCH_SIZE = 1 // Process attachment emails one at a time
-    const BATCH_DELAY = 6000 // 6 seconds between batches
-    const RETRY_ATTEMPTS = 3 // More retries for rate limit handling
-    const RETRY_DELAY = 3000 // Base retry delay
+    const BATCH_DELAY = 8000 // 8 seconds between batches
+    const RETRY_ATTEMPTS = 2 // Reduce retries to avoid timeouts
+    const RETRY_DELAY = 2000 // Reduced retry delay
     const RATE_LIMIT_DELAY = 60000 // 1 minute delay for rate limit errors
 
     // Helper function to check if emails have attachments
