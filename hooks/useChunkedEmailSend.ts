@@ -47,7 +47,7 @@ export function useChunkedEmailSend(): UseChunkedEmailSendResult {
 
   const sendChunkedEmails = useCallback(async (
     personalizedEmails: any[], 
-    chunkSize: number = 2 // Reduced from 5 to 2 emails per chunk to avoid 413 errors
+    chunkSize: number = 1 // Reduced to 1 email per chunk to completely avoid 413 errors
   ): Promise<EmailResult[]> => {
     setIsLoading(true)
     setError(null)
@@ -103,20 +103,20 @@ export function useChunkedEmailSend(): UseChunkedEmailSendResult {
           // Log the payload size for debugging in production
           const payload = {
             personalizedEmails: chunk.emails.map(email => ({
-              to: email.to,
-              subject: email.subject,
-              message: email.message,
-              // Only include attachments if they exist and are small
-              ...(email.attachments && email.attachments.length > 0 && {
-                attachments: email.attachments
-              }),
-              // Include only essential originalRowData, not all fields
-              originalRowData: Object.keys(email.originalRowData || {}).length > 20 
-                ? { email: email.to } // Fallback if too much data
-                : email.originalRowData
+              to: email.to?.trim(),
+              subject: (email.subject || '').substring(0, 100), // Even shorter subjects
+              message: (email.message || '').substring(0, 2000), // Much shorter messages
+              // Remove attachments for now to reduce payload
+              // attachments: email.attachments,
+              // Minimal originalRowData - only email
+              originalRowData: { 
+                email: email.to?.trim() || '',
+                name: email.originalRowData?.name?.substring(0, 50) || ''
+              }
             })),
             chunkIndex,
             totalChunks,
+            // Minimal chunkInfo
             chunkInfo: {
               totalEmails,
               startIndex: chunk.startIndex,
@@ -126,17 +126,12 @@ export function useChunkedEmailSend(): UseChunkedEmailSendResult {
           
           const payloadString = JSON.stringify(payload)
           const payloadSizeKB = (payloadString.length / 1024).toFixed(2)
-          console.log(`Chunk ${chunkIndex + 1} payload size: ${payloadSizeKB} KB`)
+          console.log(`Chunk ${chunkIndex + 1} payload size: ${payloadSizeKB} KB (${chunk.emails.length} emails)`)
           
-          // If payload is too large, reduce it further
-          if (payloadString.length > 100000) { // ~100KB limit
-            console.warn(`Large payload detected (${payloadSizeKB} KB), truncating data...`)
-            payload.personalizedEmails = payload.personalizedEmails.map(email => ({
-              to: email.to,
-              subject: email.subject.substring(0, 200), // Truncate long subjects
-              message: email.message.substring(0, 5000), // Truncate long messages
-              originalRowData: { email: email.to } // Minimal data only
-            }))
+          // Strict size limit for production
+          if (payloadString.length > 50000) { // ~50KB limit - very conservative
+            console.error(`Payload still too large: ${payloadSizeKB} KB`)
+            throw new Error(`Payload too large: ${payloadSizeKB} KB. Please reduce message content.`)
           }
           
           const response = await fetch('/api/send-email-chunk', {
@@ -186,10 +181,10 @@ export function useChunkedEmailSend(): UseChunkedEmailSendResult {
 
           // Add delay between chunks (except for the last one)
           if (chunkIndex < chunks.length - 1) {
-            const delayMs = 3000 // Reduced to 3 second delay between chunks for faster processing
+            const delayMs = 1000 // Reduced to 1 second delay since we're sending 1 email at a time
             setProgress(prev => ({
               ...prev,
-              status: `Waiting ${delayMs/1000} seconds before next chunk...`
+              status: `Waiting ${delayMs/1000} second before next email...`
             }))
             await new Promise(resolve => setTimeout(resolve, delayMs))
           }

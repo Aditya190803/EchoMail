@@ -126,12 +126,13 @@ export async function POST(request: NextRequest) {
       console.log(`📦 Incoming request size: ${requestSizeKB} KB`)
       
       // Check if request is too large
-      if (requestText.length > 200000) { // ~200KB limit
+      if (requestText.length > 100000) { // Reduced to ~100KB limit (was 200KB)
         console.error(`Request too large: ${requestSizeKB} KB`)
         return NextResponse.json({ 
-          error: "Request payload too large. Please reduce the number of emails per chunk or message content length.",
+          error: "Request payload too large. Please reduce message content length or contact support.",
           sizeKB: requestSizeKB,
-          maxSizeKB: "200"
+          maxSizeKB: "100",
+          suggestion: "Try shorter email messages or remove large content"
         }, { status: 413 })
       }
       

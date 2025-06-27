@@ -1,22 +1,26 @@
 {
   "functions": {
     "app/api/send-email-chunk/route.ts": {
-      "maxDuration": 60,
-      "memory": 1024
-    },
-    "app/api/send-email-batch/route.ts": {
-      "maxDuration": 60,
-      "memory": 1024
-    },
-    "app/api/format-email-preview/route.ts": {
       "maxDuration": 30,
       "memory": 512
+    },
+    "app/api/send-email-batch/route.ts": {
+      "maxDuration": 30,
+      "memory": 512
+    },
+    "app/api/format-email-preview/route.ts": {
+      "maxDuration": 15,
+      "memory": 256
+    },
+    "app/api/test-payload-size/route.ts": {
+      "maxDuration": 10,
+      "memory": 256
     }
   },
-  "rewrites": [
+  "builds": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/:path*"
+      "src": "next.config.mjs",
+      "use": "@vercel/next"
     }
   ]
 }
