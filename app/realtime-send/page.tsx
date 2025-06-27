@@ -38,18 +38,25 @@ export default function RealtimeSendPage() {
     for (let i = 0; i < totalEmails; i++) {
       setProcessingStatus(`Sending email ${i + 1} of ${totalEmails}`)
       await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second per email (realistic)
-      setEmailsSent(prev => prev + 1)
-      setEmailsRemaining(prev => prev - 1)
-      setSendProgress(Math.round((i + 1) / totalEmails * 90))
+      
+      // Update counters synchronously
+      const sentCount = i + 1
+      const remainingCount = totalEmails - sentCount
+      
+      setEmailsSent(sentCount)
+      setEmailsRemaining(remainingCount)
+      setSendProgress(Math.round((sentCount / totalEmails) * 90))
     }
     
-    // Finalize
+    // Finalize with correct counts
     setSendProgress(90)
     setProcessingStatus("Saving campaign data...")
     await new Promise(resolve => setTimeout(resolve, 1000))
     
     setSendProgress(100)
-    setProcessingStatus(`Campaign completed! ${emailsSent} emails sent successfully.`)
+    setProcessingStatus(`Campaign completed! ${totalEmails} emails sent successfully.`)
+    setEmailsSent(totalEmails) // Ensure final count is correct
+    setEmailsRemaining(0) // Ensure remaining is 0
     setIsLoading(false)
     
     // Auto-close after 3 seconds
@@ -158,7 +165,7 @@ export default function RealtimeSendPage() {
                 max="1000"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Try different numbers: 1-5 (direct), 6-100 (batch), 100+ (chunked)
+                All emails are sent sequentially, one at a time, for maximum reliability.
               </p>
             </div>
             

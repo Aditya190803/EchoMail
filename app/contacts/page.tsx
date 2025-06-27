@@ -336,7 +336,7 @@ export default function ContactsPage() {
         if (contactsToImport.length > 0 && session?.user?.email) {
           const contactsRef = collection(db, "contacts")
           
-          // Add contacts one by one to avoid batch limitations
+          // Add contacts one by one for reliability
           let successCount = 0
           for (const contact of contactsToImport) {
             try {

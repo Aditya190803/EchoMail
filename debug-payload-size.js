@@ -16,14 +16,10 @@ function createTestEmail(index = 1) {
 function testSingleEmailPayload() {
   const email = createTestEmail(1)
   const payload = {
-    personalizedEmails: [email],
-    chunkIndex: 0,
-    totalChunks: 1,
-    chunkInfo: {
-      totalEmails: 1,
-      startIndex: 0,
-      endIndex: 0
-    }
+    to: email.to,
+    subject: email.subject,
+    message: email.message,
+    originalRowData: email.originalRowData
   }
   
   const payloadString = JSON.stringify(payload)
@@ -55,10 +51,10 @@ function testMessageLengths() {
     }
     
     const payload = {
-      personalizedEmails: [email],
-      chunkIndex: 0,
-      totalChunks: 1,
-      chunkInfo: { totalEmails: 1, startIndex: 0, endIndex: 0 }
+      to: email.to,
+      subject: email.subject,
+      message: email.message,
+      originalRowData: email.originalRowData
     }
     
     const payloadString = JSON.stringify(payload)
