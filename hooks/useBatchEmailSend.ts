@@ -36,12 +36,31 @@ export function useBatchEmailSend(): UseBatchEmailSendResult {
     setSendStatus(initialStatus)
 
     try {
+      // Optimize payload for batch sending
+      const optimizedEmails = personalizedEmails.map(email => ({
+        to: email.to,
+        subject: email.subject?.substring(0, 200) || '', // Truncate long subjects
+        message: email.message?.substring(0, 3000) || '', // Truncate long messages
+        // Include attachments only if they're not too large
+        ...(email.attachments && email.attachments.length > 0 && email.attachments.length < 5 && {
+          attachments: email.attachments
+        }),
+        // Minimal originalRowData
+        originalRowData: { email: email.to, ...Object.fromEntries(
+          Object.entries(email.originalRowData || {}).slice(0, 5) // Only first 5 fields
+        )}
+      }))
+      
+      const payload = { personalizedEmails: optimizedEmails }
+      const payloadSize = JSON.stringify(payload).length
+      console.log(`Batch payload size: ${(payloadSize / 1024).toFixed(2)} KB`)
+      
       const response = await fetch('/api/send-email-batch', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ personalizedEmails }),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {

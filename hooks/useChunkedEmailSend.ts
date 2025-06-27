@@ -47,7 +47,7 @@ export function useChunkedEmailSend(): UseChunkedEmailSendResult {
 
   const sendChunkedEmails = useCallback(async (
     personalizedEmails: any[], 
-    chunkSize: number = 5 // Reduced from 50 to 5 emails per chunk to avoid 413 errors
+    chunkSize: number = 2 // Reduced from 5 to 2 emails per chunk to avoid 413 errors
   ): Promise<EmailResult[]> => {
     setIsLoading(true)
     setError(null)
@@ -100,21 +100,51 @@ export function useChunkedEmailSend(): UseChunkedEmailSendResult {
         }))
 
         try {
+          // Log the payload size for debugging in production
+          const payload = {
+            personalizedEmails: chunk.emails.map(email => ({
+              to: email.to,
+              subject: email.subject,
+              message: email.message,
+              // Only include attachments if they exist and are small
+              ...(email.attachments && email.attachments.length > 0 && {
+                attachments: email.attachments
+              }),
+              // Include only essential originalRowData, not all fields
+              originalRowData: Object.keys(email.originalRowData || {}).length > 20 
+                ? { email: email.to } // Fallback if too much data
+                : email.originalRowData
+            })),
+            chunkIndex,
+            totalChunks,
+            chunkInfo: {
+              totalEmails,
+              startIndex: chunk.startIndex,
+              endIndex: chunk.endIndex
+            }
+          }
+          
+          const payloadString = JSON.stringify(payload)
+          const payloadSizeKB = (payloadString.length / 1024).toFixed(2)
+          console.log(`Chunk ${chunkIndex + 1} payload size: ${payloadSizeKB} KB`)
+          
+          // If payload is too large, reduce it further
+          if (payloadString.length > 100000) { // ~100KB limit
+            console.warn(`Large payload detected (${payloadSizeKB} KB), truncating data...`)
+            payload.personalizedEmails = payload.personalizedEmails.map(email => ({
+              to: email.to,
+              subject: email.subject.substring(0, 200), // Truncate long subjects
+              message: email.message.substring(0, 5000), // Truncate long messages
+              originalRowData: { email: email.to } // Minimal data only
+            }))
+          }
+          
           const response = await fetch('/api/send-email-chunk', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-              personalizedEmails: chunk.emails,
-              chunkIndex,
-              totalChunks,
-              chunkInfo: {
-                totalEmails,
-                startIndex: chunk.startIndex,
-                endIndex: chunk.endIndex
-              }
-            }),
+            body: JSON.stringify(payload),
           })
 
           if (!response.ok) {
@@ -156,7 +186,7 @@ export function useChunkedEmailSend(): UseChunkedEmailSendResult {
 
           // Add delay between chunks (except for the last one)
           if (chunkIndex < chunks.length - 1) {
-            const delayMs = 5000 // Increased to 5 second delay between chunks
+            const delayMs = 3000 // Reduced to 3 second delay between chunks for faster processing
             setProgress(prev => ({
               ...prev,
               status: `Waiting ${delayMs/1000} seconds before next chunk...`

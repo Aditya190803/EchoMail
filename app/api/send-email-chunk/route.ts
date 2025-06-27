@@ -121,7 +121,21 @@ export async function POST(request: NextRequest) {
     // Parse request with size monitoring
     let requestData
     try {
-      requestData = await request.json()
+      const requestText = await request.text()
+      const requestSizeKB = (requestText.length / 1024).toFixed(2)
+      console.log(`📦 Incoming request size: ${requestSizeKB} KB`)
+      
+      // Check if request is too large
+      if (requestText.length > 200000) { // ~200KB limit
+        console.error(`Request too large: ${requestSizeKB} KB`)
+        return NextResponse.json({ 
+          error: "Request payload too large. Please reduce the number of emails per chunk or message content length.",
+          sizeKB: requestSizeKB,
+          maxSizeKB: "200"
+        }, { status: 413 })
+      }
+      
+      requestData = JSON.parse(requestText)
     } catch (error) {
       console.error('Failed to parse request JSON:', error)
       return NextResponse.json({ error: "Invalid request data" }, { status: 400 })
@@ -225,10 +239,10 @@ export async function POST(request: NextRequest) {
 
     const results: EmailResult[] = []
 
-    // Ultra-conservative settings to avoid payload size limits
-    const BATCH_SIZE = 1 // Process one email at a time
+    // Ultra-conservative settings to avoid payload size limits and timeouts
+    const BATCH_SIZE = 1 // Process one email at a time within chunks
     const ATTACHMENT_BATCH_SIZE = 1 // Process attachment emails one at a time
-    const BATCH_DELAY = 8000 // 8 seconds between batches
+    const BATCH_DELAY = 4000 // 4 seconds between micro-batches (reduced from 8s)
     const RETRY_ATTEMPTS = 2 // Reduce retries to avoid timeouts
     const RETRY_DELAY = 2000 // Reduced retry delay
     const RATE_LIMIT_DELAY = 60000 // 1 minute delay for rate limit errors
