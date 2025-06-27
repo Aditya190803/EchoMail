@@ -12,6 +12,30 @@ function sanitizeText(text: string): string {
   return text.normalize('NFC').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"')
 }
 
+// Helper function to validate and sanitize email addresses
+function validateAndSanitizeEmail(email: string): string {
+  if (!email || typeof email !== 'string') {
+    throw new Error('Email address is required and must be a string')
+  }
+  
+  // Remove any whitespace and normalize
+  const cleanEmail = email.trim().toLowerCase()
+  
+  // Basic email validation regex
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+  
+  if (!emailRegex.test(cleanEmail)) {
+    throw new Error(`Invalid email address format: ${cleanEmail}`)
+  }
+  
+  // Additional Gmail-specific validation
+  if (cleanEmail.length > 254) {
+    throw new Error(`Email address too long: ${cleanEmail}`)
+  }
+  
+  return cleanEmail
+}
+
 // Helper function to encode subject line for proper UTF-8 handling
 function encodeSubject(subject: string): string {
   // Always encode for consistent UTF-8 handling, even for ASCII characters
@@ -44,8 +68,12 @@ export async function sendEmailViaAPI(
   htmlBody: string,
   attachments?: AttachmentData[],
 ) {
+  // Validate and sanitize the recipient email
+  const validatedTo = validateAndSanitizeEmail(to)
+  
   console.log('Sending email with UTF-8 encoding:', {
-    to,
+    to: validatedTo,
+    originalTo: to,
     subject,
     subjectLength: subject.length,
     hasSpecialChars: /[^\x00-\x7F]/.test(subject),
@@ -102,7 +130,7 @@ export async function sendEmailViaAPI(
 
   const email = [
     `From: ${fromEmail}`,
-    `To: ${to}`,
+    `To: ${validatedTo}`,
     `Subject: ${encodedSubject}`,
     `MIME-Version: 1.0`,
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
@@ -178,17 +206,36 @@ export async function sendEmailViaAPI(
   })
 
   if (!response.ok) {
-    const error = await response.text()
-    console.error(`Gmail API error for ${to}:`, {
+    const errorText = await response.text()
+    let errorDetails = errorText
+    
+    try {
+      const errorJson = JSON.parse(errorText)
+      errorDetails = errorJson.error?.message || errorText
+      
+      // Provide specific error messages for common issues
+      if (errorDetails.includes('Invalid To header')) {
+        throw new Error(`Invalid email address: ${validatedTo}. Please check the email format.`)
+      } else if (errorDetails.includes('rateLimitExceeded')) {
+        throw new Error(`Gmail rate limit exceeded. Please wait before sending more emails.`)
+      } else if (errorDetails.includes('quotaExceeded')) {
+        throw new Error(`Gmail quota exceeded. Daily sending limit reached.`)
+      }
+    } catch (parseError) {
+      // If we can't parse the error, use the raw text
+    }
+    
+    console.error(`Gmail API error for ${validatedTo}:`, {
       status: response.status,
       statusText: response.statusText,
-      error: error
+      error: errorDetails,
+      originalTo: to
     })
-    throw new Error(`Gmail API error (${response.status}): ${error}`)
+    throw new Error(`Gmail API error (${response.status}): ${errorDetails}`)
   }
 
   const result = await response.json()
-  console.log(`Email sent successfully to ${to}, Gmail message ID: ${result.id}`)
+  console.log(`Email sent successfully to ${validatedTo}, Gmail message ID: ${result.id}`)
   return result
 }
 

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { formatEmailHTML } from '@/lib/email-formatter'
 
+// App Router configuration for faster processing
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
+
 export async function POST(request: NextRequest) {
   try {
     const { htmlContent } = await request.json()
