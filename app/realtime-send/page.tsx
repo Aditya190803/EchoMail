@@ -37,11 +37,15 @@ export default function RealtimeSendPage() {
     // Simulate sequential sending (one email at a time)
     for (let i = 0; i < totalEmails; i++) {
       setProcessingStatus(`Sending email ${i + 1} of ${totalEmails}`)
+      
+      // Simulate the time it takes to send one email
       await new Promise(resolve => setTimeout(resolve, 1000)) // 1 second per email (realistic)
       
-      // Update counters synchronously
+      // Update counters AFTER the email is "sent"
       const sentCount = i + 1
       const remainingCount = totalEmails - sentCount
+      
+      console.log(`Email ${i + 1} completed. Sent: ${sentCount}, Remaining: ${remainingCount}`)
       
       setEmailsSent(sentCount)
       setEmailsRemaining(remainingCount)
