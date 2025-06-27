@@ -27,7 +27,11 @@ interface UseEmailSendResult {
   error: string | null
 }
 
-export function useBatchEmailSend(): UseEmailSendResult {
+/**
+ * Unified email sending hook that sends emails one by one sequentially.
+ * This avoids 413 payload size errors and provides reliable, simple email sending.
+ */
+export function useEmailSend(): UseEmailSendResult {
   const [progress, setProgress] = useState<EmailProgress>({
     currentEmail: 0,
     totalEmails: 0,
@@ -44,6 +48,7 @@ export function useBatchEmailSend(): UseEmailSendResult {
     setError(null)
     
     const totalEmails = personalizedEmails.length
+    console.log(`🚀 Sending ${totalEmails} emails one by one`)
     
     setProgress({
       currentEmail: 0,
@@ -52,6 +57,7 @@ export function useBatchEmailSend(): UseEmailSendResult {
       status: `Starting to send ${totalEmails} emails...`
     })
 
+    // Initialize all emails as pending
     setSendStatus(personalizedEmails.map(email => ({
       email: email.to,
       status: "pending"
@@ -71,6 +77,7 @@ export function useBatchEmailSend(): UseEmailSendResult {
         })
 
         try {
+          // Create minimal payload to avoid 413 errors
           const response = await fetch('/api/send-single-email', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -100,7 +107,7 @@ export function useBatchEmailSend(): UseEmailSendResult {
           ))
         }
 
-        // Wait 1 second between emails
+        // Wait 1 second between emails to avoid rate limits
         if (i < personalizedEmails.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 1000))
         }

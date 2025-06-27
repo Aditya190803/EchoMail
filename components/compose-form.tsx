@@ -27,7 +27,8 @@ import {
 } from "firebase/firestore"
 import { replacePlaceholders } from "@/lib/gmail"
 import type { CSVRow, PersonalizedEmail, SendStatus, AttachmentData } from "@/types/email"
-import { useChunkErrorHandler } from "@/components/error-boundary"
+
+import { useEmailSend } from "@/hooks/useEmailSend"
 import { v4 as uuidv4 } from 'uuid';
 
 interface Contact {
@@ -75,8 +76,8 @@ const sanitizeInput = (text: string): string => {
 export function ComposeForm() {
   const { data: session } = useSession()
   
-  // Handle chunk loading errors
-  useChunkErrorHandler()
+  // Use the simplified email sending hook
+  const { sendEmails, progress, sendStatus: hookSendStatus, isLoading: emailSendingLoading, error: emailSendingError } = useEmailSend()
   
   const [subject, setSubject] = useState("")
   const [message, setMessage] = useState("")
@@ -95,14 +96,6 @@ export function ComposeForm() {
   const [activeSources, setActiveSources] = useState<string[]>(["csv"])
   const [campaignSaved, setCampaignSaved] = useState(false)
   const [campaignId, setCampaignId] = useState<string | null>(null);
-
-  // Real-time progress tracking
-  const [currentChunk, setCurrentChunk] = useState(0)
-  const [totalChunks, setTotalChunks] = useState(0)
-  const [emailsSent, setEmailsSent] = useState(0)
-  const [emailsRemaining, setEmailsRemaining] = useState(0)
-  const [currentProcessingMethod, setCurrentProcessingMethod] = useState<string>("")
-  const [processingStatus, setProcessingStatus] = useState<string>("")
 
   // Upload attachments to Cloudinary via API
   const uploadAttachments = async (attachmentFiles: File[]): Promise<{url: string, public_id: string, fileName: string, fileSize: number}[]> => {
@@ -401,12 +394,7 @@ export function ComposeForm() {
   }
 
   const handleSend = async () => {
-    if (isLoading) return // Prevent duplicate calls
-    
-    // Generate unique campaign ID for progress tracking
-    const newCampaignId = uuidv4()
-    console.log('Generated campaignId:', newCampaignId); // Debug log
-    setCampaignId(newCampaignId)
+    if (isLoading || emailSendingLoading) return // Prevent duplicate calls
     
     // Close preview and show sending screen
     setShowPreview(false)
@@ -416,48 +404,24 @@ export function ComposeForm() {
     setSendStatus([])
     setShowSuccess(false)
     setSendProgress(0)
-    setCampaignSaved(false) // Mark campaign as not yet saved for this new send operation
-    
-    // Reset real-time progress tracking
-    setCurrentChunk(0)
-    setTotalChunks(0)
-    setEmailsSent(0)
-    setEmailsRemaining(0)
-    setCurrentProcessingMethod("")
-    setProcessingStatus("Initializing...")
-    
-    // Show immediate feedback that the process has started
-    setProcessingStatus("Analyzing email campaign...")
+    setCampaignSaved(false)
 
     try {
       const personalizedEmails = await generatePersonalizedEmails()
       const totalEmails = personalizedEmails.length
       
-      // Set initial counts
-      setEmailsRemaining(totalEmails)
-      setEmailsSent(0)
-      setProcessingStatus(`Preparing to send ${totalEmails} emails...`)
-
-      const initialStatus = personalizedEmails.map((email) => ({
-        email: email.to,
-        status: "pending" as const,
-      }))
-      setSendStatus(initialStatus)
-      
-      // Convert attachments to base64 and upload to Cloudinary
+      // Process attachments if any
       let attachmentData: {base64: string, url: string, public_id: string, fileName: string, fileSize: number, type: string}[] = []
       if (attachments.length > 0) {
-        setProcessingStatus("Processing attachments...")
+        console.log("⚠️ Processing attachments - this will be added to each email payload")
         
-        // First convert to base64
+        // Convert to base64 and upload to Cloudinary
         const base64Attachments = await Promise.all(
           attachments.map(file => fileToBase64(file))
         )
         
-        // Then upload to Cloudinary
         const cloudinaryData = await uploadAttachments(attachments)
         
-        // Combine base64 data with Cloudinary data
         attachmentData = base64Attachments.map((base64Att, index) => ({
           base64: base64Att.data,
           url: cloudinaryData[index]?.url || '',
@@ -467,253 +431,46 @@ export function ComposeForm() {
           type: base64Att.type
         }))
         
-        setProcessingStatus("Attachments processed successfully")
-      }
-
-      // Determine which sending method to use based on email count
-      let results: any[] = []
-      
-      if (totalEmails > 100) {
-        // Use chunked sending for large campaigns
-        setCurrentProcessingMethod("🚀 Chunked Email Sending")
-        setProcessingStatus("Preparing email batches...")
-        
-        console.log(`Using chunked sending for ${totalEmails} emails`)
-        
-        // Determine chunk size based on campaign size and attachments
-        let chunkSize = 50 // Default chunk size
-        if (attachments.length > 0) {
-          chunkSize = 15 // Much smaller chunks for emails with attachments (was 25)
-        }
-        if (totalEmails > 500) {
-          chunkSize = attachments.length > 0 ? 10 : 20 // Even smaller chunks for very large campaigns with attachments
-        }
-        
-        // Split emails into chunks
-        const chunks = []
-        for (let i = 0; i < personalizedEmails.length; i += chunkSize) {
-          const chunk = personalizedEmails.slice(i, i + chunkSize)
-          
-          // Add attachment data to each email in this chunk (use base64 directly)
-          if (attachmentData.length > 0) {
-            chunk.forEach(email => {
-              email.attachments = attachmentData.map(att => ({
-                name: att.fileName,
-                type: att.type,
-                data: att.base64 // Use base64 data directly instead of Cloudinary URL
-              }))
-            })
-          }
-          
-          chunks.push(chunk)
-        }
-        
-        setTotalChunks(chunks.length)
-        setCurrentChunk(0)
-        setProcessingStatus(`Split into ${chunks.length} batches of ~${chunkSize} emails each`)
-        
-        console.log(`Split ${totalEmails} emails into ${chunks.length} chunks`)
-        
-        // Process chunks sequentially
-        for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
-          const chunk = chunks[chunkIndex]
-          setCurrentChunk(chunkIndex + 1)
-          setProcessingStatus(`Processing batch ${chunkIndex + 1} of ${chunks.length} (${chunk.length} emails)`)
-          
-          console.log(`Processing chunk ${chunkIndex + 1}/${chunks.length} with ${chunk.length} emails`)
-          
-          try {
-            const response = await fetch("/api/send-email-chunk", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                personalizedEmails: chunk,
-                chunkIndex,
-                totalChunks: chunks.length,
-                campaignId: newCampaignId,
-                chunkInfo: {
-                  totalEmails: totalEmails,
-                  startIndex: chunkIndex * chunkSize,
-                  endIndex: Math.min((chunkIndex + 1) * chunkSize - 1, totalEmails - 1)
-                }
-              }),
-            })
-
-            const data = await response.json()
-            if (data.error) {
-              throw new Error(data.error)
-            }
-            
-            const chunkResults = data.results || []
-            results.push(...chunkResults)
-            
-            console.log(`Chunk ${chunkIndex + 1} REAL results:`, {
-              chunkEmails: chunk.length,
-              chunkSuccessful: chunkResults.filter((r: any) => r.status === "success").length,
-              chunkFailed: chunkResults.filter((r: any) => r.status === "error").length
-            })
-            
-            // Update status for processed emails
-            setSendStatus(prev => {
-              const updated = [...prev]
-              chunkResults.forEach((result: any) => {
-                const index = updated.findIndex(status => status.email === result.email)
-                if (index >= 0) {
-                  updated[index] = result
-                }
-              })
-              return updated
-            })
-            
-            // Update processing status
-            const completedChunks = chunkIndex + 1
-            const remainingChunks = chunks.length - completedChunks
-            if (remainingChunks > 0) {
-              setProcessingStatus(`Batch ${completedChunks} completed. ${remainingChunks} batches remaining...`)
-            } else {
-              setProcessingStatus("All batches completed! Finalizing...")
-            }
-            
-            // Small delay between chunks (except for the last one)
-            if (chunkIndex < chunks.length - 1) {
-              await new Promise(resolve => setTimeout(resolve, 1000))
-            }
-            
-          } catch (chunkError) {
-            console.error(`Error processing chunk ${chunkIndex + 1}:`, chunkError)
-            // Mark chunk emails as failed
-            const failedResults = chunk.map((email: any) => ({
-              email: email.to,
-              status: "error" as const,
-              error: chunkError instanceof Error ? chunkError.message : "Chunk processing failed"
-            }))
-            results.push(...failedResults)
-            
-            // Update counters for REAL failed chunk
-            const totalEmailsProcessedSoFar = results.length
-            const totalEmailsSentSoFar = results.filter((r: any) => r.status === "success").length
-            setEmailsSent(totalEmailsSentSoFar)
-            setEmailsRemaining(totalEmails - totalEmailsProcessedSoFar)
-            setProcessingStatus(`Batch ${chunkIndex + 1} failed. Continuing with remaining batches...`)
-          }
-        }
-        
-        setSendStatus(results)
-        console.log("Chunked email sending results:", {
-          totalEmails: totalEmails,
-          results: results,
-          chunks: chunks.length,
-          chunkSize: chunkSize
-        })
-        
-      } else {
-        // Use existing batch or regular sending for smaller campaigns
-        const shouldUseBatch = personalizedEmails.length > 5 || attachments.length > 0
-        const apiEndpoint = shouldUseBatch ? "/api/send-email-batch" : "/api/send-email"
-
-        if (shouldUseBatch) {
-          setCurrentProcessingMethod("📦 Batch Email Sending")
-          setProcessingStatus(`Processing ${totalEmails} emails in optimized batches`)
-        } else {
-          setCurrentProcessingMethod("📧 Direct Email Sending")
-          setProcessingStatus(`Sending ${totalEmails} emails individually`)
-        }
-
-        console.log(`Using ${shouldUseBatch ? 'batched' : 'regular'} sending for ${personalizedEmails.length} emails ${attachments.length > 0 ? 'with attachments' : ''}`)
-
-        // Add attachment data to emails for non-chunked sending
-        if (attachmentData.length > 0) {
-          personalizedEmails.forEach(email => {
-            email.attachments = attachmentData.map(att => ({
-              name: att.fileName,
-              type: att.type,
-              data: att.base64 // Use base64 data directly instead of Cloudinary URL
-            }))
-          })
-        }
-
-        setProcessingStatus("Sending emails...")
-        
-        const response = await fetch(apiEndpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            personalizedEmails,
-            campaignId: newCampaignId, // Use the generated campaign ID
-          }),
-        })
-        
-        const data = await response.json()
-        results = data.results || []
-        setSendStatus(results)
-        
-        // Update with ACTUAL REAL results from API
-        const successfulEmails = results.filter((r: any) => r.status === "success").length
-        const failedEmails = results.filter((r: any) => r.status === "error").length
-        
-        // Set the REAL final counts
-        setEmailsSent(successfulEmails)
-        setEmailsRemaining(0) // All emails have been processed
-        setProcessingStatus(`Email sending completed! ${successfulEmails} sent successfully, ${failedEmails} failed`)
-        
-        console.log("REAL API Results:", {
-          totalRequested: totalEmails,
-          actualResults: results.length,
-          successful: successfulEmails,
-          failed: failedEmails,
-          results: results
-        })
-
-        console.log("Email sending results:", {
-          totalEmails: personalizedEmails.length,
-          results: results,
-          summary: data.summary,
-          endpoint: apiEndpoint,
-          method: shouldUseBatch ? 'batched' : 'regular'
+        // Add attachment data to each email (minimal for single email sending)
+        personalizedEmails.forEach(email => {
+          email.attachments = attachmentData.map(att => ({
+            name: att.fileName,
+            type: att.type,
+            data: att.base64
+          }))
         })
       }
 
-      // Final results with REAL data
-      const successCount = results.filter((result: SendStatus) => result.status === "success").length
-      const failedCount = results.filter((result: SendStatus) => result.status === "error").length
-      const totalCount = results.length
-      setProcessingStatus("Saving campaign data...")
+      console.log(`🚀 Sending ${totalEmails} emails sequentially using the simple hook`)
       
-      // Ensure final counts are accurate
-      setEmailsSent(successCount)
-      setEmailsRemaining(0)
+      // Use the simple sequential email sending hook
+      const results = await sendEmails(personalizedEmails)
       
-      console.log("Email sending completed:", {
+      // Update our local state with the results
+      setSendStatus(results)
+      
+      const successCount = results.filter(r => r.status === "success").length
+      const failedCount = results.filter(r => r.status === "error").length
+      
+      console.log("✅ Email sending completed:", {
         totalEmails: personalizedEmails.length,
-        results: results,
-        successCount: successCount,
-        failedCount: failedCount
+        successCount,
+        failedCount
       })
       
-      // Use personalizedEmails to get the actual recipient list for campaign storage
+      // Save campaign data to Firebase
       const recipientData = personalizedEmails.map(email => ({
         email: email.to,
         originalData: email.originalRowData
       }))
 
-      console.log("About to save campaign data:", {
-        recipientDataLength: recipientData.length,
-        resultsLength: results.length,
-        attachmentDataLength: attachmentData.length,
-        subject: subject,
-        hasSession: !!session
-      })      // Save campaign data to Firebase
       await saveCampaignData(recipientData, results, attachmentData)
-      setProcessingStatus(`Campaign completed! ${successCount} emails sent successfully, ${failedCount} failed.`)
 
-      if (successCount === totalCount) {
+      if (successCount === results.length) {
         setShowSuccess(true)
         setTimeout(() => setShowSuccess(false), 5000)
       }
+      
     } catch (error) {
       console.error("Failed to send emails:", error)
       setSendStatus((prev) =>
@@ -734,38 +491,12 @@ export function ComposeForm() {
     }
   }
 
-  // Poll progress if campaignId is set and sending screen is active
+  // Clean up campaign state after sending
   useEffect(() => {
-    if (!campaignId || !showSendingScreen) return;
-    
-    console.log('Starting polling for campaignId:', campaignId); // Debug log
-    
-    let interval: NodeJS.Timeout;
-    const poll = async () => {
-      try {
-        console.log('Polling progress for campaignId:', campaignId); // Debug log
-        const res = await fetch(`/api/progress?campaignId=${campaignId}`);
-        
-        if (res.ok) {
-          const data = await res.json();
-          console.log('Progress data received:', data); // Debug log
-          
-          setEmailsSent(data.sent);
-          setEmailsRemaining(data.total - data.sent - data.failed);
-          setSendProgress(data.total ? Math.round(((data.sent + data.failed) / data.total) * 100) : 0);
-          setProcessingStatus(data.status === 'completed' ? 'Completed!' : 'Sending...');
-        } else {
-          console.error('Failed to fetch progress:', res.status); // Debug log
-        }
-      } catch (error) {
-        console.error('Error polling progress:', error); // Debug log
-      }
-    };
-    
-    interval = setInterval(poll, 1000);
-    poll(); // Initial poll
-    return () => clearInterval(interval);
-  }, [campaignId, showSendingScreen]);
+    if (!showSendingScreen && campaignId) {
+      setCampaignId(null)
+    }
+  }, [showSendingScreen, campaignId])
 
   const getPersonalizedEmailsForPreview = (): PersonalizedEmail[] => {
     const emailData = getAllEmailData()
@@ -810,70 +541,55 @@ export function ComposeForm() {
                     <div className="h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
                     <h2 className="text-2xl font-bold text-blue-900">Sending Your Campaign</h2>
                   </div>
-                  <p className="text-gray-600">Please keep this window open while we send your emails</p>
+                  <p className="text-gray-600">Sending emails one by one for maximum reliability</p>
                 </div>
 
                 {/* Progress Bar */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700">Overall Progress</span>
-                    <span className="text-sm font-bold text-blue-600">{sendProgress}%</span>
+                    <span className="text-sm font-bold text-blue-600">{progress.percentage}%</span>
                   </div>
-                  <Progress value={sendProgress} className="w-full h-4 bg-blue-100" />
+                  <Progress value={progress.percentage} className="w-full h-4 bg-blue-100" />
                 </div>
 
                 {/* Real-time Statistics */}
                 <div className="grid grid-cols-2 gap-6">
                   <div className="text-center p-6 bg-green-50 rounded-lg border-2 border-green-200">
-                    <div className="text-4xl font-bold text-green-600 mb-2">{emailsSent}</div>
+                    <div className="text-4xl font-bold text-green-600 mb-2">{hookSendStatus.filter(s => s.status === 'success').length}</div>
                     <div className="text-sm font-medium text-green-800">Emails Sent</div>
                   </div>
                   <div className="text-center p-6 bg-orange-50 rounded-lg border-2 border-orange-200">
-                    <div className="text-4xl font-bold text-orange-600 mb-2">{emailsRemaining}</div>
+                    <div className="text-4xl font-bold text-orange-600 mb-2">{progress.totalEmails - progress.currentEmail}</div>
                     <div className="text-sm font-medium text-orange-800">Remaining</div>
                   </div>
                 </div>
 
-                {/* Chunk Progress (for large campaigns) */}
-                {totalChunks > 1 && (
-                  <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-lg font-semibold text-blue-900">Batch Progress</span>
-                      <span className="text-lg font-bold text-blue-600">{currentChunk} / {totalChunks}</span>
+                {/* Current Email Status */}
+                <div className="text-center p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="text-lg font-semibold text-blue-900 mb-2">📧 Sequential Email Sending</div>
+                  <div className="text-sm text-blue-700">{progress.status}</div>
+                  {progress.currentEmail > 0 && (
+                    <div className="text-xs text-gray-600 mt-2">
+                      Email {progress.currentEmail} of {progress.totalEmails}
                     </div>
-                    <div className="w-full bg-blue-200 rounded-full h-4">
-                      <div 
-                        className="bg-blue-600 h-4 rounded-full transition-all duration-500" 
-                        style={{ width: `${totalChunks > 0 ? (currentChunk / totalChunks) * 100 : 0}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Processing Method Info */}
-                {currentProcessingMethod && (
-                  <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="text-lg font-semibold text-gray-800 mb-2">{currentProcessingMethod}</div>
-                    {processingStatus && (
-                      <div className="text-sm text-gray-600">{processingStatus}</div>
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {/* Status Message */}
                 <div className="text-center p-4 bg-blue-50 rounded-lg">
                   <p className="text-lg text-blue-800 font-medium">
-                    {processingStatus || "Processing your email campaign..."}
+                    {emailSendingLoading ? "Sending emails..." : "Campaign completed!"}
                   </p>
-                  {!isLoading && (
+                  {!emailSendingLoading && (
                     <p className="text-sm text-gray-600 mt-2">
-                      Campaign completed! This screen will close automatically in a few seconds.
+                      This screen will close automatically in a few seconds.
                     </p>
                   )}
                 </div>
 
                 {/* Close button (only show when not actively sending) */}
-                {!isLoading && (
+                {!emailSendingLoading && !isLoading && (
                   <div className="text-center">
                     <Button 
                       onClick={() => setShowSendingScreen(false)} 
@@ -1180,11 +896,9 @@ export function ComposeForm() {
                 {emailData.length > 0 && (
                   <p className="text-xs text-green-600 mt-2 text-center">
                     📧 Ready to send to {emailData.length} recipient(s)
-                    {(emailData.length > 5 || attachments.length > 0) && (
-                      <span className="ml-1 text-blue-600">
-                        (📦 Will use smart batch processing for reliability)
-                      </span>
-                    )}
+                    <span className="ml-1 text-blue-600">
+                      (� Will send one by one for maximum reliability)
+                    </span>
                   </p>
                 )}
               </div>
@@ -1192,16 +906,16 @@ export function ComposeForm() {
           )}
 
           {/* Send Progress */}
-          {isLoading && (
+          {(isLoading || emailSendingLoading) && (
             <Card>
               <CardContent className="p-3">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-medium">Sending Emails...</h3>
-                    <span className="text-xs text-gray-500">{sendProgress}%</span>
+                    <span className="text-xs text-gray-500">{progress.percentage}%</span>
                   </div>
-                  <Progress value={sendProgress} className="w-full h-2" />
-                  <p className="text-xs text-gray-600">Please wait while we send your emails.</p>
+                  <Progress value={progress.percentage} className="w-full h-2" />
+                  <p className="text-xs text-gray-600">{progress.status}</p>
                 </div>
               </CardContent>
             </Card>

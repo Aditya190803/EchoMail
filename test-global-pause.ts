@@ -33,7 +33,7 @@ if (!global.emailRateLimitState) {
   }
 }
 
-// Copy the functions from send-email-chunk route
+// Copy the functions from send-single-email route
 function triggerGlobalPause(reason: string, durationMs: number = 300000) {
   console.log(`🚨 TRIGGERING GLOBAL EMAIL PAUSE: ${reason} for ${durationMs/1000}s`)
   global.emailRateLimitState.isPaused = true

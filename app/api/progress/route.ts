@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Use the same global Map as in send-email-chunk
+// Use the same global Map as in send-single-email
 declare global {
   var emailProgress: Map<string, {
     total: number

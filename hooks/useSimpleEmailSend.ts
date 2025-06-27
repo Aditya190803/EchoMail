@@ -19,7 +19,7 @@ interface EmailProgress {
   status: string
 }
 
-interface UseEmailSendResult {
+interface UseSimpleEmailSendResult {
   sendEmails: (personalizedEmails: any[]) => Promise<EmailResult[]>
   progress: EmailProgress
   sendStatus: SendStatus[]
@@ -27,7 +27,7 @@ interface UseEmailSendResult {
   error: string | null
 }
 
-export function useBatchEmailSend(): UseEmailSendResult {
+export function useSimpleEmailSend(): UseSimpleEmailSendResult {
   const [progress, setProgress] = useState<EmailProgress>({
     currentEmail: 0,
     totalEmails: 0,
@@ -52,6 +52,7 @@ export function useBatchEmailSend(): UseEmailSendResult {
       status: `Starting to send ${totalEmails} emails...`
     })
 
+    // Initialize all emails as pending
     setSendStatus(personalizedEmails.map(email => ({
       email: email.to,
       status: "pending"

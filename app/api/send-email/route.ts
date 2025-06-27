@@ -6,15 +6,11 @@ import { db } from "@/lib/firebase"
 import { collection, addDoc, serverTimestamp } from "firebase/firestore"
 
 /**
- * Original email sending endpoint with enhanced batch processing.
+ * Simplified email sending endpoint with sequential processing.
  * 
- * This endpoint now includes smart batch processing to handle:
- * - Large numbers of emails
- * - Emails with attachments
- * - Network timeouts and rate limiting
- * 
- * For even better performance with large campaigns, use the dedicated
- * /api/send-email-batch endpoint which provides additional optimizations.
+ * This endpoint processes emails one at a time to ensure reliable delivery
+ * and avoid payload size issues. For new implementations, use the dedicated
+ * /api/send-single-email endpoint which is optimized for single email delivery.
  */
 
 interface EmailResult {
@@ -60,122 +56,50 @@ export async function POST(request: NextRequest) {
 
     const results: EmailResult[] = []
 
-    // Get first email for campaign info
-    const firstEmail = personalizedEmails[0]
-    const campaignSubject = replacePlaceholders(firstEmail.subject, firstEmail.originalRowData)
+    console.log(`Processing ${personalizedEmails.length} emails sequentially...`)
 
-    // Batch configuration
-    const BATCH_SIZE = 10 // Number of emails to send in each batch
-    const BATCH_DELAY = 2000 // Delay between batches in milliseconds (2 seconds)
-    const RETRY_ATTEMPTS = 3 // Number of retry attempts for failed emails
-    const RETRY_DELAY = 1000 // Delay between retries in milliseconds
-
-    // Helper function to check if emails have attachments
-    const hasAttachments = (email: any) => email.attachments && email.attachments.length > 0
-
-    // Separate emails with and without attachments for different batch sizes
-    const emailsWithAttachments = personalizedEmails.filter(hasAttachments)
-    const emailsWithoutAttachments = personalizedEmails.filter(email => !hasAttachments(email))
-
-    // Process emails in batches
-    async function processBatch(emailBatch: any[], batchIndex: number, batchType: string) {
-      console.log(`Processing ${batchType} batch ${batchIndex + 1} with ${emailBatch.length} emails`)
+    // Process emails one by one to avoid payload size issues
+    for (let i = 0; i < personalizedEmails.length; i++) {
+      const email = personalizedEmails[i]
       
-      const batchPromises = emailBatch.map(async (email, emailIndex) => {
-        let lastError: Error | null = null
-        
-        for (let attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
-          try {
-            console.log(`Processing email ${emailIndex + 1}/${emailBatch.length} in ${batchType} batch ${batchIndex + 1} (attempt ${attempt}):`, {
-              to: email.to,
-              originalSubject: email.subject,
-              originalMessage: email.message?.substring(0, 100) + "...",
-              originalRowData: email.originalRowData,
-              hasAttachments: hasAttachments(email)
-            })
-
-            const personalizedSubject = replacePlaceholders(email.subject, email.originalRowData)
-            const personalizedMessage = replacePlaceholders(email.message, email.originalRowData)
-
-            console.log("After placeholder replacement:", {
-              personalizedSubject,
-              personalizedMessage: personalizedMessage?.substring(0, 100) + "...",
-              dataUsed: email.originalRowData
-            })
-
-            await sendEmailViaAPI(
-              session!.accessToken!,
-              email.to,
-              personalizedSubject,
-              personalizedMessage,
-              email.attachments,
-            )
-
-            return {
-              email: email.to,
-              status: "success" as const,
-            }
-          } catch (error) {
-            lastError = error instanceof Error ? error : new Error("Unknown error")
-            console.error(`Failed to send email to ${email.to} (attempt ${attempt}/${RETRY_ATTEMPTS}):`, lastError)
-            
-            if (attempt < RETRY_ATTEMPTS) {
-              console.log(`Retrying email to ${email.to} in ${RETRY_DELAY}ms...`)
-              await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
-            }
-          }
-        }
-
-        return {
-          email: email.to,
-          status: "error" as const,
-          error: lastError?.message || "Unknown error",
-        }
+      console.log(`Processing email ${i + 1}/${personalizedEmails.length}:`, {
+        to: email.to,
+        hasAttachments: email.attachments && email.attachments.length > 0
       })
 
-      // Wait for all emails in this batch to complete
-      const batchResults = await Promise.all(batchPromises)
-      results.push(...batchResults)
-      
-      console.log(`Completed ${batchType} batch ${batchIndex + 1}: ${batchResults.filter(r => r.status === "success").length}/${batchResults.length} successful`)
-    }
+      try {
+        const personalizedSubject = replacePlaceholders(email.subject, email.originalRowData)
+        const personalizedMessage = replacePlaceholders(email.message, email.originalRowData)
 
-    // Process emails with attachments first (smaller batches)
-    if (emailsWithAttachments.length > 0) {
-      const attachmentBatchSize = Math.min(BATCH_SIZE / 2, 5) // Smaller batches for emails with attachments
-      for (let i = 0; i < emailsWithAttachments.length; i += attachmentBatchSize) {
-        const batch = emailsWithAttachments.slice(i, i + attachmentBatchSize)
-        const batchIndex = Math.floor(i / attachmentBatchSize)
-        
-        await processBatch(batch, batchIndex, "attachment")
-        
-        // Add delay between batches if there are more batches to process
-        if (i + attachmentBatchSize < emailsWithAttachments.length) {
-          console.log(`Waiting ${BATCH_DELAY}ms before next attachment batch...`)
-          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY))
-        }
-      }
-      
-      // Add extra delay before processing regular emails
-      if (emailsWithoutAttachments.length > 0) {
-        console.log(`Waiting ${BATCH_DELAY}ms before processing emails without attachments...`)
-        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY))
-      }
-    }
+        await sendEmailViaAPI(
+          session!.accessToken!,
+          email.to,
+          personalizedSubject,
+          personalizedMessage,
+          email.attachments || [],
+        )
 
-    // Process emails without attachments (regular batch size)
-    if (emailsWithoutAttachments.length > 0) {
-      for (let i = 0; i < emailsWithoutAttachments.length; i += BATCH_SIZE) {
-        const batch = emailsWithoutAttachments.slice(i, i + BATCH_SIZE)
-        const batchIndex = Math.floor(i / BATCH_SIZE)
+        results.push({
+          email: email.to,
+          status: "success",
+        })
+
+        console.log(`✅ Successfully sent email ${i + 1}/${personalizedEmails.length} to ${email.to}`)
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Unknown error"
+        console.error(`❌ Failed to send email ${i + 1}/${personalizedEmails.length} to ${email.to}:`, errorMessage)
         
-        await processBatch(batch, batchIndex, "regular")
-        
-        // Add delay between batches if there are more batches to process
-        if (i + BATCH_SIZE < emailsWithoutAttachments.length) {
-          console.log(`Waiting ${BATCH_DELAY}ms before next regular batch...`)
-          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY))
-        }
+        results.push({
+          email: email.to,
+          status: "error",
+          error: errorMessage,
+        })
+      }
+
+      // Wait 1 second between emails to avoid rate limiting
+      if (i < personalizedEmails.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000))
       }
     }
 

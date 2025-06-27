@@ -69,12 +69,9 @@ const nextConfig = {
     }
     return config
   },
-  // Fix hot reloading issues and configure larger payloads
+  // Fix hot reloading issues
   experimental: {
     esmExternals: true,
-    serverComponentsExternalPackages: ['mjml'],
-    // Increase body parser size limits
-    bodyParserSizeLimit: '10mb',
   },
   // Server-side configuration for larger payloads
   serverExternalPackages: ['mjml'],

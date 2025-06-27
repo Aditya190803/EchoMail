@@ -1,12 +1,8 @@
 {
   "functions": {
-    "app/api/send-email-chunk/route.ts": {
-      "maxDuration": 30,
-      "memory": 512
-    },
-    "app/api/send-email-batch/route.ts": {
-      "maxDuration": 30,
-      "memory": 512
+    "app/api/send-single-email/route.ts": {
+      "maxDuration": 15,
+      "memory": 256
     },
     "app/api/format-email-preview/route.ts": {
       "maxDuration": 15,
