@@ -439,6 +439,22 @@ export function ComposeForm() {
             data: att.base64
           }))
         })
+        
+        console.log(`✅ Added ${attachmentData.length} attachments to ${personalizedEmails.length} emails`)
+        
+        // Debug: Log first email's attachment data
+        if (personalizedEmails.length > 0 && personalizedEmails[0].attachments) {
+          console.log("🔍 First email attachment debug:", {
+            attachmentCount: personalizedEmails[0].attachments.length,
+            firstAttachment: personalizedEmails[0].attachments[0] ? {
+              name: personalizedEmails[0].attachments[0].name,
+              type: personalizedEmails[0].attachments[0].type,
+              dataLength: personalizedEmails[0].attachments[0].data?.length || 0
+            } : null
+          })
+        }
+      } else {
+        console.log("ℹ️ No attachments to process")
       }
 
       console.log(`🚀 Sending ${totalEmails} emails sequentially using the simple hook`)

@@ -77,16 +77,27 @@ export function useEmailSend(): UseEmailSendResult {
         })
 
         try {
-          // Create minimal payload to avoid 413 errors
+          // Debug: Log attachment info for this email
+          console.log(`📎 Email ${i + 1} attachment info:`, {
+            to: email.to,
+            hasAttachments: !!email.attachments,
+            attachmentCount: email.attachments?.length || 0,
+            attachmentNames: email.attachments?.map((att: any) => att.name) || []
+          })
+          
+          // Create payload including attachments
+          const payload = {
+            to: email.to,
+            subject: email.subject,
+            message: email.message,
+            originalRowData: email.originalRowData || {},
+            attachments: email.attachments || []
+          }
+          
           const response = await fetch('/api/send-single-email', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: email.to,
-              subject: email.subject,
-              message: email.message,
-              originalRowData: email.originalRowData || {}
-            }),
+            body: JSON.stringify(payload),
           })
 
           if (response.ok) {

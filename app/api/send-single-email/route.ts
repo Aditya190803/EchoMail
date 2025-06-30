@@ -24,17 +24,17 @@ export async function POST(request: NextRequest) {
     const sizeKB = (requestText.length / 1024).toFixed(2)
     console.log(`📧 Single email request size: ${sizeKB} KB`)
 
-    // Strict size limit for single emails
-    if (requestText.length > 25000) { // ~25KB limit for single email
+    // Strict size limit for single emails (increased for attachments)
+    if (requestText.length > 3000000) { // ~100KB limit for single email with attachments
       return NextResponse.json({ 
         error: "Single email payload too large",
         sizeKB,
-        maxSizeKB: "25"
+        maxSizeKB: "3000"
       }, { status: 413 })
     }
 
     const data = JSON.parse(requestText)
-    const { to, subject, message, originalRowData } = data
+    const { to, subject, message, originalRowData, attachments } = data
 
     if (!to || !subject || !message) {
       return NextResponse.json({ error: "Missing required fields: to, subject, message" }, { status: 400 })
@@ -45,12 +45,14 @@ export async function POST(request: NextRequest) {
       const personalizedSubject = replacePlaceholders(subject, originalRowData || {})
       const personalizedMessage = replacePlaceholders(message, originalRowData || {})
 
+      console.log(`📧 Sending email to ${to} with ${(attachments || []).length} attachments`)
+      
       await sendEmailViaAPI(
         session.accessToken,
         to,
         personalizedSubject,
-        personalizedMessage
-        // No attachments for now to keep it simple
+        personalizedMessage,
+        attachments || [] // Pass attachments to the email sending function
       )
 
       console.log(`✅ Successfully sent single email to ${to}`)

@@ -77,7 +77,8 @@ export async function sendEmailViaAPI(
     subject,
     subjectLength: subject.length,
     hasSpecialChars: /[^\x00-\x7F]/.test(subject),
-    bodyLength: htmlBody.length
+    bodyLength: htmlBody.length,
+    attachmentCount: attachments ? attachments.length : 0
   })
   
   const boundary = "boundary_" + Math.random().toString(36).substr(2, 9)
@@ -144,11 +145,15 @@ export async function sendEmailViaAPI(
   ]
 
   if (attachments && attachments.length > 0) {
+    console.log(`📎 Processing ${attachments.length} attachments for email to ${validatedTo}`)
+    
     for (const attachment of attachments) {
       // Always encode attachment filename for consistent UTF-8 handling
       const encodedFilename = `=?UTF-8?B?${Buffer.from(attachment.name, 'utf8').toString('base64')}?=`
       
       let attachmentData = attachment.data
+      
+      console.log(`📎 Processing attachment: ${attachment.name} (${attachment.type}, ${attachment.data?.length || 0} bytes)`)
       
       // If attachment.data is a URL (Cloudinary), download and convert to base64
       // NOTE: This should not happen anymore as we now send base64 directly
