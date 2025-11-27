@@ -3,10 +3,10 @@ import { formatEmailHTML, sanitizeEmailHTML } from './email-formatter'
 export interface AttachmentData {
   name: string
   type: string
-  data: string // Can be base64 encoded data OR Cloudinary URL
+  data: string // base64 encoded data, or 'cloudinary' if using cloudinaryUrl
+  cloudinaryUrl?: string // If provided, attachment will be fetched from this URL
 }
 
-// Helper function to sanitize and encode text for proper UTF-8 handling
 function sanitizeText(text: string): string {
   // Normalize Unicode characters and ensure proper UTF-8 encoding
   return text.normalize('NFC').replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"')
@@ -80,8 +80,6 @@ export async function sendEmailViaAPI(
     bodyLength: htmlBody.length,
     attachmentCount: attachments ? attachments.length : 0
   })
-  
-  const boundary = "boundary_" + Math.random().toString(36).substr(2, 9)
 
   // Timeout configuration
   const REQUEST_TIMEOUT = 30000 // 30 seconds timeout
@@ -125,42 +123,88 @@ export async function sendEmailViaAPI(
   // Properly encode the subject line to handle UTF-8 characters
   const encodedSubject = encodeSubject(subject)
   
-  // Sanitize and format the HTML body for email clients
+  // Sanitize and format the HTML body to match Gmail's native format
   const sanitizedHtmlBody = sanitizeEmailHTML(htmlBody)
   const formattedHtmlBody = formatEmailHTML(sanitizedHtmlBody)
 
-  const email = [
-    `From: ${fromEmail}`,
-    `To: ${validatedTo}`,
-    `Subject: ${encodedSubject}`,
-    `MIME-Version: 1.0`,
-    `Content-Type: multipart/mixed; boundary="${boundary}"`,
-    `Content-Transfer-Encoding: 8bit`,
-    "",
-    `--${boundary}`,
-    "Content-Type: text/html; charset=utf-8",
-    "Content-Transfer-Encoding: 8bit",
-    "",
-    formattedHtmlBody,
-  ]
+  // Build email in Gmail's native format
+  // Gmail sends emails with multipart/alternative (text + html) wrapped in multipart/mixed if attachments
+  const mixedBoundary = "----=_Part_" + Math.random().toString(36).substr(2, 9)
+  const altBoundary = "----=_Alt_" + Math.random().toString(36).substr(2, 9)
+  
+  // Create plain text version by stripping HTML
+  const plainText = formattedHtmlBody
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 
+  let email: string[]
+  
   if (attachments && attachments.length > 0) {
+    // With attachments: multipart/mixed containing multipart/alternative + attachments
+    email = [
+      `From: ${fromEmail}`,
+      `To: ${validatedTo}`,
+      `Subject: ${encodedSubject}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
+      "",
+      `--${mixedBoundary}`,
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+      "",
+      `--${altBoundary}`,
+      `Content-Type: text/plain; charset="UTF-8"`,
+      `Content-Transfer-Encoding: quoted-printable`,
+      "",
+      plainText,
+      "",
+      `--${altBoundary}`,
+      `Content-Type: text/html; charset="UTF-8"`,
+      `Content-Transfer-Encoding: quoted-printable`,
+      "",
+      formattedHtmlBody,
+      "",
+      `--${altBoundary}--`,
+    ]
+    
     console.log(`📎 Processing ${attachments.length} attachments for email to ${validatedTo}`)
     
     for (const attachment of attachments) {
-      // Always encode attachment filename for consistent UTF-8 handling
       const encodedFilename = `=?UTF-8?B?${Buffer.from(attachment.name, 'utf8').toString('base64')}?=`
       
       let attachmentData = attachment.data
       
-      console.log(`📎 Processing attachment: ${attachment.name} (${attachment.type}, ${attachment.data?.length || 0} bytes)`)
+      console.log(`📎 Processing attachment: ${attachment.name} (${attachment.type})`)
       
-      // If attachment.data is a URL (Cloudinary), download and convert to base64
-      // NOTE: This should not happen anymore as we now send base64 directly
-      if (attachment.data.startsWith('http')) {
-        console.warn(`⚠️ Downloading attachment from URL (deprecated): ${attachment.data}`)
+      if (attachment.cloudinaryUrl) {
+        console.log(`☁️ Fetching attachment from Cloudinary: ${attachment.name}`)
         try {
-          console.log(`📎 Downloading attachment from: ${attachment.data}`)
+          const attachmentResponse = await fetchWithTimeout(attachment.cloudinaryUrl, {
+            method: 'GET'
+          })
+          
+          if (!attachmentResponse.ok) {
+            throw new Error(`Failed to download attachment: ${attachmentResponse.statusText}`)
+          }
+          
+          const arrayBuffer = await attachmentResponse.arrayBuffer()
+          attachmentData = Buffer.from(arrayBuffer).toString('base64')
+          console.log(`✅ Successfully downloaded attachment from Cloudinary: ${attachment.name}`)
+        } catch (error) {
+          console.error(`❌ Failed to download attachment ${attachment.name} from Cloudinary:`, error)
+          throw new Error(`Failed to download attachment ${attachment.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
+      } else if (attachment.data.startsWith('http')) {
+        console.log(`📎 Fetching attachment from URL (legacy): ${attachment.data}`)
+        try {
           const attachmentResponse = await fetchWithTimeout(attachment.data, {
             method: 'GET'
           })
@@ -177,20 +221,42 @@ export async function sendEmailViaAPI(
           throw new Error(`Failed to download attachment ${attachment.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
       } else {
-        // Attachment data is already base64 - use directly
         console.log(`✅ Using base64 attachment data directly: ${attachment.name}`)
       }
         
-      email.push(`--${boundary}`)
+      email.push(`--${mixedBoundary}`)
       email.push(`Content-Type: ${attachment.type}; name="${encodedFilename}"`)
       email.push(`Content-Disposition: attachment; filename="${encodedFilename}"`)
-      email.push("Content-Transfer-Encoding: base64")
+      email.push(`Content-Transfer-Encoding: base64`)
       email.push("")
       email.push(attachmentData)
     }
+    
+    email.push(`--${mixedBoundary}--`)
+  } else {
+    // No attachments: simple multipart/alternative with text and html
+    email = [
+      `From: ${fromEmail}`,
+      `To: ${validatedTo}`,
+      `Subject: ${encodedSubject}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+      "",
+      `--${altBoundary}`,
+      `Content-Type: text/plain; charset="UTF-8"`,
+      `Content-Transfer-Encoding: quoted-printable`,
+      "",
+      plainText,
+      "",
+      `--${altBoundary}`,
+      `Content-Type: text/html; charset="UTF-8"`,
+      `Content-Transfer-Encoding: quoted-printable`,
+      "",
+      formattedHtmlBody,
+      "",
+      `--${altBoundary}--`,
+    ]
   }
-
-  email.push(`--${boundary}--`)
 
   // Explicitly encode as UTF-8 to handle international characters properly
   const encodedEmail = Buffer.from(email.join("\n"), 'utf8')
