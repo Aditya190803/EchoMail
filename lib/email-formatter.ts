@@ -19,11 +19,10 @@ export function formatEmailHTML(htmlContent: string): string {
     // Convert any emoji images to Unicode text
     const contentWithTextEmojis = convertEmojiImagesToText(htmlContent);
     
-    // Clean up the HTML content
+    // Clean up and sanitize the HTML content
     const sanitizedContent = sanitizeEmailHTML(contentWithTextEmojis);
     
-    // Gmail uses a very simple HTML structure - no tables, no complex wrappers
-    // Just the content in a div with inline styles matching Gmail's defaults
+    // Format as Gmail-native HTML with proper inline styles
     return formatAsGmailNative(sanitizedContent);
   } catch (error) {
     console.error('Email formatting failed:', error);
@@ -33,30 +32,81 @@ export function formatEmailHTML(htmlContent: string): string {
 
 /**
  * Formats HTML to match Gmail's native email format exactly.
- * Gmail compose uses minimal HTML with Google's default font styling.
+ * Converts CSS classes to inline styles for email client compatibility.
  */
 function formatAsGmailNative(htmlContent: string): string {
-  // Gmail's default styling - matches what Gmail uses when you compose an email
-  // Font: Google Sans, Roboto, or system sans-serif at 14px (small) or ~10.5pt
-  // Line height: normal (about 1.2)
-  // No extra margins or padding on the outer container
-  
-  // Process the content to ensure proper Gmail-style formatting
   let processedContent = htmlContent;
   
-  // Ensure paragraphs have Gmail-style spacing (Gmail uses <div> with <br> for line breaks)
-  // Gmail doesn't use <p> tags much - it uses <div> tags
+  // Convert editor classes and tags to Gmail-compatible inline styles
   processedContent = processedContent
-    // Convert <p> tags to Gmail-style divs (Gmail uses div for paragraphs)
-    .replace(/<p([^>]*)>/gi, '<div$1>')
+    // Convert <p> tags to Gmail-style divs with proper spacing
+    .replace(/<p([^>]*)>/gi, '<div$1 style="margin: 0.5em 0;">')
     .replace(/<\/p>/gi, '</div>')
+    
     // Ensure empty lines become <div><br></div> like Gmail does
     .replace(/<div><\/div>/gi, '<div><br></div>')
-    .replace(/<div>\s*<\/div>/gi, '<div><br></div>');
+    .replace(/<div>\s*<\/div>/gi, '<div><br></div>')
+    
+    // Style headings
+    .replace(/<h1([^>]*)>/gi, '<h1$1 style="font-size: 2em; font-weight: bold; margin: 0.67em 0;">')
+    .replace(/<h2([^>]*)>/gi, '<h2$1 style="font-size: 1.5em; font-weight: bold; margin: 0.75em 0;">')
+    .replace(/<h3([^>]*)>/gi, '<h3$1 style="font-size: 1.17em; font-weight: bold; margin: 0.83em 0;">')
+    .replace(/<h4([^>]*)>/gi, '<h4$1 style="font-size: 1em; font-weight: bold; margin: 1em 0;">')
+    
+    // Style blockquotes
+    .replace(/<blockquote([^>]*)>/gi, '<blockquote$1 style="border-left: 3px solid #ccc; margin: 1em 0; padding-left: 1em; color: #666; font-style: italic;">')
+    
+    // Style code blocks
+    .replace(/<pre([^>]*)>/gi, '<pre$1 style="background: #f5f5f5; color: #333; font-family: monospace; padding: 12px 16px; border-radius: 8px; overflow-x: auto; margin: 1em 0; white-space: pre-wrap; word-wrap: break-word;">')
+    .replace(/<code([^>]*)>/gi, (match, attrs) => {
+      // Don't add background if already inside a <pre>
+      if (attrs.includes('style=')) return match;
+      return `<code${attrs} style="background: #f1f5f9; color: #e11d48; padding: 0.2em 0.4em; border-radius: 0.25em; font-family: monospace; font-size: 0.9em;">`;
+    })
+    
+    // Style horizontal rules
+    .replace(/<hr([^>]*)>/gi, '<hr$1 style="border: none; border-top: 2px solid #e5e7eb; margin: 1.5em 0;">')
+    
+    // Style lists
+    .replace(/<ul([^>]*)>/gi, '<ul$1 style="padding-left: 1.5em; margin: 0.5em 0; list-style-type: disc;">')
+    .replace(/<ol([^>]*)>/gi, '<ol$1 style="padding-left: 1.5em; margin: 0.5em 0; list-style-type: decimal;">')
+    .replace(/<li([^>]*)>/gi, '<li$1 style="margin: 0.25em 0;">')
+    
+    // Style tables
+    .replace(/<table([^>]*)>/gi, '<table$1 style="border-collapse: collapse; margin: 1em 0; width: 100%;">')
+    .replace(/<th([^>]*)>/gi, '<th$1 style="border: 1px solid #d1d5db; padding: 8px; background: #f3f4f6; font-weight: bold; text-align: left;">')
+    .replace(/<td([^>]*)>/gi, '<td$1 style="border: 1px solid #d1d5db; padding: 8px; vertical-align: top;">')
+    
+    // Style links
+    .replace(/<a\s+href="([^"]*)"([^>]*)>/gi, (match, href, rest) => {
+      if (!rest.includes('style=')) {
+        return `<a href="${href}"${rest} style="color: #2563eb; text-decoration: underline;">`;
+      }
+      return match;
+    })
+    
+    // Style marks/highlights
+    .replace(/<mark([^>]*)>/gi, (match, attrs) => {
+      // Extract color from data-color if present
+      const colorMatch = attrs.match(/data-color="([^"]*)"/);
+      const bgColor = colorMatch ? colorMatch[1] : '#fef08a';
+      return `<mark${attrs} style="background-color: ${bgColor}; border-radius: 0.25em; padding: 0.1em 0.2em;">`;
+    })
+    
+    // Style images
+    .replace(/<img([^>]*)>/gi, (match, attrs) => {
+      if (!attrs.includes('style=')) {
+        return `<img${attrs} style="max-width: 100%; height: auto;">`;
+      }
+      return match;
+    })
+    
+    // Clean up extra whitespace
+    .replace(/[ \t]+/g, ' ')
+    .trim();
   
-  // Gmail's native email format - extremely simple
-  // This is what Gmail actually sends when you compose and send an email
-  return `<div dir="ltr">${processedContent}</div>`;
+  // Gmail's native email format - wrapped in dir="ltr" div
+  return `<div dir="ltr" style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #222222;">${processedContent}</div>`;
 }
 
 /**
@@ -136,7 +186,7 @@ export function sanitizeEmailHTML(htmlContent: string): string {
   
   // Remove any complex table structures that aren't Gmail-native
   const hasComplexTables = htmlContent.includes('m_') || 
-                          (htmlContent.includes('<table') && htmlContent.includes('class='));
+                          (htmlContent.includes('<table') && htmlContent.includes('class="'));
   
   if (hasComplexTables) {
     sanitized = htmlContent
@@ -161,18 +211,27 @@ export function sanitizeEmailHTML(htmlContent: string): string {
     // Convert emoji images to text
     .replace(/<img[^>]*data-emoji="([^"]*)"[^>]*alt="([^"]*)"[^>]*>/gi, '$2')
     .replace(/<img[^>]*alt="([^"]*)"[^>]*data-emoji="[^"]*"[^>]*>/gi, '$1')
+    
     // Remove script tags and event handlers (security)
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     .replace(/\s(on\w+)=["'][^"']*["']/gi, '')
     .replace(/\sjavascript:[^"\s>]*/gi, '')
-    // Ensure links work properly - Gmail style (blue, underlined)
-    .replace(/<a\s+href="([^"]*)"([^>]*)>/gi, (match, href, rest) => {
-      // Gmail default link style
-      if (!rest.includes('style=')) {
-        return `<a href="${href}"${rest} style="color:#15c;text-decoration:underline">`;
-      }
-      return match;
-    })
+    
+    // Remove editor-specific classes that won't work in emails
+    .replace(/class="editor-[^"]*"/gi, '')
+    .replace(/class="ProseMirror[^"]*"/gi, '')
+    .replace(/class="code-block"/gi, '')
+    .replace(/class="blockquote"/gi, '')
+    .replace(/class="hr"/gi, '')
+    .replace(/class="email-table"/gi, '')
+    .replace(/class="selectedCell"/gi, '')
+    
+    // Keep semantic classes but remove style-only ones
+    .replace(/class="[^"]*(?:prose|max-w-none)[^"]*"/gi, '')
+    
+    // Preserve color and highlight attributes
+    .replace(/data-color="([^"]*)"/gi, 'data-color="$1"')
+    
     // Clean up whitespace
     .replace(/[ \t]+/g, ' ')
     .replace(/\n\s*\n\s*\n+/g, '\n\n')
