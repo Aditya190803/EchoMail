@@ -10,361 +10,172 @@ if (typeof window === 'undefined') {
 }
 
 /**
- * Formats email content using MJML for better email client compatibility
- * Ensures proper list indentation and bullet styling
+ * Formats email content to match Gmail's native email format exactly.
+ * Gmail sends emails with minimal HTML - just the content wrapped in a simple div.
+ * This produces emails indistinguishable from those composed directly in Gmail.
  */
 export function formatEmailHTML(htmlContent: string): string {
   try {
+    // Convert any emoji images to Unicode text
+    const contentWithTextEmojis = convertEmojiImagesToText(htmlContent);
+    
+    // Clean up the HTML content
+    const sanitizedContent = sanitizeEmailHTML(contentWithTextEmojis);
+    
+    // Gmail uses a very simple HTML structure - no tables, no complex wrappers
+    // Just the content in a div with inline styles matching Gmail's defaults
+    return formatAsGmailNative(sanitizedContent);
+  } catch (error) {
+    console.error('Email formatting failed:', error);
+    return formatAsGmailNative(htmlContent);
+  }
+}
+
+/**
+ * Formats HTML to match Gmail's native email format exactly.
+ * Gmail compose uses minimal HTML with Google's default font styling.
+ */
+function formatAsGmailNative(htmlContent: string): string {
+  // Gmail's default styling - matches what Gmail uses when you compose an email
+  // Font: Google Sans, Roboto, or system sans-serif at 14px (small) or ~10.5pt
+  // Line height: normal (about 1.2)
+  // No extra margins or padding on the outer container
+  
+  // Process the content to ensure proper Gmail-style formatting
+  let processedContent = htmlContent;
+  
+  // Ensure paragraphs have Gmail-style spacing (Gmail uses <div> with <br> for line breaks)
+  // Gmail doesn't use <p> tags much - it uses <div> tags
+  processedContent = processedContent
+    // Convert <p> tags to Gmail-style divs (Gmail uses div for paragraphs)
+    .replace(/<p([^>]*)>/gi, '<div$1>')
+    .replace(/<\/p>/gi, '</div>')
+    // Ensure empty lines become <div><br></div> like Gmail does
+    .replace(/<div><\/div>/gi, '<div><br></div>')
+    .replace(/<div>\s*<\/div>/gi, '<div><br></div>');
+  
+  // Gmail's native email format - extremely simple
+  // This is what Gmail actually sends when you compose and send an email
+  return `<div dir="ltr">${processedContent}</div>`;
+}
+
+/**
+ * Alternative: Format using MJML for better cross-client compatibility
+ * Use this if you need emails to render well in older email clients
+ */
+export function formatEmailHTMLWithMJML(htmlContent: string): string {
+  try {
     // Check if MJML is available (server-side only)
     if (!mjml2html) {
-      // Silently fall back to basic HTML during build
-      return getFallbackHTML(htmlContent);
+      return formatAsGmailNative(htmlContent);
     }
 
     // First convert any emoji images to Unicode text
     const contentWithTextEmojis = convertEmojiImagesToText(htmlContent);
     
-    // Basic HTML content cleaning and preparation with enhanced Gmail support
+    // Basic HTML content cleaning and preparation
     const sanitizedContent = sanitizeEmailHTML(contentWithTextEmojis);
     
-    // Ensure the content is properly wrapped and structured
+    // Ensure the content is properly wrapped
     const wrappedContent = sanitizedContent.startsWith('<') ? sanitizedContent : `<p>${sanitizedContent}</p>`;
-      // Create MJML template with full-width desktop styling
+      
+    // Create MJML template
     const mjmlTemplate = `
       <mjml>
         <mj-head>
           <mj-attributes>
-            <mj-all font-family="Aptos, sans-serif" font-size="16px" line-height="1.5" />
+            <mj-all font-family="Arial, sans-serif" font-size="14px" line-height="1.5" />
             <mj-text padding="0" />
             <mj-section padding="0" />
             <mj-column padding="0" />
           </mj-attributes>
-          <mj-style>
-            /* Full-width desktop email styling */
-            .email-content {
-              margin: 0 !important;
-              line-height: 1.5 !important;
-              font-family: Aptos, sans-serif !important;
-              padding: 0 !important;
-              width: 100% !important;
-              max-width: none !important;
-            }
-            
-            /* Paragraph spacing */
-            .email-content p {
-              margin: 0 0 16px 0 !important;
-              padding: 0 !important;
-              line-height: 1.5 !important;
-              font-family: Aptos, sans-serif !important;
-              font-size: 16px !important;
-            }
-            
-            /* Remove extra spacing from last paragraph */
-            .email-content p:last-child {
-              margin-bottom: 0 !important;
-            }
-            
-            /* Heading spacing */
-            .email-content h1, .email-content h2, .email-content h3,
-            .email-content h4, .email-content h5, .email-content h6 {
-              margin: 0 0 16px 0 !important;
-              padding: 0 !important;
-              line-height: 1.3 !important;
-              font-family: Aptos, sans-serif !important;
-            }
-            
-            /* List spacing and styling */
-            .email-content ul, .email-content ol {
-              margin: 0 0 16px 0 !important;
-              padding: 0 0 0 30px !important;
-              font-family: Aptos, sans-serif !important;
-            }
-            
-            .email-content li {
-              margin: 0 0 8px 0 !important;
-              padding: 0 !important;
-              list-style-position: outside !important;
-              line-height: 1.5 !important;
-              font-family: Aptos, sans-serif !important;
-            }
-            
-            .email-content ul li {
-              list-style-type: disc !important;
-            }
-            
-            .email-content ol li {
-              list-style-type: decimal !important;
-            }
-            
-            /* Nested list spacing */
-            .email-content ul ul,
-            .email-content ol ol,
-            .email-content ul ol,
-            .email-content ol ul {
-              margin: 8px 0 8px 0 !important;
-              padding: 0 0 0 25px !important;
-            }
-            
-            /* Blockquote spacing */
-            .email-content blockquote {
-              margin: 0 0 16px 0 !important;
-              padding: 16px 0 16px 20px !important;
-              border-left: 3px solid #ccc !important;
-              font-style: italic !important;
-            }
-            
-            /* Link styling */
-            .email-content a {
-              color: #0066cc !important;
-              text-decoration: underline !important;
-              cursor: pointer !important;
-            }
-            
-            .email-content a:hover {
-              color: #004499 !important;
-              text-decoration: underline !important;
-            }
-            
-            .email-content a:visited {
-              color: #0066cc !important;
-            }
-            
-            /* Strong and emphasis */
-            .email-content strong {
-              font-weight: bold !important;
-            }
-            
-            .email-content em {
-              font-style: italic !important;
-            }
-            
-            /* Ensure full width usage */
-            table {
-              width: 100% !important;
-              max-width: none !important;
-            }
-          </mj-style>
         </mj-head>
-        <mj-body width="100%">
-          <mj-section padding="20px" width="100%">
-            <mj-column width="100%">
-              <mj-text padding="0" css-class="email-content" width="100%">
+        <mj-body>
+          <mj-section padding="20px">
+            <mj-column>
+              <mj-text padding="0">
                 ${wrappedContent}
               </mj-text>
             </mj-column>
           </mj-section>
         </mj-body>
       </mjml>
-    `;    // Compile MJML to HTML with full-width settings
+    `;
+
     const { html, errors } = mjml2html(mjmlTemplate, {
       validationLevel: 'soft',
-      minify: false,
-      beautify: true,
-      fonts: {
-        'Aptos': 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
-      }
+      minify: false
     });
 
     if (errors && errors.length > 0) {
       console.warn('MJML compilation warnings:', errors);
     }
 
-    return html;} catch (error) {
+    return html;
+  } catch (error) {
     console.error('MJML compilation failed:', error);
-    return getFallbackHTML(htmlContent);
+    return formatAsGmailNative(htmlContent);
   }
 }
 
 /**
- * Fallback HTML formatter when MJML is not available
+ * Fallback HTML formatter - simplified Gmail-like format
  */
 function getFallbackHTML(htmlContent: string): string {
-  return `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          body { 
-            margin: 0;
-            line-height: 1.5;
-            font-family: Aptos, sans-serif;
-            font-size: 16px;
-            padding: 20px; 
-            color: #333;
-            width: 100%;
-            max-width: none;
-          }
-          
-          /* Full-width container */
-          .email-container {
-            width: 100%;
-            max-width: none;
-            margin: 0;
-            padding: 0;
-          }
-          
-          /* Paragraph spacing */
-          p { 
-            margin: 0 0 16px 0 !important;
-            padding: 0 !important;
-            line-height: 1.5 !important;
-            font-family: Aptos, sans-serif !important;
-            font-size: 16px !important;
-          }
-          
-          /* Remove extra spacing from last paragraph */
-          p:last-child {
-            margin-bottom: 0 !important;
-          }
-          
-          /* Heading spacing */
-          h1, h2, h3, h4, h5, h6 {
-            margin: 0 0 16px 0 !important;
-            padding: 0 !important;
-            line-height: 1.3 !important;
-            font-family: Aptos, sans-serif !important;
-          }
-          
-          /* List styling */
-          ul, ol { 
-            margin: 0 0 16px 0 !important; 
-            padding: 0 0 0 30px !important;
-            font-family: Aptos, sans-serif !important;
-          }
-          
-          li { 
-            margin: 0 0 8px 0 !important; 
-            padding: 0 !important;
-            list-style-position: outside !important; 
-            line-height: 1.5 !important;
-            font-family: Aptos, sans-serif !important;
-          }
-          
-          /* Nested list indentation */
-          ul ul, ol ol, ul ol, ol ul {
-            margin: 8px 0 8px 0 !important;
-            padding: 0 0 0 25px !important;
-          }
-          
-          ul li { 
-            list-style-type: disc !important; 
-          }
-          
-          ol li { 
-            list-style-type: decimal !important; 
-          }
-          
-          /* Blockquote spacing */
-          blockquote {
-            margin: 0 0 16px 0 !important;
-            padding: 16px 0 16px 20px !important;
-            border-left: 3px solid #ccc !important;
-            font-style: italic !important;
-          }
-          
-          /* Link styling */
-          a {
-            color: #0066cc !important;
-            text-decoration: underline !important;
-            cursor: pointer !important;
-          }
-          
-          a:hover {
-            color: #004499 !important;
-            text-decoration: underline !important;
-          }
-          
-          a:visited {
-            color: #0066cc !important;
-          }
-          
-          /* Strong and emphasis */
-          strong {
-            font-weight: bold !important;
-          }
-          
-          em {
-            font-style: italic !important;
-          }
-          
-          /* Ensure full width usage */
-          table {
-            width: 100% !important;
-            max-width: none !important;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="email-container">
-          ${sanitizeEmailHTML(convertEmojiImagesToText(htmlContent))}
-        </div>
-      </body>
-    </html>
-  `;
+  return formatAsGmailNative(sanitizeEmailHTML(convertEmojiImagesToText(htmlContent)));
 }
 
 /**
- * Sanitizes HTML content while preserving formatting and converting emoji images back to Unicode text
+ * Sanitizes HTML content while preserving formatting
+ * Keeps the HTML clean and Gmail-compatible
  */
 export function sanitizeEmailHTML(htmlContent: string): string {
   if (!htmlContent) return '';
   
-  // First, check if content already has good structure (like correctformat.html)
-  // If it's already clean with just div and p tags, minimal processing needed
-  const isAlreadyClean = !htmlContent.includes('<table') && 
-                        !htmlContent.includes('<td') && 
-                        !htmlContent.includes('m_') &&
-                        htmlContent.includes('<div>') && 
-                        htmlContent.includes('<p>');
-  
   let sanitized = htmlContent;
   
-  if (!isAlreadyClean) {
-    // Only apply heavy sanitization if content has complex Gmail structures
+  // Remove any complex table structures that aren't Gmail-native
+  const hasComplexTables = htmlContent.includes('m_') || 
+                          (htmlContent.includes('<table') && htmlContent.includes('class='));
+  
+  if (hasComplexTables) {
     sanitized = htmlContent
-      // Clean up Gmail-specific HTML structures only if present
-      .replace(/<td[^>]*class="[^"]*m_[0-9]+[^"]*"[^>]*>/gi, '<div>') // Convert Gmail table cells to divs
+      // Convert Gmail-forwarded table cells to divs
+      .replace(/<td[^>]*class="[^"]*m_[0-9]+[^"]*"[^>]*>/gi, '<div>')
       .replace(/<\/td>/gi, '</div>')
-      .replace(/<table[^>]*>/gi, '<div>') // Convert tables to divs for better email compatibility
+      .replace(/<table[^>]*>/gi, '<div>')
       .replace(/<\/table>/gi, '</div>')
-      .replace(/<tbody[^>]*>/gi, '<div>')
-      .replace(/<\/tbody>/gi, '</div>')
+      .replace(/<tbody[^>]*>/gi, '')
+      .replace(/<\/tbody>/gi, '')
       .replace(/<tr[^>]*>/gi, '<div>')
       .replace(/<\/tr>/gi, '</div>')
-      // Remove Gmail-specific classes but preserve other classes (be more specific)
-      .replace(/class="[^"]*m_[0-9]+[^"]*"/gi, (match) => {
-        // Only remove if it's purely Gmail classes, otherwise preserve other classes
-        const classContent = match.match(/class="([^"]*)"/)?.[1] || '';
-        const nonGmailClasses = classContent.split(' ').filter(cls => !cls.match(/^m_[0-9]+/));
-        return nonGmailClasses.length > 0 ? `class="${nonGmailClasses.join(' ')}"` : '';
-      })
-      // Remove excessive nested divs
+      // Remove Gmail-specific classes
+      .replace(/class="[^"]*m_[0-9]+[^"]*"/gi, '')
+      // Clean up nested divs
       .replace(/<div>\s*<div>/gi, '<div>')
       .replace(/<\/div>\s*<\/div>/gi, '</div>');
   }
   
-  // Always apply these minimal cleanups
+  // Always apply these cleanups
   sanitized = sanitized
-    // Convert emoji images to Unicode text using alt attribute (preserve emojis in correct format)
+    // Convert emoji images to text
     .replace(/<img[^>]*data-emoji="([^"]*)"[^>]*alt="([^"]*)"[^>]*>/gi, '$2')
     .replace(/<img[^>]*alt="([^"]*)"[^>]*data-emoji="[^"]*"[^>]*>/gi, '$1')
-    // Only remove dangerous script content
+    // Remove script tags and event handlers (security)
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/\s(on\w+)=["'][^"']*["']/gi, '') // Remove onXXX event handlers
-    .replace(/\sjavascript:[^"\s>]*/gi, '') // Remove javascript: URLs
-    // Preserve links but ensure they have proper attributes
-    .replace(/<a([^>]*href="[^"]*"[^>]*)>/gi, (match, attributes) => {
-      // Ensure links have proper styling for email clients
-      if (!attributes.includes('style=')) {
-        return `<a${attributes} style="color: #0066cc; text-decoration: underline;">`;
+    .replace(/\s(on\w+)=["'][^"']*["']/gi, '')
+    .replace(/\sjavascript:[^"\s>]*/gi, '')
+    // Ensure links work properly - Gmail style (blue, underlined)
+    .replace(/<a\s+href="([^"]*)"([^>]*)>/gi, (match, href, rest) => {
+      // Gmail default link style
+      if (!rest.includes('style=')) {
+        return `<a href="${href}"${rest} style="color:#15c;text-decoration:underline">`;
       }
       return match;
     })
-    // Clean up excessive whitespace but preserve line structure
-    .replace(/[ \t]+/g, ' ') // Only collapse spaces and tabs, not newlines
-    .replace(/\n\s*\n\s*\n+/g, '\n\n') // Collapse multiple newlines to max 2
+    // Clean up whitespace
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n\s*\n\s*\n+/g, '\n\n')
     .trim();
     
   return sanitized;
@@ -399,7 +210,6 @@ export function getEmailPreviewHTML(content: string): string {
  * Formats HTML content for Gmail-specific rendering
  */
 export function formatGmailHTML(htmlContent: string): string {
-  // For Gmail, we can use the same MJML formatting
   return formatEmailHTML(htmlContent);
 }
 
@@ -411,10 +221,8 @@ export function convertToEmailHTML(editorContent: any): string {
     return formatEmailHTML(editorContent);
   }
   
-  // If it's a structured object from a rich text editor
   if (editorContent && typeof editorContent === 'object') {
-    // Convert to HTML string first (this would depend on your editor format)
-    const htmlString = JSON.stringify(editorContent); // Placeholder - implement based on your editor
+    const htmlString = JSON.stringify(editorContent);
     return formatEmailHTML(htmlString);
   }
   
@@ -431,7 +239,6 @@ export function validateEmailHTML(htmlContent: string): { isValid: boolean; erro
     errors.push('Email content is empty');
   }
   
-  // Check for potentially problematic content
   if (htmlContent.includes('<script')) {
     errors.push('Script tags are not allowed in email content');
   }
@@ -448,22 +255,17 @@ export function validateEmailHTML(htmlContent: string): { isValid: boolean; erro
 
 /**
  * Converts emoji images to Unicode text characters
- * This should be called before any email formatting to ensure emojis are text-based
  */
 export function convertEmojiImagesToText(html: string): string {
   if (!html) return '';
   
-  // For the correct format, we want to preserve emoji images with data-emoji and alt attributes
-  // Only convert if they don't already have the correct format
   return html
     // Convert emoji images without data-emoji to Unicode text
     .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*alt="([^"]*)"[^>]*(?![^>]*data-emoji)[^>]*>/gi, '$1')
-    
-    // Convert TipTap editor emoji images to Unicode (these don't have data-emoji)
+    // Convert TipTap editor emoji images to Unicode
     .replace(/<img[^>]*src="[^"]*emoji[^"]*"[^>]*alt="([^"]*)"[^>]*(?![^>]*data-emoji)[^>]*>/gi, '$1')
     .replace(/<img[^>]*alt="([^"]*)"[^>]*src="[^"]*emoji[^"]*"[^>]*(?![^>]*data-emoji)[^>]*>/gi, '$1')
-    
-    // Convert emoji images with Unicode in src path (but not the ones with data-emoji)
+    // Convert emoji images with Unicode in src path
     .replace(/<img[^>]*src="[^"]*[\/\\]([0-9a-f]{4,6})\.(?:png|svg|gif)"[^>]*(?![^>]*data-emoji)[^>]*>/gi, (match, unicode) => {
       try {
         return String.fromCodePoint(parseInt(unicode, 16));
@@ -471,8 +273,7 @@ export function convertEmojiImagesToText(html: string): string {
         return '';
       }
     })
-    
-    // Remove any remaining emoji image tags that don't have the correct format
+    // Remove any remaining emoji images without proper format
     .replace(/<img[^>]*class="[^"]*emoji[^"]*"[^>]*(?![^>]*data-emoji)[^>]*>/gi, '')
     .replace(/<img[^>]*emoji[^>]*(?![^>]*data-emoji)[^>]*>/gi, '')
     .replace(/<img[^>]*src="[^"]*emoji[^"]*"[^>]*(?![^>]*data-emoji)[^>]*>/gi, '');
