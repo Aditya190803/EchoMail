@@ -8,7 +8,8 @@ export interface EmailData {
 export interface AttachmentData {
   name: string
   type: string
-  data: string // base64 encoded
+  data: string // base64 encoded OR 'cloudinary' placeholder
+  cloudinaryUrl?: string // Cloudinary URL for server-side fetching
 }
 
 export interface CSVRow {
@@ -26,6 +27,8 @@ export interface PersonalizedEmail {
 
 export interface SendStatus {
   email: string
-  status: "pending" | "success" | "error"
+  status: "pending" | "success" | "error" | "skipped" | "retrying"
   error?: string
+  retryCount?: number
+  index?: number
 }

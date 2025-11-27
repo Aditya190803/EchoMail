@@ -8,7 +8,12 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
-  },  // Fix ChunkLoadError issues and handle MJML server-side only
+  },
+  // Increase body size limit for API routes (for email attachments)
+  experimental: {
+    esmExternals: true,
+  },
+  // Fix ChunkLoadError issues and handle MJML server-side only
   webpack: (config, { dev, isServer }) => {
     // Exclude MJML and related packages from client-side bundle
     if (!isServer) {
@@ -75,6 +80,11 @@ const nextConfig = {
   },
   // Server-side configuration for larger payloads
   serverExternalPackages: ['mjml'],
+
+  // Increase body parser size limit for API routes
+  serverRuntimeConfig: {
+    bodySizeLimit: '10mb',
+  },
 
   // Add headers for CORS and content-type handling
   async headers() {
