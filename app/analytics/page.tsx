@@ -538,15 +538,22 @@ export default function AnalyticsPage() {
                           <Activity className="h-4 w-4" />
                           Delivery Details
                         </h4>
-                        <div className="bg-background rounded-lg p-3 max-h-32 overflow-y-auto space-y-1">
+                        <div className="bg-background rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
                           {campaign.send_results.slice(0, 10).map((result: any, index: number) => (
-                            <div key={index} className="text-sm flex items-center justify-between py-1">
-                              <span className="text-muted-foreground">{result.email || 'Unknown'}</span>
-                              <Badge
-                                variant={result.status === "success" ? "success" : "destructive"}
-                              >
-                                {result.status === "success" ? "Sent" : "Failed"}
-                              </Badge>
+                            <div key={index} className="text-sm py-1 border-b border-border/50 last:border-0">
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground truncate flex-1 mr-2">{result.email || 'Unknown'}</span>
+                                <Badge
+                                  variant={result.status === "success" ? "success" : "destructive"}
+                                >
+                                  {result.status === "success" ? "Sent" : "Failed"}
+                                </Badge>
+                              </div>
+                              {result.status !== "success" && result.error && (
+                                <div className="text-xs text-destructive mt-1 pl-1">
+                                  ⚠️ {result.error}
+                                </div>
+                              )}
                             </div>
                           ))}
                           {campaign.send_results.length > 10 && (

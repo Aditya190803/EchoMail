@@ -336,6 +336,27 @@ export default function DashboardPage() {
                         {(c.recipients?.length || 0) > 0 ? ((c.sent / (c.recipients?.length || 1)) * 100).toFixed(0) : 0}% success
                       </div>
                     </div>
+                    {/* Show failure reasons if there are failed emails */}
+                    {c.failed > 0 && c.send_results && c.send_results.filter((r: any) => r.status !== "success" && r.error).length > 0 && (
+                      <div className="mt-3 p-3 bg-destructive/5 border border-destructive/20 rounded-lg">
+                        <p className="text-xs font-medium text-destructive mb-2">Failure Reasons:</p>
+                        <div className="space-y-1 max-h-24 overflow-y-auto">
+                          {c.send_results
+                            .filter((r: any) => r.status !== "success" && r.error)
+                            .slice(0, 3)
+                            .map((result: any, index: number) => (
+                              <div key={index} className="text-xs text-muted-foreground">
+                                <span className="font-medium">{result.email}</span>: {result.error}
+                              </div>
+                            ))}
+                          {c.send_results.filter((r: any) => r.status !== "success" && r.error).length > 3 && (
+                            <Link href="/analytics" className="text-xs text-primary hover:underline">
+                              View all {c.send_results.filter((r: any) => r.status !== "success").length} failures →
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
                 {emailHistory.length > 5 && (
