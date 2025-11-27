@@ -1,6 +1,3 @@
-// Debug utility to test payload sizes locally
-// Place this in your browser console or run in Node.js
-
 function createTestEmail(index = 1) {
   return {
     to: `test${index}@example.com`,

@@ -199,8 +199,7 @@ export default function ContactsPage() {
     
     const q = query(
       contactsRef,
-      where("user_email", "==", session.user.email),
-      orderBy("created_at", "desc")
+      where("user_email", "==", session.user.email)
     )
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -213,6 +212,20 @@ export default function ContactsPage() {
           ...doc.data()
         } as Contact)
       })
+      
+      // Sort client-side by created_at (newest first) to avoid needing a composite index
+      contactsData.sort((a, b) => {
+        const getDate = (timestamp: Timestamp | string | undefined): Date => {
+          if (!timestamp) return new Date(0)
+          if (typeof timestamp === 'string') return new Date(timestamp)
+          if (timestamp.toDate) return timestamp.toDate()
+          return new Date(0)
+        }
+        const dateA = getDate(a.created_at)
+        const dateB = getDate(b.created_at)
+        return dateB.getTime() - dateA.getTime()
+      })
+      
       console.log("Setting contacts:", contactsData)
       setContacts(contactsData)
     }, (error) => {

@@ -7,6 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   BarChart3,
   TrendingUp,
   TrendingDown,
@@ -29,6 +35,10 @@ import {
   Eye,
   Paperclip,
   Copy,
+  X,
+  AlertCircle,
+  Search,
+  Filter,
 } from "lucide-react"
 import Link from "next/link"
 import { AuthButton } from "@/components/auth-button"
@@ -40,6 +50,7 @@ import {
   onSnapshot,
   Timestamp,
 } from "firebase/firestore"
+import { Input } from "@/components/ui/input"
 
 interface EmailCampaign {
   id: string
@@ -84,6 +95,9 @@ export default function AnalyticsPage() {
   const router = useRouter()
   const [analytics, setAnalytics] = useState<Analytics | null>(null)
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set())
+  const [selectedCampaign, setSelectedCampaign] = useState<EmailCampaign | null>(null)
+  const [recipientSearch, setRecipientSearch] = useState("")
+  const [filterStatus, setFilterStatus] = useState<"all" | "success" | "failed">("all")
 
   // Helper function to safely get recipients as array
   const getRecipientsArray = (recipients: any): string[] => {
@@ -552,12 +566,274 @@ export default function AnalyticsPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* View Full Details Button */}
+                  <div className="pt-2 border-t">
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setSelectedCampaign(campaign)}
+                      className="w-full text-xs"
+                    >
+                      <Eye className="h-3 w-3 mr-1" />
+                      View Full Campaign Details
+                    </Button>
+                  </div>
                 </div>
               )}
             </Card>
           )
         })}
       </section>
+
+      {/* Full Campaign Details Modal */}
+      <Dialog open={!!selectedCampaign} onOpenChange={(open) => !open && setSelectedCampaign(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-blue-600" />
+              Campaign Details
+            </DialogTitle>
+          </DialogHeader>
+          
+          {selectedCampaign && (
+            <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+              {/* Campaign Header Info */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900">{selectedCampaign.subject}</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Sent on {formatDate(selectedCampaign.created_at)}
+                    </p>
+                  </div>
+                  <Badge
+                    variant={
+                      selectedCampaign.status === "completed"
+                        ? "default"
+                        : selectedCampaign.status === "sending"
+                        ? "secondary"
+                        : "destructive"
+                    }
+                    className="capitalize"
+                  >
+                    {selectedCampaign.status}
+                  </Badge>
+                </div>
+                
+                {/* Stats Row */}
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="bg-white rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {getRecipientsArray(selectedCampaign.recipients).length}
+                    </div>
+                    <div className="text-xs text-gray-500">Total Recipients</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-green-600">{selectedCampaign.sent}</div>
+                    <div className="text-xs text-gray-500">Sent</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-red-600">{selectedCampaign.failed}</div>
+                    <div className="text-xs text-gray-500">Failed</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {selectedCampaign.attachments?.length || 0}
+                    </div>
+                    <div className="text-xs text-gray-500">Attachments</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Email Content Section */}
+              <div className="space-y-2">
+                <h4 className="font-medium flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-gray-500" />
+                  Email Content
+                </h4>
+                <div className="bg-white border rounded-lg p-4 max-h-64 overflow-y-auto">
+                  {selectedCampaign.content ? (
+                    <div 
+                      className="prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{ __html: selectedCampaign.content }}
+                    />
+                  ) : (
+                    <p className="text-gray-500 text-sm italic">No content preview available</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Attachments Section */}
+              {selectedCampaign.attachments && selectedCampaign.attachments.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Paperclip className="h-4 w-4 text-gray-500" />
+                    Attachments ({selectedCampaign.attachments.length})
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    {selectedCampaign.attachments.map((attachment, index) => (
+                      <div key={index} className="bg-gray-50 border rounded-lg p-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium truncate">{attachment.fileName}</div>
+                            <div className="text-xs text-gray-500">
+                              {(attachment.fileSize / 1024 / 1024).toFixed(2)} MB
+                            </div>
+                          </div>
+                        </div>
+                        <Button variant="outline" size="sm" asChild className="flex-shrink-0">
+                          <a href={attachment.fileUrl} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Recipients Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Users className="h-4 w-4 text-gray-500" />
+                    Recipients ({getRecipientsArray(selectedCampaign.recipients).length})
+                  </h4>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => copyEmailList(getRecipientsArray(selectedCampaign.recipients))}
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadEmailList(getRecipientsArray(selectedCampaign.recipients), selectedCampaign.subject)}
+                    >
+                      <Download className="h-3 w-3 mr-1" />
+                      Export CSV
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Search and Filter */}
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input
+                      placeholder="Search recipients..."
+                      value={recipientSearch}
+                      onChange={(e) => setRecipientSearch(e.target.value)}
+                      className="pl-9 h-9"
+                    />
+                  </div>
+                  {selectedCampaign.send_results && (
+                    <div className="flex gap-1">
+                      <Button
+                        variant={filterStatus === "all" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterStatus("all")}
+                      >
+                        All
+                      </Button>
+                      <Button
+                        variant={filterStatus === "success" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterStatus("success")}
+                        className="text-green-600"
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Sent
+                      </Button>
+                      <Button
+                        variant={filterStatus === "failed" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterStatus("failed")}
+                        className="text-red-600"
+                      >
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Failed
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Recipients List */}
+                <div className="bg-gray-50 border rounded-lg max-h-64 overflow-y-auto">
+                  {selectedCampaign.send_results && selectedCampaign.send_results.length > 0 ? (
+                    <div className="divide-y">
+                      {selectedCampaign.send_results
+                        .filter((result: any) => {
+                          const email = result.email || ''
+                          const matchesSearch = email.toLowerCase().includes(recipientSearch.toLowerCase())
+                          const matchesFilter = filterStatus === "all" || 
+                            (filterStatus === "success" && result.status === "success") ||
+                            (filterStatus === "failed" && result.status !== "success")
+                          return matchesSearch && matchesFilter
+                        })
+                        .map((result: any, index: number) => (
+                          <div key={index} className="p-3 flex items-center justify-between hover:bg-gray-100">
+                            <div className="flex items-center gap-3">
+                              {result.status === "success" ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-red-500" />
+                              )}
+                              <div>
+                                <div className="text-sm font-medium">{result.email}</div>
+                                {result.error && (
+                                  <div className="text-xs text-red-500">{result.error}</div>
+                                )}
+                              </div>
+                            </div>
+                            <Badge
+                              variant={result.status === "success" ? "default" : "destructive"}
+                              className="text-xs"
+                            >
+                              {result.status === "success" ? "Delivered" : "Failed"}
+                            </Badge>
+                          </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="p-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {getRecipientsArray(selectedCampaign.recipients)
+                          .filter(email => email.toLowerCase().includes(recipientSearch.toLowerCase()))
+                          .map((email, index) => (
+                            <div key={index} className="bg-white rounded p-2 text-sm truncate border">
+                              {email}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* No results message */}
+                {recipientSearch && (
+                  selectedCampaign.send_results 
+                    ? selectedCampaign.send_results.filter((r: any) => 
+                        r.email?.toLowerCase().includes(recipientSearch.toLowerCase())
+                      ).length === 0
+                    : getRecipientsArray(selectedCampaign.recipients).filter(e => 
+                        e.toLowerCase().includes(recipientSearch.toLowerCase())
+                      ).length === 0
+                ) && (
+                  <p className="text-center text-gray-500 text-sm py-2">
+                    No recipients found matching "{recipientSearch}"
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
