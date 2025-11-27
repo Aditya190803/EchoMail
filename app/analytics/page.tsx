@@ -3,14 +3,16 @@
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Navbar } from "@/components/navbar"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog"
 import {
   BarChart3,
@@ -22,10 +24,8 @@ import {
   Send,
   CheckCircle,
   XCircle,
-  ArrowLeft,
   Activity,
   Target,
-  Clock,
   ExternalLink,
   FileText,
   Download,
@@ -35,13 +35,11 @@ import {
   Eye,
   Paperclip,
   Copy,
-  X,
-  AlertCircle,
   Search,
-  Filter,
+  Percent,
+  Zap,
 } from "lucide-react"
 import Link from "next/link"
-import { AuthButton } from "@/components/auth-button"
 import { db } from "@/lib/firebase"
 import {
   collection,
@@ -51,6 +49,7 @@ import {
   Timestamp,
 } from "firebase/firestore"
 import { Input } from "@/components/ui/input"
+import { toast } from "sonner"
 
 interface EmailCampaign {
   id: string
@@ -192,20 +191,6 @@ export default function AnalyticsPage() {
     return () => unsubscribe()
   }, [session])
 
-  const formatDate = (value: string | Timestamp) => {
-    try {
-      if (typeof value === "string") {
-        return new Date(value).toLocaleDateString()
-      }
-      if (value?.toDate) {
-        return value.toDate().toLocaleDateString()
-      }
-      return new Date().toLocaleDateString() // Fallback to current date
-    } catch (error) {
-      return new Date().toLocaleDateString() // Fallback to current date
-    }
-  }
-
   // Helper functions for campaign details
   const toggleCampaignExpansion = (campaignId: string) => {
     setExpandedCampaigns(prev => {
@@ -221,9 +206,10 @@ export default function AnalyticsPage() {
   const copyEmailList = async (emails: string[]) => {
     try {
       await navigator.clipboard.writeText(emails.join(', '))
-      // You could add a toast notification here
+      toast.success("Email list copied!")
     } catch (err) {
       console.error('Failed to copy emails:', err)
+      toast.error("Failed to copy")
     }
   }
 
@@ -238,381 +224,385 @@ export default function AnalyticsPage() {
     a.click()
     window.URL.revokeObjectURL(url)
     document.body.removeChild(a)
+    toast.success("Recipients exported!")
+  }
+
+  const formatDate = (value: string | Timestamp) => {
+    try {
+      const date = typeof value === "string" ? new Date(value) : value?.toDate?.() || new Date()
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    } catch {
+      return new Date().toLocaleDateString()
+    }
   }
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full" />
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+          <p className="text-muted-foreground">Loading analytics...</p>
+        </div>
       </div>
     )
   }
 
   if (!analytics) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-4 bg-gray-50 text-center">
-        <BarChart3 className="w-10 h-10 text-gray-400 mb-4" />
-        <h2 className="text-lg font-semibold">No Analytics Yet</h2>
-        <p className="text-gray-500 text-sm mb-6">
-          Start sending campaigns to see insights here.
-        </p>
-        <Button asChild>
-          <Link href="/compose">
-            <Plus className="h-4 w-4 mr-1" />
-            Create Campaign
-          </Link>
-        </Button>
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="flex flex-col items-center justify-center px-4 py-24">
+          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+            <BarChart3 className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h2 className="text-xl font-semibold mb-2">No Analytics Yet</h2>
+          <p className="text-muted-foreground text-center mb-6 max-w-sm">
+            Start sending campaigns to see insights and performance metrics here.
+          </p>
+          <Button asChild>
+            <Link href="/compose">
+              <Plus className="h-4 w-4 mr-2" />
+              Create Campaign
+            </Link>
+          </Button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-6 max-w-6xl mx-auto">
-      <header className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <Link href="/dashboard">
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-blue-600" />
-            <h1 className="text-xl font-semibold">Campaign Analytics</h1>
-          </div>
-        </div>
-        <AuthButton />
-      </header>
+    <div className="min-h-screen bg-background">
+      <Navbar />
 
-      {/* Stats Grid */}
-      <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-        {[
-          {
-            label: "Total Campaigns",
-            value: analytics.totalCampaigns,
-            icon: <Mail className="text-white" />,
-            color: "from-blue-500 to-blue-600",
-          },
-          {
-            label: "Success Rate",
-            value: `${analytics.successRate.toFixed(1)}%`,
-            icon: <Target className="text-white" />,
-            color: "from-green-500 to-green-600",
-          },
-          {
-            label: "Total Sent",
-            value: analytics.totalSent.toLocaleString(),
-            icon: <Send className="text-white" />,
-            color: "from-purple-500 to-purple-600",
-          },
-          {
-            label: "Avg Recipients",
-            value: Math.round(analytics.averageRecipientsPerCampaign),
-            icon: <Users className="text-white" />,
-            color: "from-orange-500 to-orange-600",
-          },
-        ].map((stat, i) => (
-          <Card
-            key={i}
-            className={`bg-gradient-to-r ${stat.color} text-white shadow-sm`}
-          >
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-white/80">{stat.label}</p>
-                <p className="text-xl font-semibold">{stat.value}</p>
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2">Campaign Analytics</h1>
+          <p className="text-muted-foreground">Track your email performance and insights</p>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Mail className="h-5 w-5 text-primary" />
+                </div>
               </div>
-              {stat.icon}
+              <div className="text-2xl font-bold">{analytics.totalCampaigns}</div>
+              <p className="text-sm text-muted-foreground">Total Campaigns</p>
             </CardContent>
           </Card>
-        ))}
-      </section>
 
-      {/* Monthly Trend */}
-      <section className="mb-6">
-        <Card>
+          <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-2 bg-success/10 rounded-lg">
+                  <Percent className="h-5 w-5 text-success" />
+                </div>
+              </div>
+              <div className="text-2xl font-bold">{analytics.successRate.toFixed(1)}%</div>
+              <p className="text-sm text-muted-foreground">Success Rate</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-secondary/10 to-secondary/5 border-secondary/20">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-2 bg-secondary/10 rounded-lg">
+                  <Send className="h-5 w-5 text-secondary" />
+                </div>
+              </div>
+              <div className="text-2xl font-bold">{analytics.totalSent.toLocaleString()}</div>
+              <p className="text-sm text-muted-foreground">Emails Sent</p>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gradient-to-br from-accent/10 to-accent/5 border-accent/20">
+            <CardContent className="p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-2 bg-accent/10 rounded-lg">
+                  <Users className="h-5 w-5 text-accent" />
+                </div>
+              </div>
+              <div className="text-2xl font-bold">{Math.round(analytics.averageRecipientsPerCampaign)}</div>
+              <p className="text-sm text-muted-foreground">Avg Recipients</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Monthly Trend */}
+        <Card className="mb-8">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+            <CardTitle className="flex items-center gap-2 text-base">
               <Activity className="h-4 w-4" />
               Monthly Activity
             </CardTitle>
           </CardHeader>
-          <CardContent className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-gray-600">This Month</p>
-              <p className="text-lg font-bold">{analytics.campaignsThisMonth} campaigns</p>
-            </div>
-            <div className="flex items-center gap-2">
-              {analytics.monthlyTrend === "up" && (
-                <span className="text-sm text-green-600 flex items-center gap-1">
-                  <TrendingUp className="h-4 w-4" />
-                  +{analytics.campaignsThisMonth - analytics.campaignsLastMonth}
-                </span>
-              )}
-              {analytics.monthlyTrend === "down" && (
-                <span className="text-sm text-red-600 flex items-center gap-1">
-                  <TrendingDown className="h-4 w-4" />
-                  {analytics.campaignsThisMonth - analytics.campaignsLastMonth}
-                </span>
-              )}
-              {analytics.monthlyTrend === "same" && (
-                <span className="text-sm text-gray-500">No change</span>
-              )}
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">This Month</p>
+                <p className="text-2xl font-bold">{analytics.campaignsThisMonth} campaigns</p>
+              </div>
+              <div className="flex items-center gap-2">
+                {analytics.monthlyTrend === "up" && (
+                  <Badge variant="success" className="flex items-center gap-1">
+                    <TrendingUp className="h-3 w-3" />
+                    +{analytics.campaignsThisMonth - analytics.campaignsLastMonth} from last month
+                  </Badge>
+                )}
+                {analytics.monthlyTrend === "down" && (
+                  <Badge variant="destructive" className="flex items-center gap-1">
+                    <TrendingDown className="h-3 w-3" />
+                    {analytics.campaignsThisMonth - analytics.campaignsLastMonth} from last month
+                  </Badge>
+                )}
+                {analytics.monthlyTrend === "same" && (
+                  <Badge variant="secondary">Same as last month</Badge>
+                )}
+              </div>
             </div>
           </CardContent>
-        </Card>
-      </section>      {/* Recent Campaigns */}
-      <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-800">Recent Campaigns</h2>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setExpandedCampaigns(new Set())}
-              className="text-xs"
-            >
-              Collapse All
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setExpandedCampaigns(new Set(analytics?.recentCampaigns.map(c => c.id) || []))}
-              className="text-xs"
-            >
-              <Eye className="h-3 w-3 mr-1" />
-              View All Details
-            </Button>
+        </Card>        {/* Recent Campaigns */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Recent Campaigns</h2>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setExpandedCampaigns(new Set())}
+              >
+                Collapse All
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setExpandedCampaigns(new Set(analytics?.recentCampaigns.map(c => c.id) || []))}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                View All
+              </Button>
+            </div>
           </div>
-        </div>
-        {analytics.recentCampaigns.map((campaign) => {
-          const isExpanded = expandedCampaigns.has(campaign.id)
-          return (
-            <Card key={campaign.id} className="overflow-hidden">
-              <div className="p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium truncate">{campaign.subject}</h3>
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant={
-                        campaign.status === "completed"
-                          ? "default"
-                          : campaign.status === "sending"
-                          ? "secondary"
-                          : "destructive"
-                      }
-                      className="capitalize text-xs"
-                    >
-                      {campaign.status}
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleCampaignExpansion(campaign.id)}
-                      className="h-6 w-6 p-0"
-                    >
-                      {isExpanded ? (
-                        <ChevronUp className="h-3 w-3" />
-                      ) : (
-                        <ChevronDown className="h-3 w-3" />
-                      )}
-                    </Button>
+
+          {analytics.recentCampaigns.map((campaign) => {
+            const isExpanded = expandedCampaigns.has(campaign.id)
+            return (
+              <Card key={campaign.id} hover className="overflow-hidden">
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold truncate mb-1">{campaign.subject}</h3>
+                      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3.5 w-3.5" />
+                          {formatDate(campaign.created_at)}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3.5 w-3.5" />
+                          {getRecipientsArray(campaign.recipients).length} recipients
+                        </span>
+                        {campaign.attachments && campaign.attachments.length > 0 && (
+                          <span className="flex items-center gap-1">
+                            <Paperclip className="h-3.5 w-3.5" />
+                            {campaign.attachments.length} attachment{campaign.attachments.length > 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge
+                        variant={
+                          campaign.status === "completed"
+                            ? "success"
+                            : campaign.status === "sending"
+                            ? "warning"
+                            : "destructive"
+                        }
+                        className="capitalize"
+                      >
+                        {campaign.status}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => toggleCampaignExpansion(campaign.id)}
+                      >
+                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="flex items-center gap-1.5 text-success">
+                      <CheckCircle className="h-4 w-4" />
+                      {campaign.sent} sent
+                    </span>
+                    {campaign.failed > 0 && (
+                      <span className="flex items-center gap-1.5 text-destructive">
+                        <XCircle className="h-4 w-4" />
+                        {campaign.failed} failed
+                      </span>
+                    )}
                   </div>
                 </div>
-                
-                <div className="text-xs text-gray-600 flex flex-wrap gap-4">
-                  <span className="flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {formatDate(campaign.created_at)}
-                  </span>                  <span className="flex items-center gap-1">
-                    <Users className="h-3 w-3" />
-                    {getRecipientsArray(campaign.recipients).length} recipients
-                  </span>
-                  {campaign.campaign_type && (
-                    <Badge className="text-xs capitalize">{campaign.campaign_type}</Badge>
-                  )}
-                  {campaign.attachments && campaign.attachments.length > 0 && (
-                    <span className="flex items-center gap-1">
-                      <Paperclip className="h-3 w-3" />
-                      {campaign.attachments.length} attachment{campaign.attachments.length > 1 ? 's' : ''}
-                    </span>
-                  )}
-                </div>
-                
-                <div className="flex items-center gap-4 text-xs font-medium">
-                  <span className="flex items-center gap-1 text-green-600">
-                    <CheckCircle className="h-3 w-3" />
-                    {campaign.sent} sent
-                  </span>
-                  {campaign.failed > 0 && (
-                    <span className="flex items-center gap-1 text-red-600">
-                      <XCircle className="h-3 w-3" />
-                      {campaign.failed} failed
-                    </span>
-                  )}
-                </div>
-              </div>
 
-              {/* Expanded Details */}
-              {isExpanded && (
-                <div className="border-t bg-gray-50 p-4 space-y-4">
-                  {/* Email Recipients */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">                      <h4 className="text-sm font-medium flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        Recipients ({getRecipientsArray(campaign.recipients).length})
-                      </h4>
-                      <div className="flex gap-2">                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => copyEmailList(getRecipientsArray(campaign.recipients))}
-                          className="text-xs h-7"
-                        >
-                          <Copy className="h-3 w-3 mr-1" />
-                          Copy
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => downloadEmailList(getRecipientsArray(campaign.recipients), campaign.subject)}
-                          className="text-xs h-7"
-                        >
-                          <Download className="h-3 w-3 mr-1" />
-                          CSV
-                        </Button>
+                {/* Expanded Details */}
+                {isExpanded && (
+                  <div className="border-t bg-muted/30 p-5 space-y-4">
+                    {/* Recipients */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-medium flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Recipients ({getRecipientsArray(campaign.recipients).length})
+                        </h4>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyEmailList(getRecipientsArray(campaign.recipients))}
+                          >
+                            <Copy className="h-3 w-3 mr-1" />
+                            Copy
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => downloadEmailList(getRecipientsArray(campaign.recipients), campaign.subject)}
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            CSV
+                          </Button>
+                        </div>
                       </div>
-                    </div>                    <div className="bg-white rounded p-3 max-h-32 overflow-y-auto">
-                      <div className="text-xs text-gray-600 break-all">
+                      <div className="bg-background rounded-lg p-3 max-h-32 overflow-y-auto text-sm text-muted-foreground">
                         {getRecipientsArray(campaign.recipients).join(', ') || 'No recipients'}
                       </div>
                     </div>
-                  </div>
 
-                  {/* Email Content */}
-                  {campaign.content && (
-                    <div>
-                      <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
-                        <FileText className="h-4 w-4" />
-                        Email Content
-                      </h4>
-                      <div className="bg-white rounded p-3 max-h-40 overflow-y-auto">
-                        <div 
-                          className="text-xs text-gray-700 prose prose-sm max-w-none"
-                          dangerouslySetInnerHTML={{ __html: campaign.content }}
-                        />
+                    {/* Email Content */}
+                    {campaign.content && (
+                      <div>
+                        <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
+                          <FileText className="h-4 w-4" />
+                          Email Content
+                        </h4>
+                        <div className="bg-background rounded-lg p-3 max-h-40 overflow-y-auto">
+                          <div 
+                            className="text-sm prose prose-sm max-w-none dark:prose-invert"
+                            dangerouslySetInnerHTML={{ __html: campaign.content }}
+                          />
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Attachments */}
-                  {campaign.attachments && campaign.attachments.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
-                        <Paperclip className="h-4 w-4" />
-                        Attachments ({campaign.attachments.length})
-                      </h4>
-                      <div className="space-y-2">
-                        {campaign.attachments.map((attachment, index) => (
-                          <div key={index} className="bg-white rounded p-3 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4 text-gray-500" />
-                              <div>
-                                <div className="text-xs font-medium">{attachment.fileName}</div>
-                                <div className="text-xs text-gray-500">
-                                  {(attachment.fileSize / 1024 / 1024).toFixed(2)} MB
+                    {/* Attachments */}
+                    {campaign.attachments && campaign.attachments.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
+                          <Paperclip className="h-4 w-4" />
+                          Attachments
+                        </h4>
+                        <div className="space-y-2">
+                          {campaign.attachments.map((attachment, index) => (
+                            <div key={index} className="bg-background rounded-lg p-3 flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <FileText className="h-4 w-4 text-muted-foreground" />
+                                <div>
+                                  <div className="text-sm font-medium">{attachment.fileName}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {(attachment.fileSize / 1024 / 1024).toFixed(2)} MB
+                                  </div>
                                 </div>
                               </div>
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={attachment.fileUrl} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3 w-3 mr-1" />
+                                  View
+                                </a>
+                              </Button>
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              asChild
-                              className="text-xs h-7"
-                            >
-                              <a href={attachment.fileUrl} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="h-3 w-3 mr-1" />
-                                View
-                              </a>
-                            </Button>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* Send Results Details (if available) */}
-                  {campaign.send_results && campaign.send_results.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
-                        <Activity className="h-4 w-4" />
-                        Delivery Details
-                      </h4>
-                      <div className="bg-white rounded p-3 max-h-32 overflow-y-auto">
-                        <div className="space-y-1">                          {campaign.send_results.slice(0, 10).map((result: any, index: number) => (
-                            <div key={index} className="text-xs flex items-center justify-between">
-                              <span className="text-gray-600">{result.email || 'Unknown'}</span>
+                    {/* Delivery Details */}
+                    {campaign.send_results && campaign.send_results.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
+                          <Activity className="h-4 w-4" />
+                          Delivery Details
+                        </h4>
+                        <div className="bg-background rounded-lg p-3 max-h-32 overflow-y-auto space-y-1">
+                          {campaign.send_results.slice(0, 10).map((result: any, index: number) => (
+                            <div key={index} className="text-sm flex items-center justify-between py-1">
+                              <span className="text-muted-foreground">{result.email || 'Unknown'}</span>
                               <Badge
-                                variant={result.status === "success" ? "default" : "destructive"}
-                                className="text-xs"
+                                variant={result.status === "success" ? "success" : "destructive"}
                               >
                                 {result.status === "success" ? "Sent" : "Failed"}
                               </Badge>
                             </div>
                           ))}
                           {campaign.send_results.length > 10 && (
-                            <div className="text-xs text-gray-500 pt-1">
+                            <p className="text-sm text-muted-foreground pt-2">
                               And {campaign.send_results.length - 10} more...
-                            </div>
+                            </p>
                           )}
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {/* View Full Details Button */}
-                  <div className="pt-2 border-t">
                     <Button
-                      variant="default"
-                      size="sm"
+                      className="w-full"
                       onClick={() => setSelectedCampaign(campaign)}
-                      className="w-full text-xs"
                     >
-                      <Eye className="h-3 w-3 mr-1" />
-                      View Full Campaign Details
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Full Details
                     </Button>
                   </div>
-                </div>
-              )}
-            </Card>
-          )
-        })}
-      </section>
+                )}
+              </Card>
+            )
+          })}
+        </div>
+      </main>
 
       {/* Full Campaign Details Modal */}
       <Dialog open={!!selectedCampaign} onOpenChange={(open) => !open && setSelectedCampaign(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5 text-blue-600" />
+              <Mail className="h-5 w-5 text-primary" />
               Campaign Details
             </DialogTitle>
+            <DialogDescription>
+              Full details and delivery information for this campaign
+            </DialogDescription>
           </DialogHeader>
           
           {selectedCampaign && (
             <div className="flex-1 overflow-y-auto space-y-6 pr-2">
-              {/* Campaign Header Info */}
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 space-y-3">
+              {/* Campaign Header */}
+              <div className="bg-gradient-to-br from-primary/10 to-accent/10 rounded-xl p-5 space-y-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900">{selectedCampaign.subject}</h3>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <h3 className="text-lg font-semibold">{selectedCampaign.subject}</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
                       Sent on {formatDate(selectedCampaign.created_at)}
                     </p>
                   </div>
                   <Badge
                     variant={
                       selectedCampaign.status === "completed"
-                        ? "default"
+                        ? "success"
                         : selectedCampaign.status === "sending"
-                        ? "secondary"
+                        ? "warning"
                         : "destructive"
                     }
                     className="capitalize"
@@ -621,69 +611,68 @@ export default function AnalyticsPage() {
                   </Badge>
                 </div>
                 
-                {/* Stats Row */}
                 <div className="grid grid-cols-4 gap-3">
-                  <div className="bg-white rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold text-blue-600">
+                  <div className="bg-background rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-primary">
                       {getRecipientsArray(selectedCampaign.recipients).length}
                     </div>
-                    <div className="text-xs text-gray-500">Total Recipients</div>
+                    <div className="text-xs text-muted-foreground">Total</div>
                   </div>
-                  <div className="bg-white rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold text-green-600">{selectedCampaign.sent}</div>
-                    <div className="text-xs text-gray-500">Sent</div>
+                  <div className="bg-background rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-success">{selectedCampaign.sent}</div>
+                    <div className="text-xs text-muted-foreground">Sent</div>
                   </div>
-                  <div className="bg-white rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold text-red-600">{selectedCampaign.failed}</div>
-                    <div className="text-xs text-gray-500">Failed</div>
+                  <div className="bg-background rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-destructive">{selectedCampaign.failed}</div>
+                    <div className="text-xs text-muted-foreground">Failed</div>
                   </div>
-                  <div className="bg-white rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold text-purple-600">
+                  <div className="bg-background rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-secondary">
                       {selectedCampaign.attachments?.length || 0}
                     </div>
-                    <div className="text-xs text-gray-500">Attachments</div>
+                    <div className="text-xs text-muted-foreground">Files</div>
                   </div>
                 </div>
               </div>
 
-              {/* Email Content Section */}
+              {/* Email Content */}
               <div className="space-y-2">
                 <h4 className="font-medium flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-gray-500" />
+                  <FileText className="h-4 w-4 text-muted-foreground" />
                   Email Content
                 </h4>
-                <div className="bg-white border rounded-lg p-4 max-h-64 overflow-y-auto">
+                <div className="bg-muted/50 border rounded-lg p-4 max-h-64 overflow-y-auto">
                   {selectedCampaign.content ? (
                     <div 
-                      className="prose prose-sm max-w-none"
+                      className="prose prose-sm max-w-none dark:prose-invert"
                       dangerouslySetInnerHTML={{ __html: selectedCampaign.content }}
                     />
                   ) : (
-                    <p className="text-gray-500 text-sm italic">No content preview available</p>
+                    <p className="text-muted-foreground text-sm italic">No content preview available</p>
                   )}
                 </div>
               </div>
 
-              {/* Attachments Section */}
+              {/* Attachments */}
               {selectedCampaign.attachments && selectedCampaign.attachments.length > 0 && (
                 <div className="space-y-2">
                   <h4 className="font-medium flex items-center gap-2">
-                    <Paperclip className="h-4 w-4 text-gray-500" />
+                    <Paperclip className="h-4 w-4 text-muted-foreground" />
                     Attachments ({selectedCampaign.attachments.length})
                   </h4>
                   <div className="grid grid-cols-2 gap-2">
                     {selectedCampaign.attachments.map((attachment, index) => (
-                      <div key={index} className="bg-gray-50 border rounded-lg p-3 flex items-center justify-between">
+                      <div key={index} className="bg-muted/50 border rounded-lg p-3 flex items-center justify-between">
                         <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                          <FileText className="h-4 w-4 text-primary flex-shrink-0" />
                           <div className="min-w-0">
                             <div className="text-sm font-medium truncate">{attachment.fileName}</div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-muted-foreground">
                               {(attachment.fileSize / 1024 / 1024).toFixed(2)} MB
                             </div>
                           </div>
                         </div>
-                        <Button variant="outline" size="sm" asChild className="flex-shrink-0">
+                        <Button variant="outline" size="icon-sm" asChild>
                           <a href={attachment.fileUrl} target="_blank" rel="noopener noreferrer">
                             <ExternalLink className="h-3 w-3" />
                           </a>
@@ -694,11 +683,11 @@ export default function AnalyticsPage() {
                 </div>
               )}
 
-              {/* Recipients Section */}
+              {/* Recipients */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-medium flex items-center gap-2">
-                    <Users className="h-4 w-4 text-gray-500" />
+                    <Users className="h-4 w-4 text-muted-foreground" />
                     Recipients ({getRecipientsArray(selectedCampaign.recipients).length})
                   </h4>
                   <div className="flex gap-2">
@@ -716,22 +705,20 @@ export default function AnalyticsPage() {
                       onClick={() => downloadEmailList(getRecipientsArray(selectedCampaign.recipients), selectedCampaign.subject)}
                     >
                       <Download className="h-3 w-3 mr-1" />
-                      Export CSV
+                      Export
                     </Button>
                   </div>
                 </div>
 
                 {/* Search and Filter */}
                 <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Search recipients..."
-                      value={recipientSearch}
-                      onChange={(e) => setRecipientSearch(e.target.value)}
-                      className="pl-9 h-9"
-                    />
-                  </div>
+                  <Input
+                    icon={<Search className="h-4 w-4" />}
+                    placeholder="Search recipients..."
+                    value={recipientSearch}
+                    onChange={(e) => setRecipientSearch(e.target.value)}
+                    className="flex-1"
+                  />
                   {selectedCampaign.send_results && (
                     <div className="flex gap-1">
                       <Button
@@ -742,19 +729,17 @@ export default function AnalyticsPage() {
                         All
                       </Button>
                       <Button
-                        variant={filterStatus === "success" ? "default" : "outline"}
+                        variant={filterStatus === "success" ? "success" : "outline"}
                         size="sm"
                         onClick={() => setFilterStatus("success")}
-                        className="text-green-600"
                       >
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Sent
                       </Button>
                       <Button
-                        variant={filterStatus === "failed" ? "default" : "outline"}
+                        variant={filterStatus === "failed" ? "destructive" : "outline"}
                         size="sm"
                         onClick={() => setFilterStatus("failed")}
-                        className="text-red-600"
                       >
                         <XCircle className="h-3 w-3 mr-1" />
                         Failed
@@ -764,9 +749,9 @@ export default function AnalyticsPage() {
                 </div>
 
                 {/* Recipients List */}
-                <div className="bg-gray-50 border rounded-lg max-h-64 overflow-y-auto">
+                <div className="bg-muted/50 border rounded-lg max-h-64 overflow-y-auto">
                   {selectedCampaign.send_results && selectedCampaign.send_results.length > 0 ? (
-                    <div className="divide-y">
+                    <div className="divide-y divide-border">
                       {selectedCampaign.send_results
                         .filter((result: any) => {
                           const email = result.email || ''
@@ -777,24 +762,21 @@ export default function AnalyticsPage() {
                           return matchesSearch && matchesFilter
                         })
                         .map((result: any, index: number) => (
-                          <div key={index} className="p-3 flex items-center justify-between hover:bg-gray-100">
+                          <div key={index} className="p-3 flex items-center justify-between hover:bg-muted/50">
                             <div className="flex items-center gap-3">
                               {result.status === "success" ? (
-                                <CheckCircle className="h-4 w-4 text-green-500" />
+                                <CheckCircle className="h-4 w-4 text-success" />
                               ) : (
-                                <XCircle className="h-4 w-4 text-red-500" />
+                                <XCircle className="h-4 w-4 text-destructive" />
                               )}
                               <div>
                                 <div className="text-sm font-medium">{result.email}</div>
                                 {result.error && (
-                                  <div className="text-xs text-red-500">{result.error}</div>
+                                  <div className="text-xs text-destructive">{result.error}</div>
                                 )}
                               </div>
                             </div>
-                            <Badge
-                              variant={result.status === "success" ? "default" : "destructive"}
-                              className="text-xs"
-                            >
+                            <Badge variant={result.status === "success" ? "success" : "destructive"}>
                               {result.status === "success" ? "Delivered" : "Failed"}
                             </Badge>
                           </div>
@@ -806,7 +788,7 @@ export default function AnalyticsPage() {
                         {getRecipientsArray(selectedCampaign.recipients)
                           .filter(email => email.toLowerCase().includes(recipientSearch.toLowerCase()))
                           .map((email, index) => (
-                            <div key={index} className="bg-white rounded p-2 text-sm truncate border">
+                            <div key={index} className="bg-background rounded-lg p-2 text-sm truncate border">
                               {email}
                             </div>
                           ))}
@@ -815,7 +797,6 @@ export default function AnalyticsPage() {
                   )}
                 </div>
 
-                {/* No results message */}
                 {recipientSearch && (
                   selectedCampaign.send_results 
                     ? selectedCampaign.send_results.filter((r: any) => 
@@ -825,7 +806,7 @@ export default function AnalyticsPage() {
                         e.toLowerCase().includes(recipientSearch.toLowerCase())
                       ).length === 0
                 ) && (
-                  <p className="text-center text-gray-500 text-sm py-2">
+                  <p className="text-center text-muted-foreground text-sm py-2">
                     No recipients found matching "{recipientSearch}"
                   </p>
                 )}

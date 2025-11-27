@@ -3,9 +3,10 @@
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Navbar } from "@/components/navbar"
 import {
   Mail,
   Send,
@@ -18,9 +19,12 @@ import {
   Plus,
   BarChart3,
   Activity,
+  ArrowRight,
+  Sparkles,
+  Zap,
+  Target,
 } from "lucide-react"
 import Link from "next/link"
-import { AuthButton } from "@/components/auth-button"
 import { db } from "@/lib/firebase"
 import {
   collection,
@@ -33,7 +37,7 @@ import {
 interface EmailCampaign {
   id: string
   subject: string
-  recipients: string[] // Array of email addresses  
+  recipients: string[]
   sent: number
   failed: number
   created_at: string | Timestamp
@@ -58,9 +62,17 @@ export default function DashboardPage() {
   const formatDate = (dateValue: string | Timestamp) => {
     try {
       if (typeof dateValue === 'string') {
-        return new Date(dateValue).toLocaleDateString()
+        return new Date(dateValue).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        })
       } else if (dateValue?.toDate) {
-        return dateValue.toDate().toLocaleDateString()
+        return dateValue.toDate().toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        })
       }
       return "Invalid date"
     } catch {
@@ -92,7 +104,6 @@ export default function DashboardPage() {
         } as EmailCampaign)
       })
       
-      // Sort campaigns manually by created_at (newest first)
       campaigns.sort((a, b) => {
         const dateA = typeof a.created_at === 'string' ? new Date(a.created_at) : a.created_at?.toDate?.() || new Date()
         const dateB = typeof b.created_at === 'string' ? new Date(b.created_at) : b.created_at?.toDate?.() || new Date()
@@ -110,8 +121,11 @@ export default function DashboardPage() {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="animate-spin h-10 w-10 border-4 border-blue-500 border-t-transparent rounded-full"></div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
       </div>
     )
   }
@@ -123,126 +137,137 @@ export default function DashboardPage() {
   const totalFailed = emailHistory.reduce((sum, c) => sum + c.failed, 0)
   const successRate = totalRecipients ? ((totalSent / totalRecipients) * 100).toFixed(1) : "0"
 
+  const stats = [
+    { 
+      label: "Total Sent", 
+      value: totalSent, 
+      icon: Send, 
+      gradient: "from-primary to-primary/80",
+      bgGradient: "from-primary/10 to-primary/5",
+    },
+    { 
+      label: "Success Rate", 
+      value: `${successRate}%`, 
+      icon: Target, 
+      gradient: "from-success to-success/80",
+      bgGradient: "from-success/10 to-success/5",
+    },
+    { 
+      label: "Recipients", 
+      value: totalRecipients, 
+      icon: Users, 
+      gradient: "from-secondary to-secondary/80",
+      bgGradient: "from-secondary/10 to-secondary/5",
+    },
+    { 
+      label: "Campaigns", 
+      value: emailHistory.length, 
+      icon: BarChart3, 
+      gradient: "from-warning to-warning/80",
+      bgGradient: "from-warning/10 to-warning/5",
+    }
+  ]
+
+  const quickActions = [
+    { 
+      title: "New Campaign", 
+      description: "Create and send a new email campaign",
+      icon: Plus, 
+      href: "/compose",
+      primary: true 
+    },
+    { 
+      title: "Manage Contacts", 
+      description: "View and organize your contacts",
+      icon: Users, 
+      href: "/contacts" 
+    },
+    { 
+      title: "View Analytics", 
+      description: "See detailed campaign statistics",
+      icon: BarChart3, 
+      href: "/analytics" 
+    },
+  ]
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header - Responsive */}
-      <header className="sticky top-0 bg-white shadow-sm z-10 border-b">
-        <div className="px-3 sm:px-4 lg:px-6 py-3">
-          <div className="flex items-center justify-between max-w-7xl mx-auto">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <img src="/favicon.png" alt="Logo" className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0" />
-              <div className="min-w-0">
-                <h1 className="text-base sm:text-lg font-semibold text-gray-800 truncate">EchoMail</h1>
-                <p className="text-xs sm:text-sm text-gray-500 truncate">
-                  Hi, {session?.user?.name}
-                </p>
-              </div>
-            </div>
-            <div className="flex gap-1 sm:gap-2 flex-shrink-0">
-              <Button asChild size="sm" className="text-xs sm:text-sm">
-                <Link href="/compose">
-                  <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                  <span className="hidden xs:inline">New </span>Campaign
+    <div className="min-h-screen bg-background">
+      <Navbar />
+
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        {/* Welcome Section */}
+        <div className="mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2">
+            Welcome back, {session?.user?.name?.split(' ')[0] || 'there'}! 👋
+          </h1>
+          <p className="text-muted-foreground">
+            Here's an overview of your email campaigns
+          </p>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {stats.map((stat, idx) => {
+            const Icon = stat.icon
+            return (
+              <Card key={idx} className={`border-0 shadow-lg bg-gradient-to-br ${stat.bgGradient} overflow-hidden`}>
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-1">{stat.label}</p>
+                      <p className="text-2xl sm:text-3xl font-bold">
+                        {typeof stat.value === 'number' ? stat.value.toLocaleString() : stat.value}
+                      </p>
+                    </div>
+                    <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.gradient} shadow-lg`}>
+                      <Icon className="h-5 w-5 text-white" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Zap className="h-5 w-5 text-warning" />
+              Quick Actions
+            </h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {quickActions.map((action, idx) => {
+              const Icon = action.icon
+              return (
+                <Link key={idx} href={action.href}>
+                  <Card hover className={`h-full ${action.primary ? 'bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20' : ''}`}>
+                    <CardContent className="p-5 flex flex-col items-center text-center">
+                      <div className={`p-4 rounded-2xl mb-4 ${action.primary ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'bg-muted'}`}>
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <h3 className="font-semibold mb-1">{action.title}</h3>
+                      <p className="text-sm text-muted-foreground">{action.description}</p>
+                    </CardContent>
+                  </Card>
                 </Link>
-              </Button>
-              <AuthButton />
-            </div>
+              )
+            })}
           </div>
         </div>
-      </header>
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
-        {/* Stats Grid - Responsive */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {[
-            { 
-              label: "Total Sent", 
-              value: totalSent, 
-              icon: <Send className="h-4 w-4 sm:h-5 sm:w-5" />, 
-              color: "bg-gradient-to-br from-blue-500 to-blue-600",
-              shortLabel: "Sent"
-            },
-            { 
-              label: "Success Rate", 
-              value: `${successRate}%`, 
-              icon: <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5" />, 
-              color: "bg-gradient-to-br from-green-500 to-green-600",
-              shortLabel: "Success"
-            },
-            { 
-              label: "Recipients", 
-              value: totalRecipients, 
-              icon: <Users className="h-4 w-4 sm:h-5 sm:w-5" />, 
-              color: "bg-gradient-to-br from-purple-500 to-purple-600",
-              shortLabel: "Recipients"
-            },
-            { 
-              label: "Campaigns", 
-              value: emailHistory.length, 
-              icon: <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />, 
-              color: "bg-gradient-to-br from-orange-500 to-orange-600",
-              shortLabel: "Campaigns"
-            }
-          ].map((stat, idx) => (
-            <Card key={idx} className={`${stat.color} text-white border-0 shadow-lg hover:shadow-xl transition-shadow`}>
-              <CardContent className="p-3 sm:p-4 flex items-center justify-between">
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs sm:text-sm text-white/80 truncate">
-                    <span className="sm:hidden">{stat.shortLabel}</span>
-                    <span className="hidden sm:inline">{stat.label}</span>
-                  </p>
-                  <p className="text-lg sm:text-xl lg:text-2xl font-bold truncate">
-                    {typeof stat.value === 'number' ? stat.value.toLocaleString() : stat.value}
-                  </p>
-                </div>
-                <div className="opacity-80 flex-shrink-0 ml-2">
-                  {stat.icon}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Quick Actions - Responsive */}
-        <Card className="shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm sm:text-base font-semibold">
-              <Activity className="h-4 w-4 sm:h-5 sm:w-5" />
-              Quick Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Button asChild className="h-16 sm:h-20 flex flex-col items-center justify-center gap-1 sm:gap-2">
-                <Link href="/compose">
-                  <Plus className="h-5 w-5 sm:h-6 sm:w-6" />
-                  <span className="text-xs sm:text-sm font-medium">New Campaign</span>
-                </Link>
-              </Button>
-              <Button asChild variant="outline" className="h-16 sm:h-20 flex flex-col items-center justify-center gap-1 sm:gap-2">
-                <Link href="/contacts">
-                  <Users className="h-5 w-5 sm:h-6 sm:w-6" />
-                  <span className="text-xs sm:text-sm font-medium">Manage Contacts</span>
-                </Link>
-              </Button>
-              <Button asChild variant="outline" className="h-16 sm:h-20 flex flex-col items-center justify-center gap-1 sm:gap-2">
-                <Link href="/analytics">
-                  <BarChart3 className="h-5 w-5 sm:h-6 sm:w-6" />
-                  <span className="text-xs sm:text-sm font-medium">View Analytics</span>
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Campaign History - Responsive */}
-        <Card className="shadow-sm">
-          <CardHeader className="pb-3">
+        {/* Campaign History */}
+        <Card>
+          <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2 text-sm sm:text-base font-semibold">
-                <Mail className="h-4 w-4 sm:h-5 sm:w-5" />
-                Email Campaign History
-              </CardTitle>
+              <div>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Mail className="h-5 w-5 text-primary" />
+                  Recent Campaigns
+                </CardTitle>
+                <CardDescription>Your latest email campaign activity</CardDescription>
+              </div>
               {emailHistory.length > 0 && (
                 <Badge variant="secondary" className="text-xs">
                   {emailHistory.length} total
@@ -250,75 +275,75 @@ export default function DashboardPage() {
               )}
             </div>
           </CardHeader>
-          <CardContent className="pt-0">
+          <CardContent>
             {emailHistory.length === 0 ? (
-              <div className="text-center py-8 sm:py-12">
-                <div className="mx-auto w-12 h-12 sm:w-16 sm:h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                  <Mail className="h-6 w-6 sm:h-8 sm:w-8 text-gray-400" />
+              <div className="text-center py-12">
+                <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                  <Mail className="h-8 w-8 text-muted-foreground" />
                 </div>
-                <h3 className="text-sm sm:text-base font-medium text-gray-900 mb-2">No campaigns yet</h3>
-                <p className="text-xs sm:text-sm text-gray-500 mb-4 max-w-sm mx-auto">
+                <h3 className="text-lg font-semibold mb-2">No campaigns yet</h3>
+                <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
                   Get started by creating your first email campaign to reach your audience.
                 </p>
-                <Button asChild size="sm">
+                <Button asChild>
                   <Link href="/compose">
-                    <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                    <Plus className="h-4 w-4 mr-2" />
                     Create First Campaign
                   </Link>
                 </Button>
               </div>
             ) : (
-              <div className="space-y-3 sm:space-y-4">
-                {emailHistory.slice(0, 10).map(c => (
-                  <div key={c.id} className="border rounded-lg p-3 sm:p-4 bg-white hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <h4 className="text-sm sm:text-base font-medium text-gray-800 line-clamp-2 mb-2">
+              <div className="space-y-4">
+                {emailHistory.slice(0, 5).map(c => (
+                  <div key={c.id} className="group border rounded-xl p-4 hover:shadow-md hover:border-primary/20 transition-all duration-200">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-foreground line-clamp-1 mb-2 group-hover:text-primary transition-colors">
                           {c.subject}
                         </h4>
-                        <div className="flex flex-wrap items-center text-xs sm:text-sm text-gray-500 gap-3 sm:gap-4">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                            <span className="truncate">{formatDate(c.created_at)}</span>
+                        <div className="flex flex-wrap items-center text-sm text-muted-foreground gap-4">
+                          <span className="flex items-center gap-1.5">
+                            <Calendar className="h-4 w-4" />
+                            {formatDate(c.created_at)}
                           </span>
-                          <span className="flex items-center gap-1">
-                            <Users className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                            <span className="truncate">{c.recipients?.length || 0} recipients</span>
+                          <span className="flex items-center gap-1.5">
+                            <Users className="h-4 w-4" />
+                            {c.recipients?.length || 0} recipients
                           </span>
                         </div>
                       </div>
                       <Badge
-                        variant={c.status === "completed" ? "default" : c.status === "sending" ? "secondary" : "destructive"}
-                        className="capitalize text-xs flex-shrink-0"
+                        variant={c.status === "completed" ? "success" : c.status === "sending" ? "info" : "destructive"}
+                        className="capitalize flex-shrink-0"
                       >
                         {c.status === "sending" && <Clock className="h-3 w-3 mr-1" />}
                         {c.status}
                       </Badge>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-3 sm:gap-4">
-                      <div className="flex items-center gap-1 text-xs sm:text-sm font-medium text-green-600">
-                        <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                        <span>{c.sent} sent</span>
+                    <div className="mt-4 flex flex-wrap gap-4 text-sm">
+                      <div className="flex items-center gap-1.5 font-medium text-success">
+                        <CheckCircle className="h-4 w-4" />
+                        {c.sent} sent
                       </div>
                       {c.failed > 0 && (
-                        <div className="flex items-center gap-1 text-xs sm:text-sm font-medium text-red-600">
-                          <XCircle className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                          <span>{c.failed} failed</span>
+                        <div className="flex items-center gap-1.5 font-medium text-destructive">
+                          <XCircle className="h-4 w-4" />
+                          {c.failed} failed
                         </div>
                       )}
-                      <div className="flex items-center gap-1 text-xs sm:text-sm font-medium text-blue-600">
-                        <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
-                        <span>{(c.recipients?.length || 0) > 0 ? ((c.sent / (c.recipients?.length || 1)) * 100).toFixed(0) : 0}% success</span>
+                      <div className="flex items-center gap-1.5 font-medium text-primary">
+                        <TrendingUp className="h-4 w-4" />
+                        {(c.recipients?.length || 0) > 0 ? ((c.sent / (c.recipients?.length || 1)) * 100).toFixed(0) : 0}% success
                       </div>
                     </div>
                   </div>
                 ))}
-                {emailHistory.length > 10 && (
+                {emailHistory.length > 5 && (
                   <div className="text-center pt-4">
-                    <Button asChild variant="outline" size="sm">
-                      <Link href="/analytics">
+                    <Button asChild variant="outline">
+                      <Link href="/analytics" className="gap-2">
                         View All Campaigns
-                        <BarChart3 className="h-3 w-3 sm:h-4 sm:w-4 ml-1" />
+                        <ArrowRight className="h-4 w-4" />
                       </Link>
                     </Button>
                   </div>
