@@ -172,56 +172,10 @@ export async function POST(request: NextRequest) {
     const settings = JSON.parse((team as any).settings || '{}')
 
     // If require_approval is false, add directly as active member
-    // Otherwise, create an invite that needs to be accepted
-    if (!settings.require_approval) {
-      // Add member directly
-      const member = await databases.createDocument(
-        config.databaseId,
-        config.teamMembersCollectionId,
-        ID.unique(),
-        {
-          team_id,
-          user_email: email.toLowerCase(),
-          role,
-          invited_by: session.user.email,
-          invited_at: now,
-          accepted_at: now,
-          status: 'active',
-        }
-      )
+    // Otherwise, create as pending member
+    const memberStatus = settings.require_approval ? 'pending' : 'active'
+    const now_time = new Date().toISOString()
 
-      return NextResponse.json(member)
-    }
-
-    // Create invite if team_invites collection exists
-    if (config.teamInvitesCollectionId) {
-      const token = ID.unique()
-      const expiresAt = new Date()
-      expiresAt.setDate(expiresAt.getDate() + 7) // Expires in 7 days
-
-      const invite = await databases.createDocument(
-        config.databaseId,
-        config.teamInvitesCollectionId,
-        ID.unique(),
-        {
-          team_id,
-          email: email.toLowerCase(),
-          role,
-          invited_by: session.user.email,
-          invited_at: now,
-          expires_at: expiresAt.toISOString(),
-          token,
-          status: 'pending',
-        }
-      )
-
-      return NextResponse.json({
-        ...invite,
-        message: 'Invitation sent. User needs to accept the invite.',
-      })
-    }
-
-    // If no invite collection, create pending member
     const member = await databases.createDocument(
       config.databaseId,
       config.teamMembersCollectionId,
@@ -230,13 +184,19 @@ export async function POST(request: NextRequest) {
         team_id,
         user_email: email.toLowerCase(),
         role,
+        permissions: JSON.stringify([]),
         invited_by: session.user.email,
-        invited_at: now,
-        status: 'pending',
+        joined_at: memberStatus === 'active' ? now_time : null,
+        status: memberStatus,
       }
     )
 
-    return NextResponse.json(member)
+    return NextResponse.json({
+      ...member,
+      message: memberStatus === 'pending' 
+        ? 'Invitation sent. User needs to accept the invite.' 
+        : 'Member added successfully.',
+    })
   } catch (error: any) {
     console.error("Error inviting team member:", error)
     return NextResponse.json(

@@ -132,9 +132,9 @@ export async function POST(request: NextRequest) {
         team_id: teamId,
         user_email: session.user.email,
         role: 'owner',
+        permissions: JSON.stringify(['*']),
         invited_by: session.user.email,
-        invited_at: now,
-        accepted_at: now,
+        joined_at: now,
         status: 'active',
       }
     )
@@ -299,26 +299,6 @@ export async function DELETE(request: NextRequest) {
         config.teamMembersCollectionId,
         member.$id
       )
-    }
-
-    // Delete team invites if collection exists
-    if (config.teamInvitesCollectionId) {
-      try {
-        const invites = await databases.listDocuments(
-          config.databaseId,
-          config.teamInvitesCollectionId,
-          [Query.equal('team_id', teamId), Query.limit(1000)]
-        )
-        for (const invite of invites.documents) {
-          await databases.deleteDocument(
-            config.databaseId,
-            config.teamInvitesCollectionId,
-            invite.$id
-          )
-        }
-      } catch {
-        // Ignore if collection doesn't exist
-      }
     }
 
     // Delete the team

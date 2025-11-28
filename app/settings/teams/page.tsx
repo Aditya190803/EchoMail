@@ -77,10 +77,10 @@ interface TeamMember {
   team_id: string
   user_email: string
   role: 'owner' | 'admin' | 'member' | 'viewer'
-  invited_by: string
-  invited_at: string
-  accepted_at?: string
-  status: 'pending' | 'active' | 'suspended'
+  permissions?: string[]
+  invited_by?: string
+  joined_at?: string
+  status: 'pending' | 'active' | 'removed'
 }
 
 const roleIcons = {
