@@ -66,6 +66,25 @@ interface Analytics {
   trackingStats: { [campaignId: string]: TrackingStats }
 }
 
+// Helper to get authenticated attachment URL
+const getAttachmentUrl = (attachment: { fileUrl?: string; appwrite_file_id?: string }) => {
+  // If we have the Appwrite file ID, use our authenticated proxy
+  if (attachment.appwrite_file_id) {
+    return `/api/appwrite/attachments/${attachment.appwrite_file_id}`
+  }
+  
+  // Try to extract file ID from Appwrite URL
+  if (attachment.fileUrl) {
+    const match = attachment.fileUrl.match(/\/files\/([^\/]+)\//)
+    if (match && match[1]) {
+      return `/api/appwrite/attachments/${match[1]}`
+    }
+  }
+  
+  // Fallback to original URL (for legacy/external attachments)
+  return attachment.fileUrl || '#'
+}
+
 export default function AnalyticsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -536,7 +555,7 @@ export default function AnalyticsPage() {
                                 </div>
                               </div>
                               <Button variant="outline" size="sm" asChild>
-                                <a href={attachment.fileUrl} target="_blank" rel="noopener noreferrer">
+                                <a href={getAttachmentUrl(attachment)} target="_blank" rel="noopener noreferrer">
                                   <ExternalLink className="h-3 w-3 mr-1" />
                                   View
                                 </a>
@@ -696,7 +715,7 @@ export default function AnalyticsPage() {
                           </div>
                         </div>
                         <Button variant="outline" size="icon-sm" asChild>
-                          <a href={attachment.fileUrl} target="_blank" rel="noopener noreferrer">
+                          <a href={getAttachmentUrl(attachment)} target="_blank" rel="noopener noreferrer">
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         </Button>
