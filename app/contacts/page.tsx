@@ -53,6 +53,8 @@ import {
   MoreVertical,
   Edit,
   UserMinus,
+  RefreshCw,
+  CloudDownload,
 } from "lucide-react"
 import Link from "next/link"
 import { contactsService, contactGroupsService, type ContactGroup } from "@/lib/appwrite"
@@ -107,6 +109,11 @@ export default function ContactsPage() {
     description: "",
     color: "blue",
   })
+  const [showGmailImport, setShowGmailImport] = useState(false)
+  const [gmailContacts, setGmailContacts] = useState<{name: string, email: string, phone?: string, company?: string}[]>([])
+  const [selectedGmailContacts, setSelectedGmailContacts] = useState<Set<string>>(new Set())
+  const [isLoadingGmail, setIsLoadingGmail] = useState(false)
+  const [gmailImportError, setGmailImportError] = useState<string | null>(null)
 
   useEffect(() => {
     setIsMounted(true)
@@ -309,6 +316,91 @@ export default function ContactsPage() {
     } catch (error) {
       console.error("Error removing contact from group:", error)
       toast.error("Failed to remove contact from group")
+    }
+  }
+
+  // Gmail import functions
+  const fetchGmailContacts = async () => {
+    setIsLoadingGmail(true)
+    setGmailImportError(null)
+    try {
+      const response = await fetch('/api/import-google-contacts')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to fetch contacts')
+      }
+      
+      const data = await response.json()
+      
+      // Filter out contacts that already exist
+      const existingEmails = new Set(contacts.map(c => c.email.toLowerCase()))
+      const newContacts = data.contacts.filter(
+        (c: {email: string}) => !existingEmails.has(c.email.toLowerCase())
+      )
+      
+      setGmailContacts(newContacts)
+      setSelectedGmailContacts(new Set(newContacts.map((c: {email: string}) => c.email)))
+      
+      if (newContacts.length === 0 && data.contacts.length > 0) {
+        toast.info("All your Google contacts are already imported!")
+      }
+    } catch (error) {
+      console.error("Error fetching Gmail contacts:", error)
+      setGmailImportError(error instanceof Error ? error.message : "Failed to fetch Google contacts")
+    }
+    setIsLoadingGmail(false)
+  }
+
+  const importSelectedGmailContacts = async () => {
+    if (!session?.user?.email) return
+    
+    const contactsToImport = gmailContacts.filter(c => selectedGmailContacts.has(c.email))
+    if (contactsToImport.length === 0) {
+      toast.error("No contacts selected")
+      return
+    }
+    
+    setIsLoading(true)
+    let successCount = 0
+    
+    for (const contact of contactsToImport) {
+      try {
+        await contactsService.create({
+          email: contact.email,
+          name: contact.name || undefined,
+          company: contact.company || undefined,
+          phone: contact.phone || undefined,
+          user_email: session.user.email,
+        })
+        successCount++
+      } catch (error) {
+        console.error("Error importing contact:", error)
+      }
+    }
+    
+    toast.success(`Successfully imported ${successCount} contacts from Google`)
+    setShowGmailImport(false)
+    setGmailContacts([])
+    setSelectedGmailContacts(new Set())
+    fetchContacts()
+    setIsLoading(false)
+  }
+
+  const toggleGmailContactSelection = (email: string) => {
+    const newSelection = new Set(selectedGmailContacts)
+    if (newSelection.has(email)) {
+      newSelection.delete(email)
+    } else {
+      newSelection.add(email)
+    }
+    setSelectedGmailContacts(newSelection)
+  }
+
+  const toggleAllGmailContacts = () => {
+    if (selectedGmailContacts.size === gmailContacts.length) {
+      setSelectedGmailContacts(new Set())
+    } else {
+      setSelectedGmailContacts(new Set(gmailContacts.map(c => c.email)))
     }
   }
 
@@ -574,7 +666,7 @@ export default function ContactsPage() {
             <div className="relative">
               <Button variant="outline">
                 <Upload className="h-4 w-4 mr-2" />
-                Import
+                Import CSV
               </Button>
               <input
                 type="file"
@@ -583,6 +675,17 @@ export default function ContactsPage() {
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
             </div>
+
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowGmailImport(true)
+                fetchGmailContacts()
+              }}
+            >
+              <CloudDownload className="h-4 w-4 mr-2" />
+              Import from Gmail
+            </Button>
           </div>
         </div>
 
@@ -1053,6 +1156,132 @@ export default function ContactsPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Gmail Import Dialog */}
+      <Dialog open={showGmailImport} onOpenChange={(open) => {
+        setShowGmailImport(open)
+        if (!open) {
+          setGmailContacts([])
+          setSelectedGmailContacts(new Set())
+          setGmailImportError(null)
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CloudDownload className="h-5 w-5" />
+              Import from Google Contacts
+            </DialogTitle>
+            <DialogDescription>
+              Select contacts from your Google account to import
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 pt-2">
+            {isLoadingGmail ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <RefreshCw className="h-8 w-8 animate-spin text-primary mb-4" />
+                <p className="text-muted-foreground">Fetching your Google contacts...</p>
+              </div>
+            ) : gmailImportError ? (
+              <div className="text-center py-8">
+                <div className="mx-auto w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
+                  <Mail className="h-6 w-6 text-destructive" />
+                </div>
+                <p className="text-destructive mb-4">{gmailImportError}</p>
+                <Button onClick={fetchGmailContacts} variant="outline">
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Try Again
+                </Button>
+              </div>
+            ) : gmailContacts.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="mx-auto w-12 h-12 bg-muted rounded-full flex items-center justify-center mb-4">
+                  <Users className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <p className="text-muted-foreground">No new contacts to import</p>
+                <p className="text-sm text-muted-foreground mt-1">All your Google contacts are already imported</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between pb-2 border-b">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedGmailContacts.size === gmailContacts.length}
+                      onChange={toggleAllGmailContacts}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm font-medium">
+                      Select All ({gmailContacts.length} contacts)
+                    </span>
+                  </div>
+                  <Badge variant="secondary">
+                    {selectedGmailContacts.size} selected
+                  </Badge>
+                </div>
+                
+                <div className="max-h-[40vh] overflow-y-auto space-y-2">
+                  {gmailContacts.map((contact) => (
+                    <div
+                      key={contact.email}
+                      className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
+                        selectedGmailContacts.has(contact.email)
+                          ? 'bg-primary/5 border-primary/30'
+                          : 'hover:bg-muted'
+                      }`}
+                      onClick={() => toggleGmailContactSelection(contact.email)}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedGmailContacts.has(contact.email)}
+                        onChange={() => toggleGmailContactSelection(contact.email)}
+                        className="rounded border-gray-300"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">
+                          {contact.name || contact.email}
+                        </p>
+                        <p className="text-sm text-muted-foreground truncate">
+                          {contact.email}
+                          {contact.company && ` • ${contact.company}`}
+                        </p>
+                      </div>
+                      {selectedGmailContacts.has(contact.email) && (
+                        <CheckCircle className="h-5 w-5 text-primary flex-shrink-0" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="flex gap-2 pt-4 border-t">
+                  <Button
+                    onClick={importSelectedGmailContacts}
+                    disabled={isLoading || selectedGmailContacts.size === 0}
+                    className="flex-1"
+                  >
+                    {isLoading ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Importing...
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Import {selectedGmailContacts.size} Contact{selectedGmailContacts.size !== 1 ? 's' : ''}
+                      </>
+                    )}
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowGmailImport(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
