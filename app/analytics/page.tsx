@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -38,42 +38,18 @@ import {
   Search,
   Percent,
   Zap,
+  MousePointerClick,
 } from "lucide-react"
 import Link from "next/link"
-import { db } from "@/lib/firebase"
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  Timestamp,
-} from "firebase/firestore"
+import { campaignsService, EmailCampaign, trackingEventsService } from "@/lib/appwrite"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 
-interface EmailCampaign {
-  id: string
-  subject: string
-  recipients: string[] | string
-  sent: number
-  failed: number
-  created_at: string | Timestamp
-  status: "completed" | "sending" | "failed"
-  user_email: string
-  campaign_type?: string
-  content?: string
-  attachments?: {
-    fileName: string
-    fileUrl: string
-    fileSize: number
-    cloudinary_public_id?: string
-  }[]
-  send_results?: {
-    email: string
-    success: boolean
-    error?: string
-    messageId?: string
-  }[]
+interface TrackingStats {
+  totalOpens: number
+  uniqueOpens: number
+  totalClicks: number
+  uniqueClicks: number
 }
 
 interface Analytics {
@@ -87,6 +63,7 @@ interface Analytics {
   campaignsLastMonth: number
   recentCampaigns: EmailCampaign[]
   monthlyTrend: "up" | "down" | "same"
+  trackingStats: { [campaignId: string]: TrackingStats }
 }
 
 export default function AnalyticsPage() {
@@ -115,30 +92,13 @@ export default function AnalyticsPage() {
     }
   }, [status, router])
 
-  useEffect(() => {
+  // Fetch campaigns and calculate analytics
+  const fetchAnalytics = useCallback(async () => {
     if (!session?.user?.email) return
-    const q = query(
-      collection(db, "email_campaigns"),
-      where("user_email", "==", session.user.email)
-    )
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const campaigns: EmailCampaign[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as EmailCampaign[]
-
-      campaigns.sort((a, b) => {
-        const dateA =
-          typeof a.created_at === "string"
-            ? new Date(a.created_at)
-            : a.created_at?.toDate?.() || new Date()
-        const dateB =
-          typeof b.created_at === "string"
-            ? new Date(b.created_at)
-            : b.created_at?.toDate?.() || new Date()
-        return dateB.getTime() - dateA.getTime()
-      })
+    
+    try {
+      const response = await campaignsService.listByUser(session.user.email)
+      const campaigns = response.documents
 
       const now = new Date()
       const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -153,18 +113,12 @@ export default function AnalyticsPage() {
       const averageRecipientsPerCampaign = totalCampaigns > 0 ? totalRecipients / totalCampaigns : 0
 
       const campaignsThisMonth = campaigns.filter((c) => {
-        const date =
-          typeof c.created_at === "string"
-            ? new Date(c.created_at)
-            : c.created_at?.toDate?.() || new Date()
+        const date = new Date(c.created_at || '')
         return date >= thisMonth
       }).length
 
       const campaignsLastMonth = campaigns.filter((c) => {
-        const date =
-          typeof c.created_at === "string"
-            ? new Date(c.created_at)
-            : c.created_at?.toDate?.() || new Date()
+        const date = new Date(c.created_at || '')
         return date >= lastMonth && date <= lastMonthEnd
       }).length
 
@@ -184,12 +138,48 @@ export default function AnalyticsPage() {
         averageRecipientsPerCampaign,
         campaignsThisMonth,
         campaignsLastMonth,
-        recentCampaigns: campaigns.slice(0, 10),        monthlyTrend,
+        recentCampaigns: campaigns.slice(0, 10),
+        monthlyTrend,
+        trackingStats: {},
       })
-    })
+      
+      // Fetch tracking stats for recent campaigns
+      const trackingStats: { [campaignId: string]: TrackingStats } = {}
+      for (const campaign of campaigns.slice(0, 10)) {
+        try {
+          const stats = await trackingEventsService.getCampaignStats(campaign.$id)
+          trackingStats[campaign.$id] = stats
+        } catch {
+          // Ignore errors for individual campaigns
+        }
+      }
+      
+      setAnalytics(prev => prev ? { ...prev, trackingStats } : null)
+    } catch (error) {
+      console.error("Error fetching analytics:", error)
+    }
+  }, [session?.user?.email])
 
-    return () => unsubscribe()
-  }, [session])
+  // Initial fetch and real-time subscription
+  useEffect(() => {
+    if (!session?.user?.email) return
+
+    // Initial fetch
+    fetchAnalytics()
+    
+    // Subscribe to real-time updates
+    const unsubscribe = campaignsService.subscribeToUserCampaigns(
+      session.user.email,
+      (response) => {
+        // Refetch on any change
+        fetchAnalytics()
+      }
+    )
+    
+    return () => {
+      if (unsubscribe) unsubscribe()
+    }
+  }, [session?.user?.email, fetchAnalytics])
 
   // Helper functions for campaign details
   const toggleCampaignExpansion = (campaignId: string) => {
@@ -203,6 +193,7 @@ export default function AnalyticsPage() {
       return newSet
     })
   }
+  
   const copyEmailList = async (emails: string[]) => {
     try {
       await navigator.clipboard.writeText(emails.join(', '))
@@ -227,9 +218,9 @@ export default function AnalyticsPage() {
     toast.success("Recipients exported!")
   }
 
-  const formatDate = (value: string | Timestamp) => {
+  const formatDate = (value: string) => {
     try {
-      const date = typeof value === "string" ? new Date(value) : value?.toDate?.() || new Date()
+      const date = new Date(value)
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     } catch {
       return new Date().toLocaleDateString()
@@ -276,9 +267,20 @@ export default function AnalyticsPage() {
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2">Campaign Analytics</h1>
-          <p className="text-muted-foreground">Track your email performance and insights</p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2">Campaign Analytics</h1>
+            <p className="text-muted-foreground">Track your email performance and insights</p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              window.location.href = '/api/export-report'
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export Report
+          </Button>
         </div>
 
         {/* Stats Grid */}
@@ -365,7 +367,9 @@ export default function AnalyticsPage() {
               </div>
             </div>
           </CardContent>
-        </Card>        {/* Recent Campaigns */}
+        </Card>
+
+        {/* Recent Campaigns */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Recent Campaigns</h2>
@@ -380,7 +384,7 @@ export default function AnalyticsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setExpandedCampaigns(new Set(analytics?.recentCampaigns.map(c => c.id) || []))}
+                onClick={() => setExpandedCampaigns(new Set(analytics?.recentCampaigns.map(c => c.$id) || []))}
               >
                 <Eye className="h-4 w-4 mr-2" />
                 View All
@@ -389,9 +393,9 @@ export default function AnalyticsPage() {
           </div>
 
           {analytics.recentCampaigns.map((campaign) => {
-            const isExpanded = expandedCampaigns.has(campaign.id)
+            const isExpanded = expandedCampaigns.has(campaign.$id)
             return (
-              <Card key={campaign.id} hover className="overflow-hidden">
+              <Card key={campaign.$id} hover className="overflow-hidden">
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div className="flex-1 min-w-0">
@@ -429,7 +433,7 @@ export default function AnalyticsPage() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        onClick={() => toggleCampaignExpansion(campaign.id)}
+                        onClick={() => toggleCampaignExpansion(campaign.$id)}
                       >
                         {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </Button>
@@ -446,6 +450,18 @@ export default function AnalyticsPage() {
                         <XCircle className="h-4 w-4" />
                         {campaign.failed} failed
                       </span>
+                    )}
+                    {analytics?.trackingStats[campaign.$id] && (
+                      <>
+                        <span className="flex items-center gap-1.5 text-primary">
+                          <Eye className="h-4 w-4" />
+                          {analytics.trackingStats[campaign.$id].uniqueOpens} opens
+                        </span>
+                        <span className="flex items-center gap-1.5 text-secondary">
+                          <MousePointerClick className="h-4 w-4" />
+                          {analytics.trackingStats[campaign.$id].uniqueClicks} clicks
+                        </span>
+                      </>
                     )}
                   </div>
                 </div>

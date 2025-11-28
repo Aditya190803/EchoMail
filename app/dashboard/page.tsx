@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -25,56 +25,20 @@ import {
   Target,
 } from "lucide-react"
 import Link from "next/link"
-import { db } from "@/lib/firebase"
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  Timestamp
-} from "firebase/firestore"
-
-interface EmailCampaign {
-  id: string
-  subject: string
-  recipients: string[]
-  sent: number
-  failed: number
-  created_at: string | Timestamp
-  status: "completed" | "sending" | "failed"
-  user_email: string
-  content?: string
-  campaign_type?: "bulk" | "contact_list" | "manual" | "newsletter" | "announcement" | "promotion" | "other"
-  attachments?: {
-    fileName: string
-    fileUrl: string
-    fileSize: number
-    cloudinary_public_id?: string
-  }[]
-  send_results?: any[]
-}
+import { campaignsService, EmailCampaign } from "@/lib/appwrite"
 
 export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [emailHistory, setEmailHistory] = useState<EmailCampaign[]>([])
 
-  const formatDate = (dateValue: string | Timestamp) => {
+  const formatDate = (dateValue: string) => {
     try {
-      if (typeof dateValue === 'string') {
-        return new Date(dateValue).toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric'
-        })
-      } else if (dateValue?.toDate) {
-        return dateValue.toDate().toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric'
-        })
-      }
-      return "Invalid date"
+      return new Date(dateValue).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      })
     } catch {
       return "Invalid date"
     }
@@ -86,38 +50,43 @@ export default function DashboardPage() {
     }
   }, [status, router])
 
+  // Fetch campaigns function
+  const fetchCampaigns = useCallback(async () => {
+    if (!session?.user?.email) return
+    
+    try {
+      const response = await campaignsService.listByUser(session.user.email)
+      setEmailHistory(response.documents)
+    } catch (error: any) {
+      console.error("Error loading campaigns:", error)
+      // If collection doesn't exist, just show empty state
+      if (error?.code === 404 || error?.message?.includes('Collection')) {
+        console.log("Collections may not be set up yet. Run: bun run scripts/setup-appwrite.ts")
+      }
+      setEmailHistory([])
+    }
+  }, [session?.user?.email])
+
+  // Initial fetch and real-time subscription
   useEffect(() => {
     if (!session?.user?.email) return
 
-    const campaignsRef = collection(db, "email_campaigns")
-    const q = query(
-      campaignsRef,
-      where("user_email", "==", session.user.email)
+    // Initial fetch
+    fetchCampaigns()
+    
+    // Subscribe to real-time updates
+    const unsubscribe = campaignsService.subscribeToUserCampaigns(
+      session.user.email,
+      (response) => {
+        // Refetch on any change
+        fetchCampaigns()
+      }
     )
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const campaigns: EmailCampaign[] = []
-      snapshot.forEach((doc) => {
-        campaigns.push({
-          id: doc.id,
-          ...doc.data()
-        } as EmailCampaign)
-      })
-      
-      campaigns.sort((a, b) => {
-        const dateA = typeof a.created_at === 'string' ? new Date(a.created_at) : a.created_at?.toDate?.() || new Date()
-        const dateB = typeof b.created_at === 'string' ? new Date(b.created_at) : b.created_at?.toDate?.() || new Date()
-        return dateB.getTime() - dateA.getTime()
-      })
-      
-      setEmailHistory(campaigns)
-    }, (error) => {
-      console.error("Error loading campaigns:", error)
-      setEmailHistory([])
-    })
-    
-    return () => unsubscribe()
-  }, [session])
+    return () => {
+      if (unsubscribe) unsubscribe()
+    }
+  }, [session?.user?.email, fetchCampaigns])
 
   if (status === "loading") {
     return (
@@ -295,7 +264,7 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-4">
                 {emailHistory.slice(0, 5).map(c => (
-                  <div key={c.id} className="group border rounded-xl p-4 hover:shadow-md hover:border-primary/20 transition-all duration-200">
+                  <div key={c.$id} className="group border rounded-xl p-4 hover:shadow-md hover:border-primary/20 transition-all duration-200">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-foreground line-clamp-1 mb-2 group-hover:text-primary transition-colors">
