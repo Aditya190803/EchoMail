@@ -130,6 +130,7 @@ export function RichTextEditor({ content, onChange, placeholder = "" }: RichText
   useEffect(() => {
     setIsMounted(true)
   }, [])
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -215,7 +216,7 @@ export function RichTextEditor({ content, onChange, placeholder = "" }: RichText
         spellcheck: "true",
         style: "font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #222222; word-spacing: normal; letter-spacing: normal;",
       },
-      handlePaste: (view, event, slice) => {
+      handlePaste: (view, event) => {
         // Handle pasted HTML content
         const htmlData = event.clipboardData?.getData('text/html') || ''
         if (htmlData) {
@@ -272,6 +273,25 @@ export function RichTextEditor({ content, onChange, placeholder = "" }: RichText
       },
     },
   })
+
+  // Sync content prop with editor when it changes externally (e.g., loading draft data)
+  useEffect(() => {
+    if (editor && content !== undefined) {
+      // Only update if the content is different from what's in the editor
+      const currentContent = editor.getHTML()
+      // Normalize for comparison (both empty cases)
+      const isCurrentEmpty = !currentContent || currentContent === '<p></p>'
+      const isNewEmpty = !content || content === '<p></p>'
+      
+      if (isCurrentEmpty && !isNewEmpty) {
+        // Editor is empty but we have new content - set it
+        editor.commands.setContent(content, false)
+      } else if (content && currentContent !== content && !editor.isFocused) {
+        // Content changed externally and editor is not focused - update it
+        editor.commands.setContent(content, false)
+      }
+    }
+  }, [editor, content])
 
   const addLink = useCallback(() => {
     if (linkUrl && editor) {
