@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Navbar } from "@/components/navbar"
+import { Skeleton } from "@/components/ui/skeleton"
 import { RichTextEditor } from "@/components/rich-text-editor"
 import {
   Dialog,
@@ -57,6 +58,7 @@ export default function SignaturesPage() {
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [editingSignature, setEditingSignature] = useState<EmailSignature | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isLoadingData, setIsLoadingData] = useState(true)
   const [isMounted, setIsMounted] = useState(false)
   const [newSignature, setNewSignature] = useState({
     name: "",
@@ -88,7 +90,11 @@ export default function SignaturesPage() {
 
   useEffect(() => {
     if (!session?.user?.email) return
-    fetchSignatures()
+    const loadData = async () => {
+      await fetchSignatures()
+      setIsLoadingData(false)
+    }
+    loadData()
   }, [session?.user?.email, fetchSignatures])
 
   const createSignature = async () => {
@@ -159,13 +165,41 @@ export default function SignaturesPage() {
     }
   }
 
-  if (status === "loading" || !isMounted) {
+  if (status === "loading" || !isMounted || isLoadingData) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-          <p className="text-muted-foreground">Loading signatures...</p>
-        </div>
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header Skeleton */}
+          <div className="flex items-center gap-4 mb-8">
+            <Skeleton className="h-10 w-10" />
+            <div className="flex-1">
+              <Skeleton className="h-7 w-48 mb-2" />
+              <Skeleton className="h-5 w-72" />
+            </div>
+            <Skeleton className="h-10 w-36" />
+          </div>
+
+          {/* Signatures List Skeleton */}
+          <div className="space-y-4">
+            {[...Array(3)].map((_, idx) => (
+              <Card key={idx}>
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <Skeleton className="h-5 w-32 mb-2" />
+                      <Skeleton className="h-4 w-24" />
+                    </div>
+                    <Skeleton className="h-8 w-8" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-24 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </main>
       </div>
     )
   }

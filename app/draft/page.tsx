@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Navbar } from "@/components/navbar"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Dialog,
   DialogContent,
@@ -47,6 +48,9 @@ import {
   Eye,
   RefreshCw,
   Edit,
+  ChevronLeft,
+  ChevronRight,
+  User,
 } from "lucide-react"
 import Link from "next/link"
 import { scheduledEmailsService, type ScheduledEmail } from "@/lib/appwrite"
@@ -60,6 +64,7 @@ export default function ScheduledPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isMounted, setIsMounted] = useState(false)
   const [previewEmail, setPreviewEmail] = useState<ScheduledEmail | null>(null)
+  const [previewRecipientIndex, setPreviewRecipientIndex] = useState(0)
   const [sendingId, setSendingId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -101,6 +106,45 @@ export default function ScheduledPage() {
     }
   }, [session?.user?.email, fetchScheduledEmails])
 
+  // Reset preview index when changing email
+  useEffect(() => {
+    setPreviewRecipientIndex(0)
+  }, [previewEmail?.$id])
+
+  // Replace placeholders in text with recipient data
+  const replacePlaceholders = (text: string, data: Record<string, string>): string => {
+    return text
+      .replace(/\{\{(\w+)\}\}/g, (match, key) => data[key.toLowerCase()] || data[key] || match)
+      .replace(/\{(\w+)\}/g, (match, key) => data[key.toLowerCase()] || data[key] || match)
+  }
+
+  // Get personalized content for a specific recipient
+  const getPreviewContent = (email: ScheduledEmail, recipientIndex: number) => {
+    const recipientEmail = email.recipients[recipientIndex] || email.recipients[0]
+    
+    // Try to get recipient data from stored csv_data
+    let recipientData: Record<string, string> = { email: recipientEmail }
+    
+    if (email.csv_data) {
+      try {
+        const csvData = typeof email.csv_data === 'string' ? JSON.parse(email.csv_data) : email.csv_data
+        const row = csvData.find((r: any) => r.email === recipientEmail)
+        if (row) {
+          recipientData = { ...row }
+        }
+      } catch (e) {
+        console.error("Error parsing csv_data:", e)
+      }
+    }
+
+    return {
+      email: recipientEmail,
+      subject: replacePlaceholders(email.subject, recipientData),
+      content: replacePlaceholders(email.content, recipientData),
+      data: recipientData
+    }
+  }
+
   const cancelScheduledEmail = async (emailId: string) => {
     try {
       await scheduledEmailsService.cancel(emailId)
@@ -129,10 +173,7 @@ export default function ScheduledPage() {
     setSendingId(email.$id)
     
     try {
-      // Update status to sending
-      await scheduledEmailsService.updateStatus(email.$id, 'sending')
-      
-      // Call the send API
+      // Call the send API (API will handle status updates)
       const response = await fetch('/api/send-scheduled-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -142,8 +183,6 @@ export default function ScheduledPage() {
       const data = await response.json()
       
       if (!response.ok) {
-        // Reset status back to pending so user can try again
-        await scheduledEmailsService.updateStatus(email.$id, 'pending')
         throw new Error(data.error || 'Failed to send email')
       }
       
@@ -196,13 +235,81 @@ export default function ScheduledPage() {
     }
   }
 
-  if (status === "loading" || !isMounted) {
+  if (status === "loading" || !isMounted || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-          <p className="text-muted-foreground">Loading draft emails...</p>
-        </div>
+      <div className="min-h-screen bg-background">
+        <Navbar />
+
+        <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header Skeleton */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <Skeleton className="h-8 w-48 mb-2" />
+              <Skeleton className="h-5 w-72" />
+            </div>
+            <Skeleton className="h-10 w-40" />
+          </div>
+
+          {/* Info Banner Skeleton */}
+          <Card className="mb-6">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <Skeleton className="h-5 w-5 rounded-full" />
+                <div className="flex-1">
+                  <Skeleton className="h-4 w-48 mb-1" />
+                  <Skeleton className="h-4 w-80" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Stats Grid Skeleton */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {[...Array(4)].map((_, idx) => (
+              <Card key={idx}>
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-9 w-9 rounded-lg" />
+                    <div>
+                      <Skeleton className="h-7 w-8 mb-1" />
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Section Header Skeleton */}
+          <div className="flex items-center gap-2 mb-4">
+            <Skeleton className="h-5 w-5 rounded-full" />
+            <Skeleton className="h-5 w-32" />
+          </div>
+
+          {/* Draft Items Skeleton */}
+          <div className="space-y-4">
+            {[...Array(3)].map((_, idx) => (
+              <Card key={idx}>
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Skeleton className="h-5 w-24 rounded-full" />
+                        <Skeleton className="h-4 w-20" />
+                      </div>
+                      <Skeleton className="h-6 w-3/4" />
+                      <div className="flex items-center gap-4">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
+                    </div>
+                    <Skeleton className="h-8 w-8 rounded" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </main>
       </div>
     )
   }
@@ -468,35 +575,75 @@ export default function ScheduledPage() {
           <DialogHeader>
             <DialogTitle>Email Preview</DialogTitle>
             <DialogDescription>
-              Scheduled for {previewEmail && format(new Date(previewEmail.scheduled_at), 'PPP p')}
+              Saved {previewEmail && format(new Date(previewEmail.scheduled_at), 'PPP p')}
             </DialogDescription>
           </DialogHeader>
-          {previewEmail && (
-            <div className="space-y-4">
-              <div className="border rounded-lg p-4 bg-muted/30">
-                <p className="text-sm text-muted-foreground mb-1">Subject</p>
-                <p className="font-medium">{previewEmail.subject}</p>
-              </div>
-              <div className="border rounded-lg p-4 bg-muted/30">
-                <p className="text-sm text-muted-foreground mb-1">Recipients ({previewEmail.recipients.length})</p>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {previewEmail.recipients.slice(0, 10).map((email, i) => (
-                    <Badge key={i} variant="secondary">{email}</Badge>
-                  ))}
-                  {previewEmail.recipients.length > 10 && (
-                    <Badge variant="outline">+{previewEmail.recipients.length - 10} more</Badge>
-                  )}
+          {previewEmail && (() => {
+            const preview = getPreviewContent(previewEmail, previewRecipientIndex)
+            const hasPlaceholders = (previewEmail.subject + previewEmail.content).match(/\{\{?\w+\}?\}/)
+            
+            return (
+              <div className="space-y-4">
+                {/* Recipient Selector */}
+                {previewEmail.recipients.length > 1 && (
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPreviewRecipientIndex(Math.max(0, previewRecipientIndex - 1))}
+                      disabled={previewRecipientIndex === 0}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">
+                        Recipient {previewRecipientIndex + 1} of {previewEmail.recipients.length}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPreviewRecipientIndex(Math.min(previewEmail.recipients.length - 1, previewRecipientIndex + 1))}
+                      disabled={previewRecipientIndex >= previewEmail.recipients.length - 1}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                {/* Personalization Data Badge */}
+                {hasPlaceholders && Object.keys(preview.data).length > 1 && (
+                  <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                    <p className="text-sm font-medium text-primary mb-2">Personalization Data:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(preview.data).filter(([key, value]) => value && key !== 'email').map(([key, value]) => (
+                        <Badge key={key} variant="outline" className="text-xs">
+                          {key}: {value}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="border rounded-lg p-4 bg-muted/30">
+                  <p className="text-sm text-muted-foreground mb-1">To</p>
+                  <p className="font-medium">{preview.email}</p>
+                </div>
+                <div className="border rounded-lg p-4 bg-muted/30">
+                  <p className="text-sm text-muted-foreground mb-1">Subject</p>
+                  <p className="font-medium">{preview.subject}</p>
+                </div>
+                <div className="border rounded-lg p-4 bg-white dark:bg-zinc-900">
+                  <p className="text-sm text-muted-foreground mb-2">Content</p>
+                  <div 
+                    className="prose dark:prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: preview.content }}
+                  />
                 </div>
               </div>
-              <div className="border rounded-lg p-4 bg-white dark:bg-zinc-900">
-                <p className="text-sm text-muted-foreground mb-2">Content</p>
-                <div 
-                  className="prose dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: previewEmail.content }}
-                />
-              </div>
-            </div>
-          )}
+            )
+          })()}
         </DialogContent>
       </Dialog>
     </div>

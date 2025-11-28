@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Navbar } from "@/components/navbar"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Dialog,
   DialogContent,
@@ -78,10 +79,16 @@ export default function HistoryPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [historyData, setHistoryData] = useState<HistoryData | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isMounted, setIsMounted] = useState(false)
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set())
   const [selectedCampaign, setSelectedCampaign] = useState<EmailCampaign | null>(null)
   const [recipientSearch, setRecipientSearch] = useState("")
   const [filterStatus, setFilterStatus] = useState<"all" | "success" | "failed">("all")
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   // Helper function to safely get recipients as array
   const getRecipientsArray = (recipients: any): string[] => {
@@ -151,6 +158,8 @@ export default function HistoryPage() {
       })
     } catch (error) {
       console.error("Error fetching history:", error)
+    } finally {
+      setIsLoading(false)
     }
   }, [session?.user?.email])
 
@@ -221,13 +230,63 @@ export default function HistoryPage() {
     }
   }
 
-  if (status === "loading") {
+  if (status === "loading" || !isMounted || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-          <p className="text-muted-foreground">Loading email history...</p>
-        </div>
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+          {/* Header Skeleton */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+            <div>
+              <Skeleton className="h-8 w-48 mb-2" />
+              <Skeleton className="h-5 w-72" />
+            </div>
+            <Skeleton className="h-10 w-40" />
+          </div>
+
+          {/* Stats Grid Skeleton */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {[...Array(4)].map((_, idx) => (
+              <Card key={idx}>
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-7 w-16" />
+                    </div>
+                    <Skeleton className="h-10 w-10 rounded-xl" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Campaign History Skeleton */}
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-40 mb-2" />
+              <Skeleton className="h-4 w-56" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {[...Array(5)].map((_, idx) => (
+                  <div key={idx} className="border rounded-xl p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 space-y-3">
+                        <Skeleton className="h-5 w-3/4" />
+                        <div className="flex items-center gap-4">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-4 w-28" />
+                        </div>
+                      </div>
+                      <Skeleton className="h-6 w-20 rounded-full" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </main>
       </div>
     )
   }

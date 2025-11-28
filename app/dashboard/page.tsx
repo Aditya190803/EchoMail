@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Navbar } from "@/components/navbar"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Mail,
   Send,
@@ -32,6 +33,12 @@ export default function DashboardPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [emailHistory, setEmailHistory] = useState<EmailCampaign[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isMounted, setIsMounted] = useState(false)
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   const formatDate = (dateValue: string) => {
     try {
@@ -65,6 +72,8 @@ export default function DashboardPage() {
         console.log("Collections may not be set up yet. Run: bun run scripts/setup-appwrite.ts")
       }
       setEmailHistory([])
+    } finally {
+      setIsLoading(false)
     }
   }, [session?.user?.email])
 
@@ -89,13 +98,76 @@ export default function DashboardPage() {
     }
   }, [session?.user?.email, fetchCampaigns])
 
-  if (status === "loading") {
+  if (status === "loading" || !isMounted || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-          <p className="text-muted-foreground">Loading dashboard...</p>
-        </div>
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+          {/* Welcome Section Skeleton */}
+          <div className="mb-8">
+            <Skeleton className="h-8 w-64 mb-2" />
+            <Skeleton className="h-5 w-80" />
+          </div>
+
+          {/* Stats Grid Skeleton */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            {[...Array(4)].map((_, idx) => (
+              <Card key={idx} className="border-0 shadow-lg overflow-hidden">
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-2">
+                      <Skeleton className="h-4 w-20" />
+                      <Skeleton className="h-8 w-16" />
+                    </div>
+                    <Skeleton className="h-11 w-11 rounded-xl" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Quick Actions Skeleton */}
+          <div className="mb-8">
+            <Skeleton className="h-6 w-32 mb-4" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {[...Array(3)].map((_, idx) => (
+                <Card key={idx} className="h-full">
+                  <CardContent className="p-5 flex flex-col items-center text-center">
+                    <Skeleton className="h-14 w-14 rounded-2xl mb-4" />
+                    <Skeleton className="h-5 w-28 mb-2" />
+                    <Skeleton className="h-4 w-40" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+
+          {/* Campaign History Skeleton */}
+          <Card>
+            <CardHeader className="pb-4">
+              <Skeleton className="h-6 w-40 mb-2" />
+              <Skeleton className="h-4 w-56" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {[...Array(3)].map((_, idx) => (
+                  <div key={idx} className="border rounded-xl p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 space-y-3">
+                        <Skeleton className="h-5 w-3/4" />
+                        <div className="flex items-center gap-4">
+                          <Skeleton className="h-4 w-24" />
+                          <Skeleton className="h-4 w-28" />
+                        </div>
+                      </div>
+                      <Skeleton className="h-6 w-20 rounded-full" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </main>
       </div>
     )
   }
