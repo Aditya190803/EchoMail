@@ -1,44 +1,54 @@
-/**
- * Firebase to Appwrite Migration Script
- * 
- * This script migrates data from Firebase Realtime Database to Appwrite.
- * Run with: bun run scripts/migrate-firebase-to-appwrite.ts
- */
+
 
 import { initializeApp } from 'firebase/app'
-import { getDatabase, ref, get } from 'firebase/database'
-import { Client, Databases, ID } from 'node-appwrite'
+import { getFirestore, collection, getDocs, query } from 'firebase/firestore'
+import { Client, Databases, Storage, ID } from 'node-appwrite'
+import { InputFile } from 'node-appwrite/file'
+import * as fs from 'fs'
+import * as path from 'path'
 
 // Firebase configuration
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
   projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 }
 
-// Appwrite configuration - NO HARDCODED VALUES
+// Appwrite configuration
 const appwriteConfig = {
   endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!,
   projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!,
   apiKey: process.env.APPWRITE_API_KEY!,
   databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+  attachmentsBucketId: process.env.NEXT_PUBLIC_APPWRITE_ATTACHMENTS_BUCKET_ID!,
 }
 
-// Collection IDs from environment
-const collections = {
+// Appwrite Collection IDs
+const appwriteCollections = {
   contacts: process.env.NEXT_PUBLIC_APPWRITE_CONTACTS_COLLECTION_ID!,
   campaigns: process.env.NEXT_PUBLIC_APPWRITE_CAMPAIGNS_COLLECTION_ID!,
   templates: process.env.NEXT_PUBLIC_APPWRITE_TEMPLATES_COLLECTION_ID!,
   contactGroups: process.env.NEXT_PUBLIC_APPWRITE_CONTACT_GROUPS_COLLECTION_ID!,
 }
 
+// Local export directory
+const EXPORT_DIR = path.join(process.cwd(), 'firebase-export')
+const ATTACHMENTS_DIR = path.join(EXPORT_DIR, 'attachments')
+
+// Ensure directories exist
+if (!fs.existsSync(EXPORT_DIR)) {
+  fs.mkdirSync(EXPORT_DIR, { recursive: true })
+}
+if (!fs.existsSync(ATTACHMENTS_DIR)) {
+  fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true })
+}
+
 // Initialize Firebase
 const firebaseApp = initializeApp(firebaseConfig)
-const firebaseDb = getDatabase(firebaseApp)
+const firestore = getFirestore(firebaseApp)
 
 // Initialize Appwrite
 const appwriteClient = new Client()
@@ -47,331 +57,403 @@ const appwriteClient = new Client()
   .setKey(appwriteConfig.apiKey)
 
 const databases = new Databases(appwriteClient)
+const storage = new Storage(appwriteClient)
 
-interface MigrationStats {
-  contacts: { success: number; failed: number }
-  campaigns: { success: number; failed: number }
-  templates: { success: number; failed: number }
-  contactGroups: { success: number; failed: number }
+function toISOString(value: any): string {
+  if (!value) return new Date().toISOString()
+  if (value && typeof value.toDate === 'function') return value.toDate().toISOString()
+  if (typeof value === 'string') {
+    const date = new Date(value)
+    return !isNaN(date.getTime()) ? date.toISOString() : new Date().toISOString()
+  }
+  if (value instanceof Date) return value.toISOString()
+  if (typeof value === 'number') return new Date(value).toISOString()
+  if (value && typeof value.seconds === 'number') return new Date(value.seconds * 1000).toISOString()
+  return new Date().toISOString()
 }
 
-const stats: MigrationStats = {
-  contacts: { success: 0, failed: 0 },
-  campaigns: { success: 0, failed: 0 },
-  templates: { success: 0, failed: 0 },
-  contactGroups: { success: 0, failed: 0 },
+interface AttachmentInfo {
+  originalUrl: string
+  fileName: string
+  localFileName: string | null  // Will be set after you add the file
+  campaignId: string
+  campaignSubject: string
 }
 
-async function sleep(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
+interface ExportedData {
+  exportedAt: string
+  contacts: any[]
+  campaigns: any[]
+  templates: any[]
+  contactGroups: any[]
+  attachments: AttachmentInfo[]
 }
 
-async function migrateContacts() {
-  console.log('\n📇 Migrating contacts...')
+// ============================================
+// STEP 1: Export from Firebase to Local JSON
+// ============================================
+async function exportFromFirebase(): Promise<void> {
+  console.log('\n📤 STEP 1: Exporting from Firebase to local files...\n')
   
-  try {
-    const contactsRef = ref(firebaseDb, 'contacts')
-    const snapshot = await get(contactsRef)
+  const exportData: ExportedData = {
+    exportedAt: new Date().toISOString(),
+    contacts: [],
+    campaigns: [],
+    templates: [],
+    contactGroups: [],
+    attachments: []
+  }
+
+  // Export Contacts
+  console.log('  📇 Exporting contacts...')
+  const contactsSnapshot = await getDocs(query(collection(firestore, 'contacts')))
+  contactsSnapshot.forEach(doc => {
+    exportData.contacts.push({ id: doc.id, ...doc.data() })
+  })
+  console.log(`    ✅ ${exportData.contacts.length} contacts exported`)
+
+  // Export Campaigns (collection is called email_campaigns in Firestore)
+  console.log('  📧 Exporting campaigns...')
+  const campaignsSnapshot = await getDocs(query(collection(firestore, 'email_campaigns')))
+  campaignsSnapshot.forEach(doc => {
+    const data = doc.data()
+    exportData.campaigns.push({ id: doc.id, ...data })
     
-    if (!snapshot.exists()) {
-      console.log('  ℹ️  No contacts found in Firebase')
-      return
+    // Extract attachment info
+    if (data.attachments && Array.isArray(data.attachments)) {
+      data.attachments.forEach((att: any) => {
+        const url = typeof att === 'string' ? att : att.url
+        if (url) {
+          // Extract filename from URL
+          const urlParts = url.split('/')
+          const fileName = urlParts[urlParts.length - 1] || 'unknown'
+          
+          exportData.attachments.push({
+            originalUrl: url,
+            fileName: decodeURIComponent(fileName),
+            localFileName: null, // You'll fill this in after downloading
+            campaignId: doc.id,
+            campaignSubject: data.subject || 'Unknown Subject'
+          })
+        }
+      })
+    }
+  })
+  console.log(`    ✅ ${exportData.campaigns.length} campaigns exported`)
+  console.log(`    📎 ${exportData.attachments.length} attachment references found`)
+
+  // Export Templates
+  console.log('  📝 Exporting templates...')
+  const templatesSnapshot = await getDocs(query(collection(firestore, 'templates')))
+  templatesSnapshot.forEach(doc => {
+    exportData.templates.push({ id: doc.id, ...doc.data() })
+  })
+  console.log(`    ✅ ${exportData.templates.length} templates exported`)
+
+  // Export Contact Groups
+  console.log('  👥 Exporting contact groups...')
+  const groupsSnapshot = await getDocs(query(collection(firestore, 'contactGroups')))
+  groupsSnapshot.forEach(doc => {
+    exportData.contactGroups.push({ id: doc.id, ...doc.data() })
+  })
+  console.log(`    ✅ ${exportData.contactGroups.length} contact groups exported`)
+
+  // Save to JSON file
+  const exportPath = path.join(EXPORT_DIR, 'firebase-data.json')
+  fs.writeFileSync(exportPath, JSON.stringify(exportData, null, 2))
+  console.log(`\n  💾 Data saved to: ${exportPath}`)
+
+  // Create a simple attachment mapping file for easy editing
+  const attachmentMapPath = path.join(EXPORT_DIR, 'attachment-mapping.json')
+  const attachmentMap = exportData.attachments.map((att, index) => ({
+    index: index + 1,
+    campaignSubject: att.campaignSubject,
+    originalFileName: att.fileName,
+    originalUrl: att.originalUrl,
+    localFileName: null  // <-- PUT YOUR DOWNLOADED FILENAME HERE
+  }))
+  fs.writeFileSync(attachmentMapPath, JSON.stringify(attachmentMap, null, 2))
+  console.log(`  📋 Attachment mapping template saved to: ${attachmentMapPath}`)
+  
+  console.log(`\n  📁 Put your downloaded files in: ${ATTACHMENTS_DIR}`)
+  console.log(`  ✏️  Then edit ${attachmentMapPath} to map localFileName for each attachment`)
+  console.log(`\n  ✅ Export complete! Run with --import flag after adding files.`)
+}
+
+// ============================================
+// STEP 2 & 3: Import to Appwrite with file mapping
+// ============================================
+async function importToAppwrite(): Promise<void> {
+  console.log('\n📥 STEP 2 & 3: Importing to Appwrite...\n')
+
+  // Load exported data
+  const dataPath = path.join(EXPORT_DIR, 'firebase-data.json')
+  const mappingPath = path.join(EXPORT_DIR, 'attachment-mapping.json')
+
+  if (!fs.existsSync(dataPath)) {
+    console.error('❌ Export data not found. Run with --export first.')
+    process.exit(1)
+  }
+
+  const exportData: ExportedData = JSON.parse(fs.readFileSync(dataPath, 'utf-8'))
+  
+  // Load attachment mapping
+  let attachmentMapping: any[] = []
+  if (fs.existsSync(mappingPath)) {
+    attachmentMapping = JSON.parse(fs.readFileSync(mappingPath, 'utf-8'))
+  }
+
+  // Create URL to Appwrite file ID mapping
+  const urlToAppwriteId = new Map<string, string>()
+
+  // Wipe existing Appwrite data
+  console.log('🗑️  Wiping existing Appwrite data...')
+  await wipeAppwriteData()
+
+  // Upload attachments first
+  console.log('\n📎 Uploading attachments to Appwrite...')
+  for (const mapping of attachmentMapping) {
+    if (!mapping.localFileName) {
+      console.log(`  ⏭️  Skipping: ${mapping.originalFileName} (no local file mapped)`)
+      continue
     }
 
-    const data = snapshot.val()
-    
-    // Firebase structure: contacts/{userEmail}/{contactId}
-    for (const userEmailKey of Object.keys(data)) {
-      const userEmail = userEmailKey.replace(/_/g, '.').replace(/,/g, '@')
-      const userContacts = data[userEmailKey]
+    const localPath = path.join(ATTACHMENTS_DIR, mapping.localFileName)
+    if (!fs.existsSync(localPath)) {
+      console.log(`  ❌ File not found: ${mapping.localFileName}`)
+      continue
+    }
+
+    try {
+      const inputFile = InputFile.fromPath(localPath, mapping.originalFileName)
+      const result = await storage.createFile(
+        appwriteConfig.attachmentsBucketId,
+        ID.unique(),
+        inputFile
+      )
       
-      if (typeof userContacts !== 'object') continue
-      
-      for (const contactId of Object.keys(userContacts)) {
-        const contact = userContacts[contactId]
-        
-        try {
-          await databases.createDocument(
-            appwriteConfig.databaseId,
-            collections.contacts,
-            ID.unique(),
-            {
-              email: contact.email || '',
-              name: contact.name || '',
-              company: contact.company || '',
-              phone: contact.phone || '',
-              user_email: userEmail,
-              created_at: contact.created_at || new Date().toISOString(),
-            }
-          )
-          stats.contacts.success++
-          process.stdout.write('.')
-        } catch (error: any) {
-          stats.contacts.failed++
-          console.error(`\n  ❌ Failed to migrate contact ${contact.email}:`, error.message)
+      const appwriteUrl = `${appwriteConfig.endpoint}/storage/buckets/${appwriteConfig.attachmentsBucketId}/files/${result.$id}/view?project=${appwriteConfig.projectId}`
+      urlToAppwriteId.set(mapping.originalUrl, appwriteUrl)
+      console.log(`  ✅ Uploaded: ${mapping.originalFileName} -> ${result.$id}`)
+    } catch (error: any) {
+      console.error(`  ❌ Failed to upload ${mapping.originalFileName}: ${error.message}`)
+    }
+  }
+
+  // Import Contacts
+  console.log('\n📇 Importing contacts...')
+  let contactSuccess = 0, contactFailed = 0
+  for (const contact of exportData.contacts) {
+    try {
+      await databases.createDocument(
+        appwriteConfig.databaseId,
+        appwriteCollections.contacts,
+        ID.unique(),
+        {
+          email: contact.email || '',
+          name: contact.name || '',
+          phone: contact.phone || '',
+          company: contact.company || '',
+          tags: contact.tags || [],
+          notes: contact.notes || '',
+          userId: contact.userId || '',
+          createdAt: toISOString(contact.createdAt),
+          updatedAt: toISOString(contact.updatedAt),
         }
-        
-        await sleep(100) // Rate limiting
+      )
+      contactSuccess++
+      process.stdout.write('.')
+    } catch (error: any) {
+      contactFailed++
+      console.error(`\n  ❌ Contact failed: ${error.message}`)
+    }
+  }
+  console.log(`\n  ✅ Contacts: ${contactSuccess} success, ${contactFailed} failed`)
+
+  // Import Campaigns with mapped attachments
+  console.log('\n📧 Importing campaigns...')
+  let campaignSuccess = 0, campaignFailed = 0
+  for (const campaign of exportData.campaigns) {
+    try {
+      // Map old attachment URLs to new Appwrite URLs
+      let mappedAttachments: string[] = []
+      if (campaign.attachments && Array.isArray(campaign.attachments)) {
+        mappedAttachments = campaign.attachments
+          .map((att: any) => {
+            const url = typeof att === 'string' ? att : att.url
+            return urlToAppwriteId.get(url) || url  // Use new URL if mapped, else keep original
+          })
+          .filter(Boolean)
+      }
+
+      await databases.createDocument(
+        appwriteConfig.databaseId,
+        appwriteCollections.campaigns,
+        ID.unique(),
+        {
+          subject: campaign.subject || '',
+          body: campaign.body || '',
+          recipients: campaign.recipients || [],
+          status: campaign.status || 'draft',
+          sentAt: campaign.sentAt ? toISOString(campaign.sentAt) : null,
+          scheduledAt: campaign.scheduledAt ? toISOString(campaign.scheduledAt) : null,
+          userId: campaign.userId || '',
+          createdAt: toISOString(campaign.createdAt),
+          updatedAt: toISOString(campaign.updatedAt),
+          attachments: mappedAttachments,
+          totalRecipients: campaign.totalRecipients || campaign.recipients?.length || 0,
+          successCount: campaign.successCount || 0,
+          failureCount: campaign.failureCount || 0,
+          openCount: campaign.openCount || 0,
+          clickCount: campaign.clickCount || 0,
+        }
+      )
+      campaignSuccess++
+      process.stdout.write('.')
+    } catch (error: any) {
+      campaignFailed++
+      console.error(`\n  ❌ Campaign "${campaign.subject}" failed: ${error.message}`)
+    }
+  }
+  console.log(`\n  ✅ Campaigns: ${campaignSuccess} success, ${campaignFailed} failed`)
+
+  // Import Templates
+  console.log('\n📝 Importing templates...')
+  let templateSuccess = 0, templateFailed = 0
+  for (const template of exportData.templates) {
+    try {
+      await databases.createDocument(
+        appwriteConfig.databaseId,
+        appwriteCollections.templates,
+        ID.unique(),
+        {
+          name: template.name || '',
+          subject: template.subject || '',
+          body: template.body || '',
+          userId: template.userId || '',
+          createdAt: toISOString(template.createdAt),
+          updatedAt: toISOString(template.updatedAt),
+        }
+      )
+      templateSuccess++
+      process.stdout.write('.')
+    } catch (error: any) {
+      templateFailed++
+      console.error(`\n  ❌ Template failed: ${error.message}`)
+    }
+  }
+  console.log(`\n  ✅ Templates: ${templateSuccess} success, ${templateFailed} failed`)
+
+  // Import Contact Groups
+  console.log('\n👥 Importing contact groups...')
+  let groupSuccess = 0, groupFailed = 0
+  for (const group of exportData.contactGroups) {
+    try {
+      await databases.createDocument(
+        appwriteConfig.databaseId,
+        appwriteCollections.contactGroups,
+        ID.unique(),
+        {
+          name: group.name || '',
+          description: group.description || '',
+          contactIds: group.contactIds || [],
+          userId: group.userId || '',
+          createdAt: toISOString(group.createdAt),
+          updatedAt: toISOString(group.updatedAt),
+        }
+      )
+      groupSuccess++
+      process.stdout.write('.')
+    } catch (error: any) {
+      groupFailed++
+      console.error(`\n  ❌ Group failed: ${error.message}`)
+    }
+  }
+  console.log(`\n  ✅ Contact Groups: ${groupSuccess} success, ${groupFailed} failed`)
+
+  console.log('\n✅ Import complete!')
+}
+
+async function wipeAppwriteData(): Promise<void> {
+  const collections = [
+    { name: 'Contacts', id: appwriteCollections.contacts },
+    { name: 'Campaigns', id: appwriteCollections.campaigns },
+    { name: 'Templates', id: appwriteCollections.templates },
+    { name: 'Contact Groups', id: appwriteCollections.contactGroups },
+  ]
+
+  for (const col of collections) {
+    process.stdout.write(`  Deleting ${col.name}...`)
+    let deleted = 0
+    let hasMore = true
+    while (hasMore) {
+      try {
+        const docs = await databases.listDocuments(appwriteConfig.databaseId, col.id, [])
+        if (docs.documents.length === 0) {
+          hasMore = false
+        } else {
+          for (const doc of docs.documents) {
+            await databases.deleteDocument(appwriteConfig.databaseId, col.id, doc.$id)
+            deleted++
+            process.stdout.write('.')
+          }
+        }
+      } catch (e) {
+        hasMore = false
       }
     }
-    
-    console.log(`\n  ✅ Contacts migrated: ${stats.contacts.success} success, ${stats.contacts.failed} failed`)
-  } catch (error) {
-    console.error('  ❌ Error reading contacts from Firebase:', error)
+    console.log(` ✅ ${deleted} deleted`)
   }
-}
 
-async function migrateCampaigns() {
-  console.log('\n📧 Migrating campaigns...')
-  
-  try {
-    const campaignsRef = ref(firebaseDb, 'campaigns')
-    const snapshot = await get(campaignsRef)
-    
-    if (!snapshot.exists()) {
-      console.log('  ℹ️  No campaigns found in Firebase')
-      return
-    }
-
-    const data = snapshot.val()
-    
-    // Firebase structure: campaigns/{userEmail}/{campaignId}
-    for (const userEmailKey of Object.keys(data)) {
-      const userEmail = userEmailKey.replace(/_/g, '.').replace(/,/g, '@')
-      const userCampaigns = data[userEmailKey]
-      
-      if (typeof userCampaigns !== 'object') continue
-      
-      for (const campaignId of Object.keys(userCampaigns)) {
-        const campaign = userCampaigns[campaignId]
-        
-        try {
-          // Handle recipients - could be array or string
-          let recipients = campaign.recipients
-          if (Array.isArray(recipients)) {
-            recipients = JSON.stringify(recipients)
-          } else if (typeof recipients !== 'string') {
-            recipients = JSON.stringify([])
-          }
-          
-          // Handle attachments
-          let attachments = campaign.attachments
-          if (Array.isArray(attachments)) {
-            attachments = JSON.stringify(attachments)
-          } else if (typeof attachments !== 'string') {
-            attachments = null
-          }
-          
-          // Handle send_results
-          let sendResults = campaign.send_results || campaign.sendResults
-          if (Array.isArray(sendResults)) {
-            sendResults = JSON.stringify(sendResults)
-          } else if (typeof sendResults !== 'string') {
-            sendResults = null
-          }
-          
-          await databases.createDocument(
-            appwriteConfig.databaseId,
-            collections.campaigns,
-            ID.unique(),
-            {
-              subject: campaign.subject || '',
-              content: campaign.content || campaign.body || '',
-              recipients: recipients,
-              sent: campaign.sent || 0,
-              failed: campaign.failed || 0,
-              status: campaign.status || 'completed',
-              user_email: userEmail,
-              campaign_type: campaign.campaign_type || campaign.type || 'bulk',
-              attachments: attachments,
-              send_results: sendResults,
-              created_at: campaign.created_at || campaign.timestamp || new Date().toISOString(),
-            }
-          )
-          stats.campaigns.success++
+  // Delete files from attachments bucket
+  process.stdout.write('  Deleting attachments...')
+  let filesDeleted = 0
+  let hasMoreFiles = true
+  while (hasMoreFiles) {
+    try {
+      const files = await storage.listFiles(appwriteConfig.attachmentsBucketId, [])
+      if (files.files.length === 0) {
+        hasMoreFiles = false
+      } else {
+        for (const file of files.files) {
+          await storage.deleteFile(appwriteConfig.attachmentsBucketId, file.$id)
+          filesDeleted++
           process.stdout.write('.')
-        } catch (error: any) {
-          stats.campaigns.failed++
-          console.error(`\n  ❌ Failed to migrate campaign "${campaign.subject}":`, error.message)
         }
-        
-        await sleep(100) // Rate limiting
       }
+    } catch (e) {
+      hasMoreFiles = false
     }
-    
-    console.log(`\n  ✅ Campaigns migrated: ${stats.campaigns.success} success, ${stats.campaigns.failed} failed`)
-  } catch (error) {
-    console.error('  ❌ Error reading campaigns from Firebase:', error)
   }
+  console.log(` ✅ ${filesDeleted} deleted`)
 }
 
-async function migrateTemplates() {
-  console.log('\n📝 Migrating templates...')
-  
-  try {
-    const templatesRef = ref(firebaseDb, 'templates')
-    const snapshot = await get(templatesRef)
-    
-    if (!snapshot.exists()) {
-      console.log('  ℹ️  No templates found in Firebase')
-      return
-    }
-
-    const data = snapshot.val()
-    
-    // Firebase structure: templates/{userEmail}/{templateId}
-    for (const userEmailKey of Object.keys(data)) {
-      const userEmail = userEmailKey.replace(/_/g, '.').replace(/,/g, '@')
-      const userTemplates = data[userEmailKey]
-      
-      if (typeof userTemplates !== 'object') continue
-      
-      for (const templateId of Object.keys(userTemplates)) {
-        const template = userTemplates[templateId]
-        
-        try {
-          await databases.createDocument(
-            appwriteConfig.databaseId,
-            collections.templates,
-            ID.unique(),
-            {
-              name: template.name || 'Untitled Template',
-              subject: template.subject || '',
-              content: template.content || template.body || '',
-              user_email: userEmail,
-              created_at: template.created_at || new Date().toISOString(),
-              updated_at: template.updated_at || new Date().toISOString(),
-            }
-          )
-          stats.templates.success++
-          process.stdout.write('.')
-        } catch (error: any) {
-          stats.templates.failed++
-          console.error(`\n  ❌ Failed to migrate template "${template.name}":`, error.message)
-        }
-        
-        await sleep(100) // Rate limiting
-      }
-    }
-    
-    console.log(`\n  ✅ Templates migrated: ${stats.templates.success} success, ${stats.templates.failed} failed`)
-  } catch (error) {
-    console.error('  ❌ Error reading templates from Firebase:', error)
-  }
-}
-
-async function migrateContactGroups() {
-  console.log('\n👥 Migrating contact groups...')
-  
-  try {
-    const groupsRef = ref(firebaseDb, 'contactGroups')
-    const snapshot = await get(groupsRef)
-    
-    if (!snapshot.exists()) {
-      console.log('  ℹ️  No contact groups found in Firebase')
-      return
-    }
-
-    const data = snapshot.val()
-    
-    // Firebase structure: contactGroups/{userEmail}/{groupId}
-    for (const userEmailKey of Object.keys(data)) {
-      const userEmail = userEmailKey.replace(/_/g, '.').replace(/,/g, '@')
-      const userGroups = data[userEmailKey]
-      
-      if (typeof userGroups !== 'object') continue
-      
-      for (const groupId of Object.keys(userGroups)) {
-        const group = userGroups[groupId]
-        
-        try {
-          // Handle contact_ids - could be array or string
-          let contactIds = group.contact_ids || group.contacts || group.contactIds
-          if (Array.isArray(contactIds)) {
-            contactIds = JSON.stringify(contactIds)
-          } else if (typeof contactIds !== 'string') {
-            contactIds = JSON.stringify([])
-          }
-          
-          await databases.createDocument(
-            appwriteConfig.databaseId,
-            collections.contactGroups,
-            ID.unique(),
-            {
-              name: group.name || 'Untitled Group',
-              description: group.description || '',
-              color: group.color || '#3b82f6',
-              contact_ids: contactIds,
-              user_email: userEmail,
-              created_at: group.created_at || new Date().toISOString(),
-            }
-          )
-          stats.contactGroups.success++
-          process.stdout.write('.')
-        } catch (error: any) {
-          stats.contactGroups.failed++
-          console.error(`\n  ❌ Failed to migrate group "${group.name}":`, error.message)
-        }
-        
-        await sleep(100) // Rate limiting
-      }
-    }
-    
-    console.log(`\n  ✅ Contact groups migrated: ${stats.contactGroups.success} success, ${stats.contactGroups.failed} failed`)
-  } catch (error) {
-    console.error('  ❌ Error reading contact groups from Firebase:', error)
-  }
-}
-
+// Main entry point
 async function main() {
-  console.log('🔄 Firebase to Appwrite Migration')
-  console.log('==================================')
-  console.log(`Firebase Project: ${firebaseConfig.projectId}`)
-  console.log(`Appwrite Project: ${appwriteConfig.projectId}`)
-  console.log(`Appwrite Database: ${appwriteConfig.databaseId}`)
-
-  if (!appwriteConfig.apiKey) {
-    console.error('\n❌ APPWRITE_API_KEY is not set')
-    process.exit(1)
-  }
-
-  if (!firebaseConfig.databaseURL) {
-    console.error('\n❌ Firebase configuration is incomplete')
-    process.exit(1)
-  }
-
-  try {
-    // Migrate all data types
-    await migrateContacts()
-    await migrateCampaigns()
-    await migrateTemplates()
-    await migrateContactGroups()
-
-    // Print summary
-    console.log('\n📊 Migration Summary')
-    console.log('====================')
-    console.log(`Contacts:       ${stats.contacts.success} success, ${stats.contacts.failed} failed`)
-    console.log(`Campaigns:      ${stats.campaigns.success} success, ${stats.campaigns.failed} failed`)
-    console.log(`Templates:      ${stats.templates.success} success, ${stats.templates.failed} failed`)
-    console.log(`Contact Groups: ${stats.contactGroups.success} success, ${stats.contactGroups.failed} failed`)
-    
-    const totalSuccess = stats.contacts.success + stats.campaigns.success + stats.templates.success + stats.contactGroups.success
-    const totalFailed = stats.contacts.failed + stats.campaigns.failed + stats.templates.failed + stats.contactGroups.failed
-    
-    console.log(`\nTotal: ${totalSuccess} success, ${totalFailed} failed`)
-    
-    if (totalFailed > 0) {
-      console.log('\n⚠️  Some items failed to migrate. Check the logs above for details.')
-    } else {
-      console.log('\n✅ Migration complete!')
-    }
-    
-  } catch (error) {
-    console.error('\n❌ Migration failed:', error)
-    process.exit(1)
-  }
+  const args = process.argv.slice(2)
   
+  console.log('\n🔄 Firebase to Appwrite Migration Tool')
+  console.log('======================================')
+  console.log(`Export Directory: ${EXPORT_DIR}`)
+  console.log(`Attachments Directory: ${ATTACHMENTS_DIR}\n`)
+
+  if (args.includes('--export')) {
+    await exportFromFirebase()
+  } else if (args.includes('--import')) {
+    await importToAppwrite()
+  } else {
+    console.log('Usage:')
+    console.log('  --export    Export Firebase data to local JSON files')
+    console.log('  --import    Import local data to Appwrite (after adding attachments)')
+    console.log('')
+    console.log('Workflow:')
+    console.log('  1. Run with --export to get Firebase data')
+    console.log('  2. Manually download Cloudinary files to firebase-export/attachments/')
+    console.log('  3. Edit firebase-export/attachment-mapping.json to map localFileName')
+    console.log('  4. Run with --import to upload everything to Appwrite')
+  }
+
   process.exit(0)
 }
 
-main()
+main().catch(console.error)
