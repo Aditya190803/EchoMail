@@ -118,18 +118,6 @@ export interface Webhook {
   last_triggered_at?: string
 }
 
-export interface TrackingEvent {
-  $id?: string
-  campaign_id: string
-  email: string
-  event_type: 'open' | 'click'
-  link_url?: string
-  user_agent?: string
-  ip_address?: string
-  user_email: string
-  created_at?: string
-}
-
 export interface ABTest {
   $id?: string
   name: string
@@ -493,38 +481,6 @@ export const webhooksService = {
     // This should be done server-side in the send-email API
     console.warn('triggerWebhooks should be called server-side')
     return []
-  },
-}
-
-// ============================================
-// Tracking Events Service (via API)
-// ============================================
-
-export const trackingEventsService = {
-  async create(event: Omit<TrackingEvent, '$id' | 'created_at' | 'user_email'>) {
-    return apiRequest<TrackingEvent>('/api/appwrite/tracking-events', {
-      method: 'POST',
-      body: JSON.stringify(event),
-    })
-  },
-
-  async listByCampaign(campaignId: string): Promise<{ total: number; documents: TrackingEvent[] }> {
-    return apiRequest(`/api/appwrite/tracking-events?campaign_id=${campaignId}`)
-  },
-
-  async getCampaignStats(campaignId: string) {
-    const response = await apiRequest<{ 
-      total: number; 
-      documents: TrackingEvent[]; 
-      stats: {
-        totalOpens: number
-        uniqueOpens: number
-        totalClicks: number
-        uniqueClicks: number
-        clicksByLink: Record<string, number>
-      }
-    }>(`/api/appwrite/tracking-events?campaign_id=${campaignId}`)
-    return response.stats
   },
 }
 
