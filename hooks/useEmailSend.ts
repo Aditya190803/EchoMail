@@ -1,9 +1,9 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { signIn } from 'next-auth/react'
 
 interface EmailResult {
   email: string
-  status: "success" | "error" | "skipped"
+  status: "success" | "error" | "skipped" | "cancelled"
   error?: string
   retryCount?: number
   index?: number
@@ -11,7 +11,7 @@ interface EmailResult {
 
 interface SendStatus {
   email: string
-  status: "pending" | "success" | "error" | "skipped" | "retrying"
+  status: "pending" | "success" | "error" | "skipped" | "retrying" | "cancelled"
   error?: string
   retryCount?: number
   index: number
@@ -31,21 +31,40 @@ interface QuotaInfo {
   lastUpdated: Date | null
 }
 
+interface CampaignState {
+  campaignId: string
+  emails: any[]
+  sentIndices: number[]
+  failedIndices: number[]
+  status: 'in-progress' | 'paused' | 'completed' | 'cancelled'
+  startedAt: string
+  subject?: string
+}
+
 interface SendOptions {
   delayBetweenEmails?: number // milliseconds
   checkTokenEveryN?: number // Check token every N emails
+  campaignSubject?: string // For saving campaign state
 }
 
 interface UseEmailSendResult {
   sendEmails: (personalizedEmails: any[], options?: SendOptions) => Promise<EmailResult[]>
   retryFailedEmails: () => Promise<EmailResult[]>
+  stopSending: () => void
+  resumeCampaign: () => Promise<EmailResult[]>
+  clearSavedCampaign: () => void
   progress: EmailProgress
   sendStatus: SendStatus[]
   isLoading: boolean
+  isStopping: boolean
+  isPaused: boolean
+  isOffline: boolean
   error: string | null
   failedEmails: any[]
   hasPendingRetries: boolean
   stoppedDueToError: boolean
+  hasSavedCampaign: boolean
+  savedCampaignInfo: { subject?: string, remaining: number, total: number } | null
   quotaInfo: QuotaInfo
   updateQuotaUsed: (count: number) => void
   resetDailyQuota: () => void
@@ -56,13 +75,18 @@ const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 2000 // 2 seconds between retries
 const DEFAULT_BETWEEN_EMAILS_DELAY_MS = 1000 // 1 second between different emails
 const DEFAULT_TOKEN_CHECK_INTERVAL = 10 // Check token every 10 emails
+const RATE_LIMIT_INITIAL_DELAY_MS = 60000 // 1 minute initial backoff for rate limits
+const RATE_LIMIT_MAX_DELAY_MS = 300000 // 5 minutes max backoff
+const NETWORK_RETRY_DELAY_MS = 5000 // 5 seconds between network retry checks
 
 // Gmail API quotas (conservative estimates)
 // Free Gmail: ~500 emails/day, Workspace: ~2000/day
 const GMAIL_DAILY_LIMIT = 500 // Conservative default for free accounts
 
-// Storage key for quota tracking
+// Storage keys
 const QUOTA_STORAGE_KEY = 'echomail_gmail_quota'
+const CAMPAIGN_STATE_KEY = 'echomail_campaign_state'
+const CAMPAIGN_LOCK_KEY = 'echomail_campaign_lock'
 
 /**
  * Unified email sending hook that sends emails one by one sequentially.
@@ -71,7 +95,9 @@ const QUOTA_STORAGE_KEY = 'echomail_gmail_quota'
  * - Configurable delay between emails to avoid rate limiting
  * - Tracks estimated Gmail quota usage
  * - Checks and refreshes OAuth token during long campaigns
- * - Stops sending if an email fails after all retries (to avoid wasting quota on rate limits)
+ * - Stop/cancel sending mid-campaign
+ * - Persists campaign state for resume after refresh
+ * - Prevents duplicate sends with lock mechanism
  * - Allows users to retry remaining emails later
  */
 export function useEmailSend(): UseEmailSendResult {
@@ -84,9 +110,14 @@ export function useEmailSend(): UseEmailSendResult {
   
   const [sendStatus, setSendStatus] = useState<SendStatus[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isStopping, setIsStopping] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
+  const [isOffline, setIsOffline] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [failedEmails, setFailedEmails] = useState<any[]>([])
   const [stoppedDueToError, setStoppedDueToError] = useState(false)
+  const [hasSavedCampaign, setHasSavedCampaign] = useState(false)
+  const [savedCampaignInfo, setSavedCampaignInfo] = useState<{ subject?: string, remaining: number, total: number } | null>(null)
   
   // Quota tracking state
   const [quotaInfo, setQuotaInfo] = useState<QuotaInfo>(() => {
@@ -131,6 +162,254 @@ export function useEmailSend(): UseEmailSendResult {
   
   // Store current delay setting
   const currentDelayRef = useRef<number>(DEFAULT_BETWEEN_EMAILS_DELAY_MS)
+  
+  // Stop flag
+  const shouldStopRef = useRef(false)
+  
+  // Pause flag for network issues
+  const isPausedRef = useRef(false)
+  
+  // Rate limit backoff tracking
+  const rateLimitBackoffRef = useRef(RATE_LIMIT_INITIAL_DELAY_MS)
+  
+  // Campaign ID for persistence
+  const campaignIdRef = useRef<string>('')
+
+  // Check for saved campaign on mount
+  useEffect(() => {
+    checkSavedCampaign()
+  }, [])
+
+  // Network status monitoring
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handleOnline = () => {
+      console.log('🌐 Network restored')
+      setIsOffline(false)
+      if (isPausedRef.current && isLoading) {
+        setProgress(prev => ({
+          ...prev,
+          status: '🌐 Network restored! Resuming...'
+        }))
+        isPausedRef.current = false
+        setIsPaused(false)
+      }
+    }
+
+    const handleOffline = () => {
+      console.log('📴 Network disconnected')
+      setIsOffline(true)
+      if (isLoading) {
+        isPausedRef.current = true
+        setIsPaused(true)
+        setProgress(prev => ({
+          ...prev,
+          status: '📴 Network disconnected. Waiting for connection...'
+        }))
+      }
+    }
+
+    // Check initial status
+    if (!navigator.onLine) {
+      setIsOffline(true)
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [isLoading])
+
+  const checkSavedCampaign = () => {
+    try {
+      const saved = localStorage.getItem(CAMPAIGN_STATE_KEY)
+      if (saved) {
+        const state: CampaignState = JSON.parse(saved)
+        if (state.status === 'in-progress' || state.status === 'paused') {
+          const remaining = state.emails.length - state.sentIndices.length
+          setHasSavedCampaign(true)
+          setSavedCampaignInfo({
+            subject: state.subject,
+            remaining,
+            total: state.emails.length
+          })
+        }
+      }
+    } catch (e) {
+      console.error('Error checking saved campaign:', e)
+    }
+  }
+
+  const generateCampaignId = () => {
+    return `campaign_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  }
+
+  const getTabId = (): string => {
+    if (typeof window === 'undefined') return 'server'
+    
+    let tabId = sessionStorage.getItem('echomail_tab_id')
+    if (!tabId) {
+      tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      sessionStorage.setItem('echomail_tab_id', tabId)
+    }
+    return tabId
+  }
+
+  const acquireLock = (): boolean => {
+    try {
+      const existingLock = localStorage.getItem(CAMPAIGN_LOCK_KEY)
+      if (existingLock) {
+        const lock = JSON.parse(existingLock)
+        // Lock expires after 5 minutes of inactivity
+        if (Date.now() - lock.timestamp < 5 * 60 * 1000) {
+          if (lock.tabId !== getTabId()) {
+            return false // Another tab is sending
+          }
+        }
+      }
+      
+      localStorage.setItem(CAMPAIGN_LOCK_KEY, JSON.stringify({
+        tabId: getTabId(),
+        timestamp: Date.now()
+      }))
+      return true
+    } catch (e) {
+      console.error('Error acquiring lock:', e)
+      return true // Proceed anyway if localStorage fails
+    }
+  }
+
+  const releaseLock = () => {
+    try {
+      const existingLock = localStorage.getItem(CAMPAIGN_LOCK_KEY)
+      if (existingLock) {
+        const lock = JSON.parse(existingLock)
+        if (lock.tabId === getTabId()) {
+          localStorage.removeItem(CAMPAIGN_LOCK_KEY)
+        }
+      }
+    } catch (e) {
+      console.error('Error releasing lock:', e)
+    }
+  }
+
+  const refreshLock = () => {
+    try {
+      localStorage.setItem(CAMPAIGN_LOCK_KEY, JSON.stringify({
+        tabId: getTabId(),
+        timestamp: Date.now()
+      }))
+    } catch (e) {
+      console.error('Error refreshing lock:', e)
+    }
+  }
+
+  const saveCampaignState = (state: CampaignState) => {
+    try {
+      localStorage.setItem(CAMPAIGN_STATE_KEY, JSON.stringify(state))
+    } catch (e) {
+      console.error('Error saving campaign state:', e)
+    }
+  }
+
+  const clearCampaignState = () => {
+    try {
+      localStorage.removeItem(CAMPAIGN_STATE_KEY)
+      setHasSavedCampaign(false)
+      setSavedCampaignInfo(null)
+    } catch (e) {
+      console.error('Error clearing campaign state:', e)
+    }
+  }
+
+  // Wait for network to come back online
+  const waitForNetwork = async (): Promise<boolean> => {
+    if (typeof window === 'undefined') return true
+    if (navigator.onLine) return true
+
+    console.log('📴 Waiting for network...')
+    
+    return new Promise((resolve) => {
+      const checkNetwork = () => {
+        if (shouldStopRef.current) {
+          resolve(false)
+          return
+        }
+        if (navigator.onLine) {
+          resolve(true)
+          return
+        }
+        setTimeout(checkNetwork, NETWORK_RETRY_DELAY_MS)
+      }
+      
+      // Also listen for the online event
+      const handleOnline = () => {
+        window.removeEventListener('online', handleOnline)
+        resolve(true)
+      }
+      window.addEventListener('online', handleOnline)
+      
+      checkNetwork()
+    })
+  }
+
+  // Check if error is a rate limit (429) error
+  const isRateLimitError = (errorMessage: string, statusCode?: number): boolean => {
+    if (statusCode === 429) return true
+    const rateLimitIndicators = [
+      "429",
+      "rate limit",
+      "too many requests",
+      "quota exceeded",
+      "user-rate limit exceeded"
+    ]
+    return rateLimitIndicators.some(indicator => 
+      errorMessage.toLowerCase().includes(indicator.toLowerCase())
+    )
+  }
+
+  // Handle rate limit with exponential backoff
+  const handleRateLimit = async (): Promise<void> => {
+    const delay = rateLimitBackoffRef.current
+    const minutes = Math.ceil(delay / 60000)
+    
+    console.log(`⏳ Rate limited. Waiting ${minutes} minute(s)...`)
+    setProgress(prev => ({
+      ...prev,
+      status: `⏳ Rate limited by Gmail. Waiting ${minutes} minute(s) before retrying...`
+    }))
+    
+    // Wait with periodic checks for stop request
+    const endTime = Date.now() + delay
+    while (Date.now() < endTime) {
+      if (shouldStopRef.current) return
+      
+      const remaining = Math.ceil((endTime - Date.now()) / 1000)
+      if (remaining % 10 === 0) { // Update every 10 seconds
+        setProgress(prev => ({
+          ...prev,
+          status: `⏳ Rate limited. Resuming in ${remaining} seconds...`
+        }))
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    }
+    
+    // Increase backoff for next time (exponential)
+    rateLimitBackoffRef.current = Math.min(
+      rateLimitBackoffRef.current * 2,
+      RATE_LIMIT_MAX_DELAY_MS
+    )
+  }
+
+  // Reset rate limit backoff on success
+  const resetRateLimitBackoff = () => {
+    rateLimitBackoffRef.current = RATE_LIMIT_INITIAL_DELAY_MS
+  }
 
   // Update quota used count
   const updateQuotaUsed = useCallback((count: number) => {
@@ -232,8 +511,30 @@ export function useEmailSend(): UseEmailSendResult {
     totalEmails: number
   ): Promise<EmailResult> => {
     let lastError = ""
+    let lastStatusCode: number | undefined
     
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      // Check if stop was requested
+      if (shouldStopRef.current) {
+        return { email: email.to, status: "cancelled", error: "Cancelled by user", index }
+      }
+
+      // Wait for network if offline
+      if (typeof window !== 'undefined' && !navigator.onLine) {
+        setProgress(prev => ({
+          ...prev,
+          status: `📴 Network offline. Waiting for connection...`
+        }))
+        const networkRestored = await waitForNetwork()
+        if (!networkRestored) {
+          return { email: email.to, status: "cancelled", error: "Cancelled while waiting for network", index }
+        }
+        setProgress(prev => ({
+          ...prev,
+          status: `🌐 Network restored! Resuming...`
+        }))
+      }
+
       try {
         // Update status to show retry attempt
         if (attempt > 1) {
@@ -248,6 +549,9 @@ export function useEmailSend(): UseEmailSendResult {
           // Wait before retry
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS))
         }
+
+        // Refresh lock periodically
+        refreshLock()
 
         console.log(`📧 Sending email to ${email.to} (attempt ${attempt}/${MAX_RETRIES})`)
         
@@ -265,13 +569,25 @@ export function useEmailSend(): UseEmailSendResult {
           body: JSON.stringify(payload),
         })
 
+        lastStatusCode = response.status
+
         if (response.ok) {
           console.log(`✅ Email sent successfully to ${email.to}`)
-          return { email: email.to, status: "success", retryCount: attempt }
+          resetRateLimitBackoff() // Reset backoff on success
+          return { email: email.to, status: "success", retryCount: attempt, index }
         }
         
         const errorData = await response.json()
         lastError = errorData.userMessage || errorData.error || `HTTP ${response.status}`
+        
+        // Handle rate limiting with exponential backoff
+        if (isRateLimitError(lastError, response.status)) {
+          console.log(`⚠️ Rate limit hit for ${email.to}`)
+          await handleRateLimit()
+          // Don't count this as a retry attempt - rate limits are external
+          attempt--
+          continue
+        }
         
         // Check if error is non-retryable
         if (!isRetryableError(lastError)) {
@@ -284,9 +600,22 @@ export function useEmailSend(): UseEmailSendResult {
       } catch (fetchError) {
         lastError = fetchError instanceof Error ? fetchError.message : "Network error"
         
-        // Format user-friendly error messages
-        if (lastError.includes("Failed to fetch") || lastError.includes("NetworkError")) {
-          lastError = "Network error - please check your internet connection"
+        // Check if it's a network error
+        if (lastError.includes("Failed to fetch") || lastError.includes("NetworkError") || lastError.includes("network")) {
+          console.log(`📴 Network error detected, waiting for reconnection...`)
+          setProgress(prev => ({
+            ...prev,
+            status: `📴 Network error. Waiting for connection...`
+          }))
+          
+          const networkRestored = await waitForNetwork()
+          if (!networkRestored) {
+            return { email: email.to, status: "cancelled", error: "Cancelled while waiting for network", index }
+          }
+          
+          // Don't count network issues as a retry attempt
+          attempt--
+          continue
         }
         
         console.log(`⚠️ Attempt ${attempt} failed for ${email.to}: ${lastError}`)
@@ -298,20 +627,46 @@ export function useEmailSend(): UseEmailSendResult {
     }
     
     // All retries exhausted or non-retryable error
-    return { email: email.to, status: "error", error: lastError, retryCount: MAX_RETRIES }
+    return { email: email.to, status: "error", error: lastError, retryCount: MAX_RETRIES, index }
   }
 
+  const stopSending = useCallback(() => {
+    shouldStopRef.current = true
+    setIsStopping(true)
+    setProgress(prev => ({
+      ...prev,
+      status: '⏸️ Stopping... Please wait for current email to complete'
+    }))
+  }, [])
+
+  const clearSavedCampaign = useCallback(() => {
+    clearCampaignState()
+    releaseLock()
+  }, [])
+
   const sendEmails = useCallback(async (personalizedEmails: any[], options?: SendOptions): Promise<EmailResult[]> => {
+    // Check for duplicate sends
+    if (!acquireLock()) {
+      setError("Another campaign is already running in a different tab. Please wait or close the other tab.")
+      return []
+    }
+
     // Set the delay from options or use default
     const delayBetweenEmails = options?.delayBetweenEmails ?? DEFAULT_BETWEEN_EMAILS_DELAY_MS
     const tokenCheckInterval = options?.checkTokenEveryN ?? DEFAULT_TOKEN_CHECK_INTERVAL
+    const campaignSubject = options?.campaignSubject
     currentDelayRef.current = delayBetweenEmails
     
+    shouldStopRef.current = false
+    setIsStopping(false)
     setIsLoading(true)
     setError(null)
     setFailedEmails([])
     setStoppedDueToError(false)
     remainingEmailsRef.current = []
+    
+    const campaignId = generateCampaignId()
+    campaignIdRef.current = campaignId
     
     const totalEmails = personalizedEmails.length
     console.log(`🚀 Sending ${totalEmails} emails with retry logic (max ${MAX_RETRIES} retries per email, ${delayBetweenEmails}ms delay)`)
@@ -321,6 +676,7 @@ export function useEmailSend(): UseEmailSendResult {
     if (!initialTokenStatus.valid) {
       setError('Your session has expired. Please sign in again.')
       setIsLoading(false)
+      releaseLock()
       if (initialTokenStatus.requiresReauth) {
         signIn('google')
       }
@@ -347,11 +703,70 @@ export function useEmailSend(): UseEmailSendResult {
       index
     })))
 
+    // Initialize campaign state for persistence
+    const campaignState: CampaignState = {
+      campaignId,
+      emails: personalizedEmails,
+      sentIndices: [],
+      failedIndices: [],
+      status: 'in-progress',
+      startedAt: new Date().toISOString(),
+      subject: campaignSubject
+    }
+    saveCampaignState(campaignState)
+
     const results: EmailResult[] = []
     let successCount = 0
 
     try {
       for (let i = 0; i < personalizedEmails.length; i++) {
+        // Check if stop was requested
+        if (shouldStopRef.current) {
+          const remainingEmails = personalizedEmails.slice(i)
+          remainingEmailsRef.current = remainingEmails
+          
+          // Mark remaining as cancelled
+          for (let j = 0; j < remainingEmails.length; j++) {
+            const remainingEmail = remainingEmails[j]
+            const remainingIndex = i + j
+            results.push({ 
+              email: remainingEmail.to, 
+              status: "cancelled", 
+              error: "Cancelled by user",
+              index: remainingIndex
+            })
+            setSendStatus(prev => prev.map(s => 
+              s.index === remainingIndex ? { 
+                ...s, 
+                status: "cancelled" as const,
+                error: "Cancelled by user"
+              } : s
+            ))
+          }
+          
+          // Update campaign state
+          campaignState.status = 'paused'
+          campaignState.failedIndices = results
+            .filter(r => r.status === 'error' || r.status === 'cancelled')
+            .map(r => r.index!)
+          saveCampaignState(campaignState)
+          
+          setProgress(prev => ({
+            ...prev,
+            status: `⏸️ Stopped! ${results.filter(r => r.status === "success").length} sent, ${remainingEmails.length} cancelled`
+          }))
+          
+          setHasSavedCampaign(true)
+          setSavedCampaignInfo({
+            subject: campaignSubject,
+            remaining: remainingEmails.length,
+            total: totalEmails
+          })
+          
+          setFailedEmails(remainingEmails)
+          break
+        }
+
         const email = personalizedEmails[i]
         
         // Check token every N emails to prevent expiry during long campaigns
@@ -370,6 +785,17 @@ export function useEmailSend(): UseEmailSendResult {
             setFailedEmails(remainingEmails)
             setStoppedDueToError(true)
             setError(`Session expired after sending ${i} emails. ${remainingEmails.length} emails remaining. Please sign in again and retry.`)
+            
+            // Update campaign state
+            campaignState.status = 'paused'
+            saveCampaignState(campaignState)
+            
+            setHasSavedCampaign(true)
+            setSavedCampaignInfo({
+              subject: campaignSubject,
+              remaining: remainingEmails.length,
+              total: totalEmails
+            })
             
             // Mark remaining as skipped
             for (let j = 0; j < remainingEmails.length; j++) {
@@ -407,21 +833,30 @@ export function useEmailSend(): UseEmailSendResult {
         const result = await sendSingleEmailWithRetry(email, i, totalEmails)
         results.push({ ...result, index: i })
         
-        // Update quota on success
-        if (result.status === "success") {
+        // Update campaign state
+        if (result.status === 'success') {
+          campaignState.sentIndices.push(i)
           successCount++
           updateQuotaUsed(1)
+        } else {
+          campaignState.failedIndices.push(i)
         }
+        saveCampaignState(campaignState)
         
         // Update status using index to handle duplicate emails correctly
         setSendStatus(prev => prev.map(s => 
           s.index === i ? { 
             ...s, 
-            status: result.status as "success" | "error",
+            status: result.status as SendStatus['status'],
             error: result.error,
             retryCount: result.retryCount
           } : s
         ))
+
+        // Check if we stopped due to user request
+        if (result.status === 'cancelled') {
+          continue // Already handled above
+        }
 
         // If email failed after all retries, stop sending remaining emails
         if (result.status === "error") {
@@ -450,6 +885,10 @@ export function useEmailSend(): UseEmailSendResult {
             ))
           }
           
+          // Update campaign state
+          campaignState.status = 'paused'
+          saveCampaignState(campaignState)
+          
           setStoppedDueToError(true)
           setError(`Campaign stopped: ${result.error}. ${remainingEmails.length} emails were not sent. You can retry them later.`)
           
@@ -457,6 +896,13 @@ export function useEmailSend(): UseEmailSendResult {
             ...prev,
             status: `⚠️ Stopped! ${results.filter(r => r.status === "success").length} sent, 1 failed, ${remainingEmails.length} skipped`
           }))
+          
+          setHasSavedCampaign(true)
+          setSavedCampaignInfo({
+            subject: campaignSubject,
+            remaining: remainingEmails.length + 1,
+            total: totalEmails
+          })
           
           break
         }
@@ -471,13 +917,21 @@ export function useEmailSend(): UseEmailSendResult {
         }
       }
 
-      if (!stoppedDueToError) {
+      // Check if completed successfully
+      const errorCount = results.filter(r => r.status === 'error').length
+      const allProcessed = !shouldStopRef.current && results.length === personalizedEmails.length
+      
+      if (allProcessed && errorCount === 0) {
+        // All sent successfully - clear saved state
+        campaignState.status = 'completed'
+        saveCampaignState(campaignState)
+        clearCampaignState()
+        
         const sent = results.filter(r => r.status === "success").length
-        const failed = results.filter(r => r.status === "error").length
         
         setProgress(prev => ({
           ...prev,
-          status: `✅ Done! ${sent} sent, ${failed} failed`
+          status: `✅ Done! ${sent} emails sent successfully`
         }))
       }
 
@@ -487,11 +941,54 @@ export function useEmailSend(): UseEmailSendResult {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       setError(errorMessage)
       setProgress(prev => ({ ...prev, status: `Error: ${errorMessage}` }))
+      
+      // Save state for resume
+      campaignState.status = 'paused'
+      saveCampaignState(campaignState)
+      
       throw err
     } finally {
       setIsLoading(false)
+      setIsStopping(false)
+      shouldStopRef.current = false
+      releaseLock()
     }
   }, [quotaInfo.estimatedRemaining, updateQuotaUsed, checkTokenStatus])
+
+  const resumeCampaign = useCallback(async (): Promise<EmailResult[]> => {
+    try {
+      const saved = localStorage.getItem(CAMPAIGN_STATE_KEY)
+      if (!saved) {
+        setError("No saved campaign to resume")
+        return []
+      }
+
+      const state: CampaignState = JSON.parse(saved)
+      
+      if (state.status !== 'in-progress' && state.status !== 'paused') {
+        setError("Campaign already completed")
+        return []
+      }
+
+      // Get emails that weren't sent
+      const unsentIndices = state.emails
+        .map((_, i) => i)
+        .filter(i => !state.sentIndices.includes(i))
+      
+      const emailsToSend = unsentIndices.map(i => state.emails[i])
+      
+      if (emailsToSend.length === 0) {
+        clearCampaignState()
+        return []
+      }
+
+      return sendEmails(emailsToSend, { campaignSubject: state.subject })
+    } catch (e) {
+      console.error('Error resuming campaign:', e)
+      setError("Failed to resume campaign")
+      return []
+    }
+  }, [sendEmails])
 
   // Function to retry failed/skipped emails
   const retryFailedEmails = useCallback(async (): Promise<EmailResult[]> => {
@@ -515,13 +1012,21 @@ export function useEmailSend(): UseEmailSendResult {
   return {
     sendEmails,
     retryFailedEmails,
+    stopSending,
+    resumeCampaign,
+    clearSavedCampaign,
     progress,
     sendStatus,
     isLoading,
+    isStopping,
+    isPaused,
+    isOffline,
     error,
     failedEmails,
     hasPendingRetries: failedEmails.length > 0,
     stoppedDueToError,
+    hasSavedCampaign,
+    savedCampaignInfo,
     quotaInfo,
     updateQuotaUsed,
     resetDailyQuota,
