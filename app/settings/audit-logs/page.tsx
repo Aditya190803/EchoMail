@@ -220,14 +220,14 @@ export default function AuditLogsPage() {
               </div>
 
               <Select
-                value={filters.resource_type}
-                onValueChange={(value: string) => handleFilterChange('resource_type', value)}
+                value={filters.resource_type || 'all'}
+                onValueChange={(value: string) => handleFilterChange('resource_type', value === 'all' ? '' : value)}
               >
                 <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="Resource" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Resources</SelectItem>
+                  <SelectItem value="all">All Resources</SelectItem>
                   <SelectItem value="contact">Contacts</SelectItem>
                   <SelectItem value="campaign">Campaigns</SelectItem>
                   <SelectItem value="template">Templates</SelectItem>
