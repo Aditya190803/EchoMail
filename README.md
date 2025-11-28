@@ -1,13 +1,13 @@
 # EchoMail 📧
 
-[![Built with Next.js](https://img.shields.io/badge/Built%20with-Next.js-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
+[![Built with Next.js](https://img.shields.io/badge/Built%20with-Next.js%2015-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Gmail API](https://img.shields.io/badge/Gmail-API-red?style=for-the-badge&logo=gmail)](https://developers.google.com/gmail/api)
 [![Appwrite](https://img.shields.io/badge/Appwrite-FD366E?style=for-the-badge&logo=appwrite&logoColor=white)](https://appwrite.io/)
 
 ## 🚀 Overview
 
-**EchoMail** is a powerful, modern email marketing platform that seamlessly integrates with Gmail API to send personalized bulk emails. Built with Next.js and TypeScript, it offers a professional-grade solution for businesses and individuals looking to manage email campaigns with Gmail-like formatting and reliability.
+**EchoMail** is a powerful, modern email marketing platform that seamlessly integrates with Gmail API to send personalized bulk emails. Built with Next.js 15 and TypeScript, it offers a professional-grade solution for businesses and individuals looking to manage email campaigns with Gmail-like formatting and reliability.
 
 ## ✨ Key Features
 
@@ -16,6 +16,7 @@
 - OAuth 2.0 authentication with Google
 - Sends emails directly through your Gmail account
 - Maintains Gmail's deliverability and reputation
+- Automatic token refresh for uninterrupted sending
 
 ### 🎨 **Rich Email Composer**
 - Advanced rich text editor with TipTap
@@ -23,20 +24,54 @@
 - Real-time email preview with Gmail appearance
 - Support for formatting: **bold**, *italic*, underline, lists, links, images
 - Text alignment and heading styles
+- Email signatures support
 
 ### 📊 **Data Management**
 - CSV file upload for bulk recipients
-- Manual contact entry
+- Manual contact entry with validation
+- Contact groups for organized recipient management
 - Appwrite-powered contact management and file storage
-- Placeholder personalization ({{name}}, {{email}}, {{company}})
-- Data validation and sanitization
+- Placeholder personalization ({{name}}, {{email}}, {{company}}, and custom fields)
+- Duplicate contact detection and merging
 - Draft auto-save functionality
 
-### 📈 **Campaign Analytics**
+### 📈 **Campaign Analytics & A/B Testing**
 - Real-time sending progress tracking
-- Email delivery status monitoring
+- Email open and click tracking
 - Campaign history and analytics dashboard
-- Appwrite-powered data storage
+- A/B testing for subject lines and content
+- Performance comparison between variants
+
+### 👥 **Team Collaboration**
+- Create and manage teams
+- Invite members with role-based permissions (Owner, Admin, Member, Viewer)
+- Team settings for shared resources
+- Collaborative campaign management
+
+### 🔒 **Security, Privacy & GDPR Compliance**
+- Secure OAuth 2.0 authentication
+- No email credentials stored
+- End-to-end encrypted API communications
+- **GDPR Compliance Tools:**
+  - Data export (download all your data as JSON)
+  - Data deletion (right to be forgotten)
+  - Consent management (marketing, analytics, data processing)
+  - Privacy settings dashboard
+- **Audit Logs:**
+  - Track all account activities
+  - Filterable log viewer with date ranges
+  - IP address and user agent tracking
+
+### 📝 **Templates & Signatures**
+- Save and reuse email templates
+- Create multiple email signatures
+- Set default signature for all emails
+- Quick template insertion while composing
+
+### 🔗 **Webhooks & Integrations**
+- Configure webhook notifications for email events
+- Real-time event callbacks (sent, opened, clicked, bounced)
+- Custom webhook endpoints with secret verification
 
 ### ⌨️ **Keyboard Shortcuts**
 - `Ctrl+/` - Show keyboard shortcuts help
@@ -44,28 +79,25 @@
 - `Escape` - Close dialogs
 - Page-specific shortcuts for enhanced productivity
 
-### 🔒 **Security & Privacy**
-- Secure OAuth 2.0 authentication
-- No email credentials stored
-- End-to-end encrypted API communications
-- Privacy-compliant data handling
-
 ### 📱 **Modern UI/UX**
 - Responsive design for all devices
+- Dark/Light theme support
 - Clean, intuitive interface
 - Real-time feedback and error handling
 - Professional email previews
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: Next.js 15, React 18, TypeScript
-- **Styling**: Tailwind CSS, shadcn/ui components
+- **Frontend**: Next.js 15, React 19, TypeScript
+- **Styling**: Tailwind CSS, shadcn/ui components, Radix UI
 - **Authentication**: NextAuth.js with Google OAuth
 - **Database & Storage**: Appwrite (Cloud or Self-hosted)
-- **Email**: Gmail API with token refresh
+- **Email**: Gmail API with automatic token refresh
 - **Rich Text**: TipTap editor
 - **Icons**: Lucide React
-- **CI/CD**: GitHub Actions + Vercel
+- **Date Handling**: date-fns
+- **Notifications**: Sonner toast
+- **Testing**: Vitest, Playwright
 - **Deployment**: Vercel
 
 ## 📋 Prerequisites
@@ -107,10 +139,28 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
 NEXT_PUBLIC_APPWRITE_ENDPOINT=https://cloud.appwrite.io/v1
 NEXT_PUBLIC_APPWRITE_PROJECT_ID=your-project-id
 NEXT_PUBLIC_APPWRITE_DATABASE_ID=your-database-id
-NEXT_PUBLIC_APPWRITE_CONTACTS_COLLECTION_ID=your-contacts-collection-id
-NEXT_PUBLIC_APPWRITE_CAMPAIGNS_COLLECTION_ID=your-campaigns-collection-id
-NEXT_PUBLIC_APPWRITE_BUCKET_ID=your-storage-bucket-id
 APPWRITE_API_KEY=your-appwrite-api-key
+
+# Appwrite Collections
+NEXT_PUBLIC_APPWRITE_CONTACTS_COLLECTION_ID=contacts
+NEXT_PUBLIC_APPWRITE_CAMPAIGNS_COLLECTION_ID=campaigns
+NEXT_PUBLIC_APPWRITE_TEMPLATES_COLLECTION_ID=templates
+NEXT_PUBLIC_APPWRITE_CONTACT_GROUPS_COLLECTION_ID=contact_groups
+NEXT_PUBLIC_APPWRITE_DRAFT_EMAILS_COLLECTION_ID=draft_emails
+NEXT_PUBLIC_APPWRITE_SIGNATURES_COLLECTION_ID=signatures
+NEXT_PUBLIC_APPWRITE_UNSUBSCRIBES_COLLECTION_ID=unsubscribes
+NEXT_PUBLIC_APPWRITE_WEBHOOKS_COLLECTION_ID=webhooks
+NEXT_PUBLIC_APPWRITE_TRACKING_EVENTS_COLLECTION_ID=tracking_events
+NEXT_PUBLIC_APPWRITE_AB_TESTS_COLLECTION_ID=ab_tests
+NEXT_PUBLIC_APPWRITE_ATTACHMENTS_BUCKET_ID=attachments
+
+# Teams & Organization
+NEXT_PUBLIC_APPWRITE_TEAMS_COLLECTION_ID=teams
+NEXT_PUBLIC_APPWRITE_TEAM_MEMBERS_COLLECTION_ID=team_members
+
+# GDPR & Compliance
+NEXT_PUBLIC_APPWRITE_AUDIT_LOGS_COLLECTION_ID=audit_logs
+NEXT_PUBLIC_APPWRITE_CONSENTS_COLLECTION_ID=consents
 ```
 
 ### 4. Configure Google Cloud & Gmail API
@@ -126,12 +176,20 @@ APPWRITE_API_KEY=your-appwrite-api-key
 ### 5. Set Up Appwrite
 
 1. Create an Appwrite project at [Appwrite Console](https://cloud.appwrite.io/) or self-host
-2. Create a Database with:
-   - **Contacts Collection**: Fields for name, email, company, etc.
-   - **Campaigns Collection**: Fields for subject, body, status, sentCount, etc.
-3. Create a Storage Bucket for email attachments
-4. Generate an API Key with appropriate permissions
-5. Copy configuration to your `.env.local`
+2. Create a Database
+3. Run the setup script to create all collections:
+   ```bash
+   npx tsx scripts/setup-appwrite.ts
+   ```
+4. Create a Storage Bucket for email attachments (or let the script create it)
+5. Generate an API Key with appropriate permissions
+6. Copy the generated environment variables to your `.env.local`
+
+The setup script creates all required collections:
+- **Core**: contacts, campaigns, templates, contact_groups, draft_emails
+- **Features**: signatures, unsubscribes, webhooks, tracking_events, ab_tests
+- **Teams**: teams, team_members
+- **Compliance**: audit_logs, consents
 
 ### 6. Run the Development Server
 
@@ -164,61 +222,22 @@ Open [http://localhost:3000](http://localhost:3000) to see your application.
 - Check recipient list and personalization
 - Send emails with real-time progress tracking
 
-### 5. **Analytics**
+### 5. **Analytics & A/B Testing**
 - Monitor campaign performance at `/analytics`
 - View delivery status and engagement metrics
-- Track historical campaign data
+- Create A/B tests at `/ab-testing`
+- Compare subject line and content variants
 
-## ⌨️ Keyboard Shortcuts
+### 6. **Team Collaboration**
+- Create teams at `/settings/teams`
+- Invite members with specific roles
+- Collaborate on campaigns
 
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl + /` | Show keyboard shortcuts help |
-| `Ctrl + N` | Open new compose email |
-| `Escape` | Close dialogs/modals |
+### 7. **Privacy & Compliance**
+- Manage privacy settings at `/settings/gdpr`
+- Export or delete your data
+- View activity history at `/settings/audit-logs`
 
-## 📁 Project Structure
-
-```
-app/
-├── api/                    # API routes
-│   ├── auth/              # NextAuth endpoints
-│   ├── send-email/        # Email sending logic
-│   ├── upload-attachment/ # Appwrite file uploads
-│   └── refresh-token/     # Token refresh endpoint
-├── compose/               # Email composer page
-├── contacts/              # Contact management
-├── dashboard/             # Main dashboard
-└── analytics/             # Campaign analytics
-
-components/
-├── compose-form.tsx       # Full compose interface
-├── rich-text-editor.tsx   # TipTap editor wrapper
-├── csv-upload.tsx         # CSV import component
-└── ui/                    # shadcn/ui components
-
-hooks/
-├── useEmailSend.ts        # Email sending with progress
-├── useKeyboardShortcuts.ts # Keyboard shortcut system
-└── useSimpleEmailSend.ts  # Simple email hook
-
-lib/
-├── appwrite.ts            # Client-side Appwrite
-├── appwrite-server.ts     # Server-side Appwrite
-├── auth.ts                # NextAuth configuration
-├── gmail.ts               # Gmail API utilities
-└── email-formatter.ts     # Email formatting helpers
-```
-
-## 🔄 CI/CD Pipeline
-
-The project includes a GitHub Actions workflow (`.github/workflows/ci.yml`) that:
-
-1. **Linting**: Runs ESLint on all TypeScript/JavaScript files
-2. **Type Checking**: Validates TypeScript types with `tsc --noEmit`
-3. **Build**: Creates production build with Next.js
-4. **Preview Deploy**: Deploys PR branches to Vercel preview URLs
-5. **Production Deploy**: Automatically deploys `main` branch to production
 
 ## 🔒 Token Refresh
 
@@ -248,10 +267,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 🙏 Acknowledgements
 
 - [Next.js](https://nextjs.org/) - React framework
@@ -260,9 +275,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [shadcn/ui](https://ui.shadcn.com/) - UI components
 - [Tailwind CSS](https://tailwindcss.com/) - Styling
 - [Gmail API](https://developers.google.com/gmail/api) - Email sending
-
----
-
-<p align="center">
-  Made with ❤️ by <a href="https://github.com/Aditya190803">Aditya</a>
-</p>
