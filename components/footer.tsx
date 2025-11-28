@@ -67,6 +67,11 @@ export function Footer() {
                   Privacy Policy
                 </Link>
               </li>
+              <li>
+                <Link href="/settings/gdpr" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  Privacy & Data (GDPR)
+                </Link>
+              </li>
             </ul>
           </div>
         </div>

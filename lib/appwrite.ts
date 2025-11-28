@@ -642,3 +642,144 @@ export const storageService = {
     return Promise.resolve()
   },
 }
+
+// ============================================
+// GDPR Service (via API)
+// ============================================
+
+export const gdprService = {
+  // Export all user data
+  async exportData(): Promise<Blob> {
+    const response = await fetch('/api/gdpr/export')
+    if (!response.ok) {
+      throw new Error('Failed to export data')
+    }
+    return response.blob()
+  },
+
+  // Delete all user data
+  async deleteAllData(): Promise<{ success: boolean; message: string; details: any }> {
+    const response = await fetch('/api/gdpr/delete', { method: 'DELETE' })
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to delete data')
+    }
+    return response.json()
+  },
+
+  // Get consent records
+  async getConsents(): Promise<{ total: number; documents: any[] }> {
+    return apiRequest('/api/gdpr/consent')
+  },
+
+  // Update consent
+  async updateConsent(consentType: string, given: boolean): Promise<any> {
+    return apiRequest('/api/gdpr/consent', {
+      method: 'POST',
+      body: JSON.stringify({ consent_type: consentType, given }),
+    })
+  },
+}
+
+// ============================================
+// Audit Logs Service (via API)
+// ============================================
+
+export const auditLogsService = {
+  // List audit logs
+  async list(options?: {
+    limit?: number
+    offset?: number
+    action?: string
+    resource_type?: string
+    start_date?: string
+    end_date?: string
+  }): Promise<{ total: number; documents: any[] }> {
+    const params = new URLSearchParams()
+    if (options?.limit) params.append('limit', options.limit.toString())
+    if (options?.offset) params.append('offset', options.offset.toString())
+    if (options?.action) params.append('action', options.action)
+    if (options?.resource_type) params.append('resource_type', options.resource_type)
+    if (options?.start_date) params.append('start_date', options.start_date)
+    if (options?.end_date) params.append('end_date', options.end_date)
+    
+    return apiRequest(`/api/gdpr/audit-logs?${params}`)
+  },
+
+  // Log an action
+  async log(action: string, resourceType: string, resourceId?: string, details?: any): Promise<void> {
+    await apiRequest('/api/gdpr/audit-logs', {
+      method: 'POST',
+      body: JSON.stringify({
+        action,
+        resource_type: resourceType,
+        resource_id: resourceId,
+        details,
+      }),
+    })
+  },
+}
+
+// ============================================
+// Teams Service (via API)
+// ============================================
+
+export const teamsService = {
+  // List teams
+  async list(): Promise<{ total: number; documents: any[] }> {
+    return apiRequest('/api/teams')
+  },
+
+  // Create team
+  async create(name: string, description?: string): Promise<any> {
+    return apiRequest('/api/teams', {
+      method: 'POST',
+      body: JSON.stringify({ name, description }),
+    })
+  },
+
+  // Update team
+  async update(teamId: string, data: { name?: string; description?: string; settings?: any }): Promise<any> {
+    return apiRequest('/api/teams', {
+      method: 'PUT',
+      body: JSON.stringify({ id: teamId, ...data }),
+    })
+  },
+
+  // Delete team
+  async delete(teamId: string): Promise<void> {
+    await apiRequest(`/api/teams?id=${teamId}`, { method: 'DELETE' })
+  },
+}
+
+// ============================================
+// Team Members Service (via API)
+// ============================================
+
+export const teamMembersService = {
+  // List members
+  async list(teamId: string): Promise<{ total: number; documents: any[]; current_user_role?: string }> {
+    return apiRequest(`/api/teams/members?team_id=${teamId}`)
+  },
+
+  // Invite member
+  async invite(teamId: string, email: string, role: 'admin' | 'member' | 'viewer'): Promise<any> {
+    return apiRequest('/api/teams/members', {
+      method: 'POST',
+      body: JSON.stringify({ team_id: teamId, email, role }),
+    })
+  },
+
+  // Update member role
+  async updateRole(memberId: string, role: string): Promise<any> {
+    return apiRequest('/api/teams/members', {
+      method: 'PUT',
+      body: JSON.stringify({ member_id: memberId, role }),
+    })
+  },
+
+  // Remove member
+  async remove(memberId: string): Promise<void> {
+    await apiRequest(`/api/teams/members?id=${memberId}`, { method: 'DELETE' })
+  },
+}

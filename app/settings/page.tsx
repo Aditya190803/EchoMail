@@ -17,6 +17,9 @@ import {
   Palette,
   ShieldCheck,
   Database,
+  Shield,
+  Users,
+  FileText,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -52,6 +55,40 @@ const settingsCategories = [
         href: "/settings/webhooks",
         color: "text-secondary",
         bgColor: "bg-secondary/10",
+      },
+    ],
+  },
+  {
+    title: "Team & Collaboration",
+    items: [
+      {
+        name: "Teams",
+        description: "Manage your teams and collaborate with others",
+        icon: Users,
+        href: "/settings/teams",
+        color: "text-info",
+        bgColor: "bg-info/10",
+      },
+    ],
+  },
+  {
+    title: "Privacy & Security",
+    items: [
+      {
+        name: "Privacy & Data (GDPR)",
+        description: "Manage your data, export, and privacy preferences",
+        icon: Shield,
+        href: "/settings/gdpr",
+        color: "text-success",
+        bgColor: "bg-success/10",
+      },
+      {
+        name: "Audit Logs",
+        description: "View activity history and account actions",
+        icon: FileText,
+        href: "/settings/audit-logs",
+        color: "text-muted-foreground",
+        bgColor: "bg-muted",
       },
     ],
   },

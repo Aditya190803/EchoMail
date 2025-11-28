@@ -1,4 +1,9 @@
 import { Client, Databases, Storage, ID, Permission, Role } from 'node-appwrite'
+import { config as dotenvConfig } from 'dotenv'
+import { resolve } from 'path'
+
+// Load environment variables from .env.local
+dotenvConfig({ path: resolve(process.cwd(), '.env.local') })
 
 // Configuration from environment - NO HARDCODED VALUES
 const config = {
@@ -6,6 +11,17 @@ const config = {
   projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!,
   apiKey: process.env.APPWRITE_API_KEY!,
   databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+}
+
+// Validate required config
+if (!config.endpoint || !config.projectId || !config.apiKey || !config.databaseId) {
+  console.error('❌ Missing required environment variables!')
+  console.error('Please ensure .env.local contains:')
+  console.error('  - NEXT_PUBLIC_APPWRITE_ENDPOINT')
+  console.error('  - NEXT_PUBLIC_APPWRITE_PROJECT_ID')
+  console.error('  - APPWRITE_API_KEY')
+  console.error('  - NEXT_PUBLIC_APPWRITE_DATABASE_ID')
+  process.exit(1)
 }
 
 // Initialize Appwrite client
@@ -201,6 +217,79 @@ const collections = [
       { key: 'status_idx', type: 'key', attributes: ['status'] },
     ],
   },
+  // Teams & Organization Support
+  {
+    id: 'teams',
+    name: 'Teams',
+    attributes: [
+      { key: 'name', type: 'string', size: 255, required: true },
+      { key: 'description', type: 'string', size: 1000, required: false },
+      { key: 'owner_email', type: 'string', size: 255, required: true },
+      { key: 'settings', type: 'string', size: 10000, required: false }, // JSON string for team settings
+      { key: 'created_at', type: 'string', size: 50, required: false },
+      { key: 'updated_at', type: 'string', size: 50, required: false },
+    ],
+    indexes: [
+      { key: 'owner_email_idx', type: 'key', attributes: ['owner_email'] },
+    ],
+  },
+  {
+    id: 'team_members',
+    name: 'Team Members',
+    attributes: [
+      { key: 'team_id', type: 'string', size: 255, required: true },
+      { key: 'user_email', type: 'string', size: 255, required: true },
+      { key: 'role', type: 'string', size: 50, required: true }, // owner, admin, member, viewer
+      { key: 'permissions', type: 'string', size: 5000, required: false }, // JSON array of permissions
+      { key: 'invited_by', type: 'string', size: 255, required: false },
+      { key: 'joined_at', type: 'string', size: 50, required: false },
+      { key: 'status', type: 'string', size: 50, required: false }, // pending, active, removed
+    ],
+    indexes: [
+      { key: 'team_id_idx', type: 'key', attributes: ['team_id'] },
+      { key: 'user_email_idx', type: 'key', attributes: ['user_email'] },
+      { key: 'role_idx', type: 'key', attributes: ['role'] },
+    ],
+  },
+  // GDPR & Compliance
+  {
+    id: 'audit_logs',
+    name: 'Audit Logs',
+    attributes: [
+      { key: 'user_email', type: 'string', size: 255, required: true },
+      { key: 'action', type: 'string', size: 100, required: true }, // login, data_export, email_sent, settings_changed, etc.
+      { key: 'resource_type', type: 'string', size: 100, required: false }, // contact, campaign, template, etc.
+      { key: 'resource_id', type: 'string', size: 255, required: false },
+      { key: 'details', type: 'string', size: 10000, required: false }, // JSON string with additional details
+      { key: 'ip_address', type: 'string', size: 50, required: false },
+      { key: 'user_agent', type: 'string', size: 1000, required: false },
+      { key: 'created_at', type: 'string', size: 50, required: false },
+    ],
+    indexes: [
+      { key: 'user_email_idx', type: 'key', attributes: ['user_email'] },
+      { key: 'action_idx', type: 'key', attributes: ['action'] },
+      { key: 'created_at_idx', type: 'key', attributes: ['created_at'] },
+      { key: 'resource_type_idx', type: 'key', attributes: ['resource_type'] },
+    ],
+  },
+  {
+    id: 'consents',
+    name: 'User Consents',
+    attributes: [
+      { key: 'user_email', type: 'string', size: 255, required: true },
+      { key: 'consent_type', type: 'string', size: 100, required: true }, // email_tracking, data_analytics, marketing, data_retention
+      { key: 'granted', type: 'boolean', required: true, default: false },
+      { key: 'granted_at', type: 'string', size: 50, required: false },
+      { key: 'revoked_at', type: 'string', size: 50, required: false },
+      { key: 'ip_address', type: 'string', size: 50, required: false },
+      { key: 'source', type: 'string', size: 100, required: false }, // signup, settings, api
+    ],
+    indexes: [
+      { key: 'user_email_idx', type: 'key', attributes: ['user_email'] },
+      { key: 'consent_type_idx', type: 'key', attributes: ['consent_type'] },
+      { key: 'user_consent_idx', type: 'key', attributes: ['user_email', 'consent_type'] },
+    ],
+  },
 ]
 
 // Bucket definition
@@ -362,6 +451,14 @@ async function generateEnvVariables() {
   console.log(`NEXT_PUBLIC_APPWRITE_TRACKING_EVENTS_COLLECTION_ID=tracking_events`)
   console.log(`NEXT_PUBLIC_APPWRITE_AB_TESTS_COLLECTION_ID=ab_tests`)
   console.log(`NEXT_PUBLIC_APPWRITE_ATTACHMENTS_BUCKET_ID=attachments`)
+  console.log('')
+  console.log('# Teams & Organization')
+  console.log(`NEXT_PUBLIC_APPWRITE_TEAMS_COLLECTION_ID=teams`)
+  console.log(`NEXT_PUBLIC_APPWRITE_TEAM_MEMBERS_COLLECTION_ID=team_members`)
+  console.log('')
+  console.log('# GDPR & Compliance')
+  console.log(`NEXT_PUBLIC_APPWRITE_AUDIT_LOGS_COLLECTION_ID=audit_logs`)
+  console.log(`NEXT_PUBLIC_APPWRITE_CONSENTS_COLLECTION_ID=consents`)
   console.log('')
 }
 

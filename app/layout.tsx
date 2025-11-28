@@ -3,7 +3,6 @@ import "./globals.css"
 import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import { Providers } from "./providers"
-import { Footer } from "@/components/footer"
 import { ErrorBoundary } from "@/components/error-boundary"
 
 const inter = Inter({ 
@@ -54,7 +53,6 @@ export default function RootLayout({
             <main className="flex-1">
               {children}
             </main>
-            <Footer />
           </Providers>
         </ErrorBoundary>
       </body>
