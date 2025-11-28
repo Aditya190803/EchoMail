@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { sendEmailViaAPI, replacePlaceholders } from "@/lib/gmail"
+import { sendEmailViaAPI, replacePlaceholders, preResolveAttachments, clearAttachmentCache } from "@/lib/gmail"
 
 interface EmailResult {
   email: string
@@ -48,13 +48,31 @@ export async function POST(request: NextRequest) {
 
     console.log(`Processing ${personalizedEmails.length} emails sequentially...`)
 
+    // Pre-resolve all attachments ONCE before the send loop
+    // This prevents downloading the same attachment for each email
+    let resolvedAttachments: any[] = []
+    const firstEmailWithAttachments = personalizedEmails.find(e => e.attachments && e.attachments.length > 0)
+    if (firstEmailWithAttachments?.attachments) {
+      console.log(`📦 Pre-resolving ${firstEmailWithAttachments.attachments.length} attachments before sending...`)
+      try {
+        resolvedAttachments = await preResolveAttachments(firstEmailWithAttachments.attachments)
+        console.log(`✅ Attachments pre-resolved successfully`)
+      } catch (error) {
+        console.error('❌ Failed to pre-resolve attachments:', error)
+        return NextResponse.json({ 
+          error: "Failed to process attachments",
+          details: error instanceof Error ? error.message : "Unknown error"
+        }, { status: 500 })
+      }
+    }
+
     // Process emails one by one to avoid payload size issues
     for (let i = 0; i < personalizedEmails.length; i++) {
       const email = personalizedEmails[i]
       
       console.log(`Processing email ${i + 1}/${personalizedEmails.length}:`, {
         to: email.to,
-        hasAttachments: email.attachments && email.attachments.length > 0
+        hasAttachments: resolvedAttachments.length > 0
       })
 
       try {
@@ -66,7 +84,7 @@ export async function POST(request: NextRequest) {
           email.to,
           personalizedSubject,
           personalizedMessage,
-          email.attachments || [],
+          resolvedAttachments, // Use pre-resolved attachments for all emails
         )
 
         results.push({
@@ -96,6 +114,9 @@ export async function POST(request: NextRequest) {
     // Always save campaign to Firebase, regardless of email success/failure
     const successCount = results.filter(r => r.status === "success").length
     const failedCount = results.filter(r => r.status === "error").length
+
+    // Clear attachment cache after campaign completes
+    clearAttachmentCache()
 
     return NextResponse.json({ 
       results,

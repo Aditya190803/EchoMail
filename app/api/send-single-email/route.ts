@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { sendEmailViaAPI, replacePlaceholders } from "@/lib/gmail"
+import { sendEmailViaAPI, replacePlaceholders, preResolveAttachments } from "@/lib/gmail"
 
 // App Router configuration for single email sending
 export const dynamic = 'force-dynamic'
@@ -71,12 +71,17 @@ export async function POST(request: NextRequest) {
 
       console.log(`📧 Sending email to ${to} with ${(attachments || []).length} attachments`)
       
+      // Pre-resolve any Appwrite attachments to base64
+      // This is done once per email request - for bulk sending, the client should
+      // call a batch resolve endpoint or the attachments should already be base64
+      const resolvedAttachments = await preResolveAttachments(attachments || [])
+      
       await sendEmailViaAPI(
         session.accessToken,
         to,
         personalizedSubject,
         personalizedMessage,
-        attachments || [] // Pass attachments to the email sending function
+        resolvedAttachments
       )
 
       console.log(`✅ Successfully sent single email to ${to}`)
