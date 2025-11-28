@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { sendEmailViaAPI, replacePlaceholders, preResolveAttachments, clearAttachmentCache } from "@/lib/gmail"
+import { sendEmailViaAPI, replacePlaceholders, preResolveAttachments, clearAttachmentCache, preBuildEmailTemplate, sendEmailWithTemplate } from "@/lib/gmail"
 
 interface EmailResult {
   email: string
@@ -66,48 +66,99 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Process emails one by one to avoid payload size issues
-    for (let i = 0; i < personalizedEmails.length; i++) {
-      const email = personalizedEmails[i]
+    // Check if all emails have the same subject/message (bulk mode - can use template optimization)
+    const firstEmail = personalizedEmails[0]
+    const allSameContent = personalizedEmails.every(e => 
+      e.subject === firstEmail.subject && 
+      e.message === firstEmail.message &&
+      Object.keys(e.originalRowData).length === 0 // No placeholders
+    )
+    
+    // Use optimized template-based sending for bulk emails with same content
+    if (allSameContent && personalizedEmails.length > 1) {
+      console.log(`🚀 Using optimized template-based bulk sending (${personalizedEmails.length} recipients)`)
       
-      console.log(`Processing email ${i + 1}/${personalizedEmails.length}:`, {
-        to: email.to,
-        hasAttachments: resolvedAttachments.length > 0
-      })
-
       try {
-        const personalizedSubject = replacePlaceholders(email.subject, email.originalRowData)
-        const personalizedMessage = replacePlaceholders(email.message, email.originalRowData)
-
-        await sendEmailViaAPI(
-          session!.accessToken!,
-          email.to,
-          personalizedSubject,
-          personalizedMessage,
-          resolvedAttachments, // Use pre-resolved attachments for all emails
+        // Pre-build the email template ONCE (includes base64 encoding of attachments)
+        await preBuildEmailTemplate(
+          session.accessToken,
+          firstEmail.subject,
+          firstEmail.message,
+          resolvedAttachments
         )
-
-        results.push({
-          email: email.to,
-          status: "success",
-        })
-
-        console.log(`✅ Successfully sent email ${i + 1}/${personalizedEmails.length} to ${email.to}`)
-
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Unknown error"
-        console.error(`❌ Failed to send email ${i + 1}/${personalizedEmails.length} to ${email.to}:`, errorMessage)
         
-        results.push({
-          email: email.to,
-          status: "error",
-          error: errorMessage,
-        })
+        // Send to each recipient using the cached template (FAST - only swaps To header)
+        for (let i = 0; i < personalizedEmails.length; i++) {
+          const email = personalizedEmails[i]
+          
+          try {
+            await sendEmailWithTemplate(session.accessToken, email.to)
+            results.push({ email: email.to, status: "success" })
+            console.log(`✅ Sent ${i + 1}/${personalizedEmails.length} to ${email.to}`)
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Unknown error"
+            console.error(`❌ Failed ${i + 1}/${personalizedEmails.length} to ${email.to}:`, errorMessage)
+            results.push({ email: email.to, status: "error", error: errorMessage })
+          }
+          
+          // Wait 1 second between emails to avoid rate limiting
+          if (i < personalizedEmails.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          }
+        }
+      } catch (error) {
+        console.error('❌ Failed to build email template:', error)
+        return NextResponse.json({ 
+          error: "Failed to build email template",
+          details: error instanceof Error ? error.message : "Unknown error"
+        }, { status: 500 })
       }
+    } else {
+      // Personalized emails - need to build each one (slower but necessary for placeholders)
+      console.log(`📧 Using personalized sending mode (placeholders detected)`)
+      
+      for (let i = 0; i < personalizedEmails.length; i++) {
+        const email = personalizedEmails[i]
+        
+        console.log(`Processing email ${i + 1}/${personalizedEmails.length}:`, {
+          to: email.to,
+          hasAttachments: resolvedAttachments.length > 0
+        })
 
-      // Wait 1 second between emails to avoid rate limiting
-      if (i < personalizedEmails.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        try {
+          const personalizedSubject = replacePlaceholders(email.subject, email.originalRowData)
+          const personalizedMessage = replacePlaceholders(email.message, email.originalRowData)
+
+          await sendEmailViaAPI(
+            session!.accessToken!,
+            email.to,
+            personalizedSubject,
+            personalizedMessage,
+            resolvedAttachments, // Use pre-resolved attachments for all emails
+          )
+
+          results.push({
+            email: email.to,
+            status: "success",
+          })
+
+          console.log(`✅ Successfully sent email ${i + 1}/${personalizedEmails.length} to ${email.to}`)
+
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : "Unknown error"
+          console.error(`❌ Failed to send email ${i + 1}/${personalizedEmails.length} to ${email.to}:`, errorMessage)
+          
+          results.push({
+            email: email.to,
+            status: "error",
+            error: errorMessage,
+          })
+        }
+
+        // Wait 1 second between emails to avoid rate limiting
+        if (i < personalizedEmails.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
       }
     }
 

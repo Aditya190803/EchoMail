@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { sendEmailViaAPI, replacePlaceholders, preResolveAttachments, clearAttachmentCache } from "@/lib/gmail"
+import { sendEmailViaAPI, replacePlaceholders, preResolveAttachments, clearAttachmentCache, preBuildEmailTemplate, sendEmailWithTemplate } from "@/lib/gmail"
 import { databases, config } from "@/lib/appwrite-server"
 
 /**
@@ -62,6 +62,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Check if we have personalization (placeholders in subject or content)
+    const hasPlaceholders = /\{\{\w+\}\}/.test((doc as any).subject) || /\{\{\w+\}\}/.test((doc as any).content)
+
     // Update status to sending
     await databases.updateDocument(
       config.databaseId,
@@ -104,49 +107,100 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Send emails with personalization
-    for (let i = 0; i < recipients.length; i++) {
-      const recipientEmail = recipients[i]
-      
-      // Get personalization data for this recipient (case-insensitive matching)
-      let recipientData: Record<string, string> = { email: recipientEmail }
-      const csvRow = csvData.find((row: Record<string, string>) => {
-        const rowEmail = row.email || row.Email || row.EMAIL || ''
-        return rowEmail.toLowerCase() === recipientEmail.toLowerCase()
-      })
-      if (csvRow) {
-        // Normalize keys to lowercase for consistent placeholder matching
-        recipientData = Object.entries(csvRow).reduce((acc, [key, value]) => {
-          acc[key.toLowerCase()] = String(value)
-          acc[key] = String(value) // Keep original case too
-          return acc
-        }, {} as Record<string, string>)
-      }
-
-      // Personalize subject and content
-      const personalizedSubject = replacePlaceholders((doc as any).subject, recipientData)
-      const personalizedContent = replacePlaceholders((doc as any).content, recipientData)
+    // Use optimized template-based sending if no personalization needed
+    if (!hasPlaceholders && recipients.length > 1) {
+      console.log(`🚀 Using optimized template-based bulk sending (${recipients.length} recipients)`)
       
       try {
-        await sendEmailViaAPI(
+        // Pre-build the email template ONCE
+        await preBuildEmailTemplate(
           session.accessToken,
-          recipientEmail,
-          personalizedSubject,
-          personalizedContent,
-          resolvedAttachments // Use pre-resolved attachments
+          (doc as any).subject,
+          (doc as any).content,
+          resolvedAttachments
         )
-
-        results.push({ email: recipientEmail, status: 'success' })
-        successCount++
+        
+        // Send to each recipient using the cached template (FAST)
+        for (let i = 0; i < recipients.length; i++) {
+          const recipientEmail = recipients[i]
+          
+          try {
+            await sendEmailWithTemplate(session.accessToken, recipientEmail)
+            results.push({ email: recipientEmail, status: 'success' })
+            successCount++
+            console.log(`✅ Sent ${i + 1}/${recipients.length} to ${recipientEmail}`)
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Unknown error"
+            results.push({ email: recipientEmail, status: 'error', error: errorMessage })
+            failedCount++
+          }
+          
+          // Wait between emails to avoid rate limiting
+          if (i < recipients.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          }
+        }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Unknown error"
-        results.push({ email: recipientEmail, status: 'error', error: errorMessage })
-        failedCount++
+        console.error('❌ Failed to build email template:', error)
+        await databases.updateDocument(
+          config.databaseId,
+          config.draftEmailsCollectionId,
+          draftId,
+          { status: 'pending', error: 'Failed to build email template' }
+        )
+        return NextResponse.json({ 
+          error: "Failed to build email template",
+          details: error instanceof Error ? error.message : "Unknown error"
+        }, { status: 500 })
       }
+    } else {
+      // Personalized sending mode (slower but necessary for placeholders)
+      console.log(`📧 Using personalized sending mode${hasPlaceholders ? ' (placeholders detected)' : ''}`)
+      
+      // Send emails with personalization
+      for (let i = 0; i < recipients.length; i++) {
+        const recipientEmail = recipients[i]
+        
+        // Get personalization data for this recipient (case-insensitive matching)
+        let recipientData: Record<string, string> = { email: recipientEmail }
+        const csvRow = csvData.find((row: Record<string, string>) => {
+          const rowEmail = row.email || row.Email || row.EMAIL || ''
+          return rowEmail.toLowerCase() === recipientEmail.toLowerCase()
+        })
+        if (csvRow) {
+          // Normalize keys to lowercase for consistent placeholder matching
+          recipientData = Object.entries(csvRow).reduce((acc, [key, value]) => {
+            acc[key.toLowerCase()] = String(value)
+            acc[key] = String(value) // Keep original case too
+            return acc
+          }, {} as Record<string, string>)
+        }
 
-      // Wait between emails to avoid rate limiting
-      if (i < recipients.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Personalize subject and content
+        const personalizedSubject = replacePlaceholders((doc as any).subject, recipientData)
+        const personalizedContent = replacePlaceholders((doc as any).content, recipientData)
+        
+        try {
+          await sendEmailViaAPI(
+            session.accessToken,
+            recipientEmail,
+            personalizedSubject,
+            personalizedContent,
+            resolvedAttachments // Use pre-resolved attachments
+          )
+
+          results.push({ email: recipientEmail, status: 'success' })
+          successCount++
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : "Unknown error"
+          results.push({ email: recipientEmail, status: 'error', error: errorMessage })
+          failedCount++
+        }
+
+        // Wait between emails to avoid rate limiting
+        if (i < recipients.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
       }
     }
 
