@@ -26,3 +26,17 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+
+# Firebase/Appwrite migration exports
+/firebase-export/
+/email_attachments/
+
+# Test artifacts
+/playwright-report/
+/test-results/
+/coverage/
+
+# Temporary files
+*.log
+.DS_Store
+todo.md

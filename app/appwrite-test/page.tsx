@@ -4,40 +4,30 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { db } from "@/lib/firebase"
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  serverTimestamp 
-} from "firebase/firestore"
+import { databases, config, ID, Query, testAppwriteConnection } from "@/lib/appwrite"
 
-export default function FirebaseTestPage() {
+export default function AppwriteTestPage() {
   const [testData, setTestData] = useState<any[]>([])
   const [testMessage, setTestMessage] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
-  const testFirebaseConnection = async () => {
+  const testAppwriteConnectionHandler = async () => {
     setIsLoading(true)
     try {
-      console.log("Testing Firebase connection...")
+      console.log("Testing Appwrite connection...")
       
-      // Try to read from a test collection
-      const testRef = collection(db, "test")
-      const snapshot = await getDocs(testRef)
+      const result = await testAppwriteConnection()
+      console.log("Appwrite connection result:", result)
       
-      const data: any[] = []
-      snapshot.forEach((doc) => {
-        data.push({ id: doc.id, ...doc.data() })
-      })
-      
-      setTestData(data)
-      console.log("Firebase read successful:", data)
-      alert("Firebase read successful! Check console for details.")
+      if (result.success) {
+        alert(`Appwrite connection successful! Project: ${result.projectId}`)
+      } else {
+        alert("Appwrite connection failed: " + result.error)
+      }
       
     } catch (error) {
-      console.error("Firebase read error:", error)
-      alert("Firebase read error: " + (error as Error).message)
+      console.error("Appwrite connection error:", error)
+      alert("Appwrite connection error: " + (error as Error).message)
     }
     setIsLoading(false)
   }
@@ -47,30 +37,21 @@ export default function FirebaseTestPage() {
     
     setIsLoading(true)
     try {
-      console.log("Adding test document...")
+      console.log("Testing Appwrite - message saved:", testMessage)
       
-      const testRef = collection(db, "test")
-      const docRef = await addDoc(testRef, {
-        message: testMessage,
-        timestamp: serverTimestamp(),
-        created_at: new Date().toISOString()
-      })
-      
-      console.log("Document added with ID:", docRef.id)
+      // For testing, we just log the message since we don't have a test collection
+      alert(`Would save message: ${testMessage}\n\nNote: This is a test page. Use the Contacts or Compose pages for actual data operations.`)
       setTestMessage("")
       
-      // Refresh the data
-      await testFirebaseConnection()
-      
     } catch (error) {
-      console.error("Firebase write error:", error)
-      alert("Firebase write error: " + (error as Error).message)
+      console.error("Error:", error)
+      alert("Error: " + (error as Error).message)
     }
     setIsLoading(false)
   }
 
   useEffect(() => {
-    testFirebaseConnection()
+    testAppwriteConnectionHandler()
   }, [])
 
   return (
@@ -78,7 +59,7 @@ export default function FirebaseTestPage() {
       <div className="max-w-4xl mx-auto">
         <Card className="mb-8">
           <CardHeader>
-            <CardTitle>Firebase Connection Test</CardTitle>
+            <CardTitle>Appwrite Connection Test</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex gap-4">
@@ -97,11 +78,11 @@ export default function FirebaseTestPage() {
             </div>
             
             <Button 
-              onClick={testFirebaseConnection} 
+              onClick={testAppwriteConnectionHandler} 
               disabled={isLoading}
               variant="outline"
             >
-              {isLoading ? "Testing..." : "Test Firebase Read"}
+              {isLoading ? "Testing..." : "Test Appwrite Connection"}
             </Button>
           </CardContent>
         </Card>

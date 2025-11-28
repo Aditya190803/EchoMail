@@ -1,0 +1,66 @@
+import { type NextRequest, NextResponse } from "next/server"
+import { databases, config, ID } from "@/lib/appwrite-server"
+
+/**
+ * Tracking pixel endpoint for email open tracking
+ * Returns a 1x1 transparent GIF
+ */
+
+// 1x1 transparent GIF
+const TRACKING_PIXEL = Buffer.from(
+  'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+  'base64'
+)
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const campaignId = searchParams.get('c')
+    const email = searchParams.get('e')
+    const userEmail = searchParams.get('u')
+
+    // Record the open event if we have the required parameters
+    if (campaignId && email && userEmail) {
+      try {
+        await databases.createDocument(
+          config.databaseId,
+          config.trackingEventsCollectionId,
+          ID.unique(),
+          {
+            campaign_id: campaignId,
+            email: decodeURIComponent(email),
+            event_type: 'open',
+            user_agent: request.headers.get('user-agent') || undefined,
+            ip_address: request.headers.get('x-forwarded-for')?.split(',')[0] || request.headers.get('x-real-ip') || undefined,
+            user_email: decodeURIComponent(userEmail),
+            created_at: new Date().toISOString(),
+          }
+        )
+        console.log(`📧 Email open tracked: ${email} for campaign ${campaignId}`)
+      } catch (error) {
+        console.error("Error recording open event:", error)
+        // Don't fail the request, still return the pixel
+      }
+    }
+
+    // Return the tracking pixel
+    return new NextResponse(TRACKING_PIXEL, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/gif',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+      },
+    })
+  } catch (error) {
+    console.error("Tracking pixel error:", error)
+    // Still return the pixel even on error
+    return new NextResponse(TRACKING_PIXEL, {
+      status: 200,
+      headers: {
+        'Content-Type': 'image/gif',
+      },
+    })
+  }
+}

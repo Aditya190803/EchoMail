@@ -1,10 +1,90 @@
 import { formatEmailHTML, sanitizeEmailHTML } from './email-formatter'
+import { serverStorageService } from './appwrite-server'
 
 export interface AttachmentData {
   name: string
   type: string
-  data: string // base64 encoded data, or 'cloudinary' if using cloudinaryUrl
-  cloudinaryUrl?: string // If provided, attachment will be fetched from this URL
+  data: string // base64 encoded data, or 'appwrite' placeholder
+  appwriteFileId?: string // If provided, attachment will be fetched from Appwrite storage
+  appwriteUrl?: string // Full URL to fetch attachment from Appwrite
+}
+
+// Cache for resolved attachments (keyed by appwriteFileId)
+const attachmentCache = new Map<string, string>()
+
+/**
+ * Pre-resolve all Appwrite attachments to base64 ONCE before sending loop.
+ * This prevents downloading the same attachment multiple times for bulk sends.
+ * Call this once before sending emails, then pass the resolved attachments to sendEmailViaAPI.
+ */
+export async function preResolveAttachments(attachments: AttachmentData[]): Promise<AttachmentData[]> {
+  if (!attachments || attachments.length === 0) return []
+  
+  const resolvedAttachments: AttachmentData[] = []
+  
+  for (const attachment of attachments) {
+    // If already has base64 data (not a placeholder), use directly
+    if (attachment.data && attachment.data !== 'appwrite' && !attachment.data.startsWith('http')) {
+      resolvedAttachments.push(attachment)
+      continue
+    }
+    
+    // Determine the fileId to fetch
+    let fileId: string | null = null
+    
+    if (attachment.appwriteFileId) {
+      fileId = attachment.appwriteFileId
+    } else if (attachment.appwriteUrl) {
+      // Extract fileId from URL
+      const match = attachment.appwriteUrl.match(/files\/([^/]+)\//)
+      if (match && match[1]) {
+        fileId = match[1]
+      }
+    }
+    
+    if (!fileId) {
+      console.error(`❌ No valid source for attachment: ${attachment.name}`)
+      throw new Error(`No valid attachment source for ${attachment.name}. Please re-upload the file.`)
+    }
+    
+    // Check cache first
+    if (attachmentCache.has(fileId)) {
+      console.log(`📎 Using cached attachment: ${attachment.name}`)
+      resolvedAttachments.push({
+        ...attachment,
+        data: attachmentCache.get(fileId)!,
+      })
+      continue
+    }
+    
+    // Download from Appwrite and cache
+    console.log(`📦 Downloading attachment from Appwrite: ${attachment.name} (fileId: ${fileId})`)
+    try {
+      const buffer = await serverStorageService.getFileBuffer(fileId)
+      const base64Data = buffer.toString('base64')
+      
+      // Cache it for subsequent emails
+      attachmentCache.set(fileId, base64Data)
+      
+      resolvedAttachments.push({
+        ...attachment,
+        data: base64Data,
+      })
+      console.log(`✅ Cached attachment: ${attachment.name}`)
+    } catch (error) {
+      console.error(`❌ Failed to download attachment ${attachment.name}:`, error)
+      throw new Error(`Failed to download attachment ${attachment.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+  
+  return resolvedAttachments
+}
+
+/**
+ * Clear the attachment cache. Call this after a campaign completes.
+ */
+export function clearAttachmentCache(): void {
+  attachmentCache.clear()
 }
 
 function sanitizeText(text: string): string {
@@ -71,6 +151,23 @@ export async function sendEmailViaAPI(
   // Validate and sanitize the recipient email
   const validatedTo = validateAndSanitizeEmail(to)
   
+  // Check total attachment size - Gmail has a 25MB limit
+  const GMAIL_ATTACHMENT_LIMIT = 25 * 1024 * 1024 // 25MB
+  let totalAttachmentBytes = 0
+  if (attachments && attachments.length > 0) {
+    for (const att of attachments) {
+      if (att.data && att.data !== 'appwrite') {
+        // base64 decodes to ~75% of its string length
+        totalAttachmentBytes += Math.ceil(att.data.length * 0.75)
+      }
+    }
+    
+    if (totalAttachmentBytes > GMAIL_ATTACHMENT_LIMIT) {
+      const sizeMB = (totalAttachmentBytes / 1024 / 1024).toFixed(2)
+      throw new Error(`Total attachment size (${sizeMB}MB) exceeds Gmail's 25MB limit. Please use smaller attachments or share files via Google Drive.`)
+    }
+  }
+  
   console.log('Sending email with UTF-8 encoding:', {
     to: validatedTo,
     originalTo: to,
@@ -81,13 +178,29 @@ export async function sendEmailViaAPI(
     attachmentCount: attachments ? attachments.length : 0
   })
 
-  // Timeout configuration
-  const REQUEST_TIMEOUT = 30000 // 30 seconds timeout
+  // Timeout configuration - scale based on attachment size
+  // Base timeout + extra time for large attachments
+  const totalAttachmentSize = attachments?.reduce((sum, a) => {
+    // Estimate size from base64 (base64 is ~1.37x the original size)
+    const estimatedSize = a.data ? a.data.length * 0.75 : 0
+    return sum + estimatedSize
+  }, 0) || 0
+  
+  // For sending: 60s base + 60s per 5MB of attachments, max 10 minutes
+  // Gmail can be very slow to respond for large attachments even after successful upload
+  const BASE_TIMEOUT = 60000 // 1 minute base
+  const TIMEOUT_PER_5MB = 60000 // 1 minute per 5MB
+  const MAX_TIMEOUT = 600000 // 10 minutes max
+  const calculatedTimeout = BASE_TIMEOUT + Math.ceil(totalAttachmentSize / (5 * 1024 * 1024)) * TIMEOUT_PER_5MB
+  const SEND_TIMEOUT = Math.min(calculatedTimeout, MAX_TIMEOUT)
+  const PROFILE_TIMEOUT = 15000 // 15s for profile fetch
+  
+  console.log(`⏱️ Send timeout set to ${SEND_TIMEOUT / 1000}s (attachment size: ${(totalAttachmentSize / 1024 / 1024).toFixed(2)}MB)`)
 
   // Helper function to create a request with timeout
-  const fetchWithTimeout = async (url: string, options: RequestInit) => {
+  const fetchWithTimeout = async (url: string, options: RequestInit, customTimeout: number, isSendRequest: boolean = false) => {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
+    const timeoutId = setTimeout(() => controller.abort(), customTimeout)
     
     try {
       const response = await fetch(url, {
@@ -99,7 +212,11 @@ export async function sendEmailViaAPI(
     } catch (error) {
       clearTimeout(timeoutId)
       if (error instanceof Error && error.name === 'AbortError') {
-        throw new Error(`Request timeout after ${REQUEST_TIMEOUT}ms`)
+        if (isSendRequest && totalAttachmentSize > 5 * 1024 * 1024) {
+          // For large attachments, Gmail may have processed it even if we timeout
+          throw new Error(`Request timeout after ${customTimeout / 1000}s. WARNING: The email may have been sent - please check your Gmail Sent folder before retrying.`)
+        }
+        throw new Error(`Request timeout after ${customTimeout / 1000}s. Try reducing attachment size.`)
       }
       throw error
     }
@@ -111,7 +228,7 @@ export async function sendEmailViaAPI(
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
-  })
+  }, PROFILE_TIMEOUT, false)
 
   if (!userResponse.ok) {
     throw new Error("Failed to get user profile from Gmail API")
@@ -180,49 +297,16 @@ export async function sendEmailViaAPI(
     for (const attachment of attachments) {
       const encodedFilename = `=?UTF-8?B?${Buffer.from(attachment.name, 'utf8').toString('base64')}?=`
       
-      let attachmentData = attachment.data
+      // Attachments should be pre-resolved with base64 data before calling sendEmailViaAPI
+      // Use preResolveAttachments() once before the send loop for efficiency
+      const attachmentData = attachment.data
       
-      console.log(`📎 Processing attachment: ${attachment.name} (${attachment.type})`)
-      
-      if (attachment.cloudinaryUrl) {
-        console.log(`☁️ Fetching attachment from Cloudinary: ${attachment.name}`)
-        try {
-          const attachmentResponse = await fetchWithTimeout(attachment.cloudinaryUrl, {
-            method: 'GET'
-          })
-          
-          if (!attachmentResponse.ok) {
-            throw new Error(`Failed to download attachment: ${attachmentResponse.statusText}`)
-          }
-          
-          const arrayBuffer = await attachmentResponse.arrayBuffer()
-          attachmentData = Buffer.from(arrayBuffer).toString('base64')
-          console.log(`✅ Successfully downloaded attachment from Cloudinary: ${attachment.name}`)
-        } catch (error) {
-          console.error(`❌ Failed to download attachment ${attachment.name} from Cloudinary:`, error)
-          throw new Error(`Failed to download attachment ${attachment.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-        }
-      } else if (attachment.data.startsWith('http')) {
-        console.log(`📎 Fetching attachment from URL (legacy): ${attachment.data}`)
-        try {
-          const attachmentResponse = await fetchWithTimeout(attachment.data, {
-            method: 'GET'
-          })
-          
-          if (!attachmentResponse.ok) {
-            throw new Error(`Failed to download attachment: ${attachmentResponse.statusText}`)
-          }
-          
-          const arrayBuffer = await attachmentResponse.arrayBuffer()
-          attachmentData = Buffer.from(arrayBuffer).toString('base64')
-          console.log(`✅ Successfully downloaded and converted attachment: ${attachment.name}`)
-        } catch (error) {
-          console.error(`❌ Failed to download attachment ${attachment.name}:`, error)
-          throw new Error(`Failed to download attachment ${attachment.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-        }
-      } else {
-        console.log(`✅ Using base64 attachment data directly: ${attachment.name}`)
+      if (!attachmentData || attachmentData === 'appwrite' || attachmentData.startsWith('http')) {
+        console.error(`❌ Attachment not pre-resolved: ${attachment.name}. Call preResolveAttachments() first.`)
+        throw new Error(`Attachment ${attachment.name} was not pre-resolved. Please ensure attachments are resolved before sending.`)
       }
+      
+      console.log(`📎 Using attachment: ${attachment.name} (${attachment.type})`)
         
       email.push(`--${mixedBoundary}`)
       email.push(`Content-Type: ${attachment.type}; name="${encodedFilename}"`)
@@ -265,6 +349,8 @@ export async function sendEmailViaAPI(
     .replace(/\//g, "_")
     .replace(/=+$/, "")
 
+  console.log(`📤 Sending email to Gmail API (timeout: ${SEND_TIMEOUT / 1000}s)...`)
+  
   const response = await fetchWithTimeout("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
     method: "POST",
     headers: {
@@ -274,7 +360,7 @@ export async function sendEmailViaAPI(
     body: JSON.stringify({
       raw: encodedEmail,
     }),
-  })
+  }, SEND_TIMEOUT, true) // Use send timeout, mark as send request
 
   if (!response.ok) {
     const errorText = await response.text()

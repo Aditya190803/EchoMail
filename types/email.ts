@@ -8,8 +8,10 @@ export interface EmailData {
 export interface AttachmentData {
   name: string
   type: string
-  data: string // base64 encoded OR 'cloudinary' placeholder
-  cloudinaryUrl?: string // Cloudinary URL for server-side fetching
+  data: string // base64 encoded OR 'appwrite' placeholder
+  appwriteUrl?: string // Appwrite Storage URL for server-side fetching
+  appwriteFileId?: string // Appwrite file ID
+  fileSize?: number
 }
 
 export interface CSVRow {

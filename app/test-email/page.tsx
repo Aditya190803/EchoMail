@@ -4,8 +4,7 @@ import { useState } from "react"
 import { useSession, signIn } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { db } from "@/lib/firebase"
-import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore"
+import { databases, contactsService, campaignsService, config, testAppwriteConnection } from "@/lib/appwrite"
 import { getInstantEmailPreview, convertEmojiImagesToText } from "@/lib/email-formatter-client"
 import Link from "next/link"
 
@@ -16,48 +15,32 @@ export default function TestEmailPage() {
   const testDatabaseTables = async () => {
     setIsLoading(true)
     try {
-      // Test email_campaigns collection
-      const campaignsRef = collection(db, "email_campaigns")
-      const campaignsSnapshot = await getDocs(query(campaignsRef, limit(1)))
+      const connectionResult = await testAppwriteConnection()
       
-      // Test contacts collection
-      const contactsRef = collection(db, "contacts")
-      const contactsSnapshot = await getDocs(query(contactsRef, limit(1)))
-      
-      let result = "🧪 Firebase Collection Tests:\n\n"
-      
-      try {
-        result += `✅ email_campaigns collection: EXISTS (${campaignsSnapshot.size} docs)\n`
-      } catch (error) {
-        result += `❌ email_campaigns collection: ERROR - ${error}\n`
-      }
-      
-      try {
-        result += `✅ contacts collection: EXISTS (${contactsSnapshot.size} docs)\n`
-      } catch (error) {
-        result += `❌ contacts collection: ERROR - ${error}\n`
-      }
+      let result = "🧪 Appwrite Collection Tests:\n\n"
+      result += `✅ Connection: ${connectionResult.success ? 'SUCCESS' : 'FAILED'}\n`
+      result += `✅ Project ID: ${connectionResult.projectId}\n`
+      result += `✅ Database ID: ${config.databaseId}\n`
       
       setTestResult(result)
     } catch (error) {
-      setTestResult(`❌ Firebase test error: ${error}`)
+      setTestResult(`❌ Appwrite test error: ${error}`)
     }
     setIsLoading(false)
   }
 
-  const testFirebaseConnection = async () => {
+  const testAppwriteConnectionHandler = async () => {
     setIsLoading(true)
     try {
-      // Test basic connection
-      const campaignsRef = collection(db, "email_campaigns")
-      const snapshot = await getDocs(query(campaignsRef, limit(1)))
+      const result = await testAppwriteConnection()
       
-      // Get count
-      const allSnapshot = await getDocs(campaignsRef)
-      
-      setTestResult(`✅ Firebase connection successful! Found ${allSnapshot.size} campaigns`)
+      if (result.success) {
+        setTestResult(`✅ Appwrite connection successful!\nProject: ${result.projectId}\nMessage: ${result.message}`)
+      } else {
+        setTestResult(`❌ Appwrite connection failed: ${result.error}`)
+      }
     } catch (error) {
-      setTestResult(`❌ Firebase test error: ${error}`)
+      setTestResult(`❌ Appwrite test error: ${error}`)
     }
     setIsLoading(false)
   }
@@ -92,7 +75,7 @@ export default function TestEmailPage() {
       const testEmail = {
         to: session.user.email,
         subject: "Test Email from EchoMail - " + new Date().toLocaleTimeString(),
-        message: "This is a test email to verify Firebase integration is working correctly. Sent at: " + new Date().toLocaleString(),
+        message: "This is a test email to verify Appwrite integration is working correctly. Sent at: " + new Date().toLocaleString(),
         originalRowData: {},
         attachments: []
       }
@@ -111,26 +94,19 @@ export default function TestEmailPage() {
         if (response.ok) {
         setTestResult(`✅ Email API call completed!\n\nResponse: ${JSON.stringify(result, null, 2)}`)
         
-        // Check if campaign was saved to Firebase
+        // Check if campaign was saved to Appwrite
         setTimeout(async () => {
           try {
-            const campaignsRef = collection(db, "email_campaigns")
-            const q = query(
-              campaignsRef,
-              where("user_email", "==", session.user?.email || ""),
-              orderBy("date", "desc"),
-              limit(1)
-            )
-            const snapshot = await getDocs(q)
+            const campaigns = await campaignsService.listByUser(session.user?.email || "")
             
-            if (!snapshot.empty) {
-              const latestCampaign = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() }
-              setTestResult(prev => prev + `\n\n✅ Campaign saved to Firebase:\n${JSON.stringify(latestCampaign, null, 2)}`)
+            if (campaigns.documents.length > 0) {
+              const latestCampaign = campaigns.documents[0]
+              setTestResult(prev => prev + `\n\n✅ Campaign saved to Appwrite:\n${JSON.stringify(latestCampaign, null, 2)}`)
             } else {
-              setTestResult(prev => prev + `\n\n❌ Campaign not found in Firebase.\nNo campaigns found`)
+              setTestResult(prev => prev + `\n\n❌ Campaign not found in Appwrite.\nNo campaigns found`)
             }
           } catch (error) {
-            setTestResult(prev => prev + `\n\n❌ Error checking Firebase: ${error}`)
+            setTestResult(prev => prev + `\n\n❌ Error checking Appwrite: ${error}`)
           }
         }, 3000)
       } else {
@@ -307,7 +283,7 @@ Error: ${error}
       <div className="max-w-2xl mx-auto">
         <Card>
           <CardHeader>
-            <CardTitle>Email & Firebase Test</CardTitle>
+            <CardTitle>Email & Appwrite Test</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -320,11 +296,11 @@ Error: ${error}
               </Button>
               
               <Button 
-                onClick={testFirebaseConnection}
+                onClick={testAppwriteConnectionHandler}
                 disabled={isLoading}
                 className="w-full"
               >
-                Test Firebase Connection & Count
+                Test Appwrite Connection
               </Button>
               
               <Button 

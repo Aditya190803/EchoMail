@@ -3,8 +3,7 @@
 import { useSession } from "next-auth/react"
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { db } from "@/lib/firebase"
-import { collection, getDocs } from "firebase/firestore"
+import { campaignsService } from "@/lib/appwrite"
 
 export default function DebugCampaignsPage() {
   const { data: session } = useSession()
@@ -13,12 +12,16 @@ export default function DebugCampaignsPage() {
 
   useEffect(() => {
     const fetchAllCampaigns = async () => {
+      if (!session?.user?.email) {
+        setLoading(false)
+        return
+      }
+      
       try {
-        const campaignsRef = collection(db, "email_campaigns")
-        const snapshot = await getDocs(campaignsRef)
-        const allCampaigns = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
+        const response = await campaignsService.listByUser(session.user.email)
+        const allCampaigns = response.documents.map(doc => ({
+          id: doc.$id,
+          ...doc
         }))
         setCampaigns(allCampaigns)
         console.log("All campaigns:", allCampaigns)
@@ -30,7 +33,7 @@ export default function DebugCampaignsPage() {
     }
 
     fetchAllCampaigns()
-  }, [])
+  }, [session?.user?.email])
 
   if (loading) {
     return <div className="p-4">Loading campaigns...</div>
@@ -40,7 +43,7 @@ export default function DebugCampaignsPage() {
     <div className="p-4 space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Debug: All Campaigns in Firebase</CardTitle>
+          <CardTitle>Debug: All Campaigns in Appwrite</CardTitle>
           <p className="text-sm text-gray-600">
             Current user: {session?.user?.email || "Not logged in"}
           </p>

@@ -2,7 +2,7 @@
 
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,7 +15,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog"
 import {
-  BarChart3,
+  History,
   TrendingUp,
   TrendingDown,
   Calendar,
@@ -25,7 +25,6 @@ import {
   CheckCircle,
   XCircle,
   Activity,
-  Target,
   ExternalLink,
   FileText,
   Download,
@@ -37,46 +36,13 @@ import {
   Copy,
   Search,
   Percent,
-  Zap,
 } from "lucide-react"
 import Link from "next/link"
-import { db } from "@/lib/firebase"
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  Timestamp,
-} from "firebase/firestore"
+import { campaignsService, EmailCampaign } from "@/lib/appwrite"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 
-interface EmailCampaign {
-  id: string
-  subject: string
-  recipients: string[] | string
-  sent: number
-  failed: number
-  created_at: string | Timestamp
-  status: "completed" | "sending" | "failed"
-  user_email: string
-  campaign_type?: string
-  content?: string
-  attachments?: {
-    fileName: string
-    fileUrl: string
-    fileSize: number
-    cloudinary_public_id?: string
-  }[]
-  send_results?: {
-    email: string
-    success: boolean
-    error?: string
-    messageId?: string
-  }[]
-}
-
-interface Analytics {
+interface HistoryData {
   totalCampaigns: number
   totalSent: number
   totalRecipients: number
@@ -89,10 +55,29 @@ interface Analytics {
   monthlyTrend: "up" | "down" | "same"
 }
 
-export default function AnalyticsPage() {
+// Helper to get authenticated attachment URL
+const getAttachmentUrl = (attachment: { fileUrl?: string; appwrite_file_id?: string }) => {
+  // If we have the Appwrite file ID, use our authenticated proxy
+  if (attachment.appwrite_file_id) {
+    return `/api/appwrite/attachments/${attachment.appwrite_file_id}`
+  }
+  
+  // Try to extract file ID from Appwrite URL
+  if (attachment.fileUrl) {
+    const match = attachment.fileUrl.match(/\/files\/([^\/]+)\//)
+    if (match && match[1]) {
+      return `/api/appwrite/attachments/${match[1]}`
+    }
+  }
+  
+  // Fallback to original URL (for legacy/external attachments)
+  return attachment.fileUrl || '#'
+}
+
+export default function HistoryPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [analytics, setAnalytics] = useState<Analytics | null>(null)
+  const [historyData, setHistoryData] = useState<HistoryData | null>(null)
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set())
   const [selectedCampaign, setSelectedCampaign] = useState<EmailCampaign | null>(null)
   const [recipientSearch, setRecipientSearch] = useState("")
@@ -115,30 +100,13 @@ export default function AnalyticsPage() {
     }
   }, [status, router])
 
-  useEffect(() => {
+  // Fetch campaigns and calculate history data
+  const fetchHistory = useCallback(async () => {
     if (!session?.user?.email) return
-    const q = query(
-      collection(db, "email_campaigns"),
-      where("user_email", "==", session.user.email)
-    )
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const campaigns: EmailCampaign[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as EmailCampaign[]
-
-      campaigns.sort((a, b) => {
-        const dateA =
-          typeof a.created_at === "string"
-            ? new Date(a.created_at)
-            : a.created_at?.toDate?.() || new Date()
-        const dateB =
-          typeof b.created_at === "string"
-            ? new Date(b.created_at)
-            : b.created_at?.toDate?.() || new Date()
-        return dateB.getTime() - dateA.getTime()
-      })
+    
+    try {
+      const response = await campaignsService.listByUser(session.user.email)
+      const campaigns = response.documents
 
       const now = new Date()
       const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -153,18 +121,12 @@ export default function AnalyticsPage() {
       const averageRecipientsPerCampaign = totalCampaigns > 0 ? totalRecipients / totalCampaigns : 0
 
       const campaignsThisMonth = campaigns.filter((c) => {
-        const date =
-          typeof c.created_at === "string"
-            ? new Date(c.created_at)
-            : c.created_at?.toDate?.() || new Date()
+        const date = new Date(c.created_at || '')
         return date >= thisMonth
       }).length
 
       const campaignsLastMonth = campaigns.filter((c) => {
-        const date =
-          typeof c.created_at === "string"
-            ? new Date(c.created_at)
-            : c.created_at?.toDate?.() || new Date()
+        const date = new Date(c.created_at || '')
         return date >= lastMonth && date <= lastMonthEnd
       }).length
 
@@ -175,7 +137,7 @@ export default function AnalyticsPage() {
           ? "down"
           : "same"
 
-      setAnalytics({
+      setHistoryData({
         totalCampaigns,
         totalSent,
         totalRecipients,
@@ -184,12 +146,34 @@ export default function AnalyticsPage() {
         averageRecipientsPerCampaign,
         campaignsThisMonth,
         campaignsLastMonth,
-        recentCampaigns: campaigns.slice(0, 10),        monthlyTrend,
+        recentCampaigns: campaigns,
+        monthlyTrend,
       })
-    })
+    } catch (error) {
+      console.error("Error fetching history:", error)
+    }
+  }, [session?.user?.email])
 
-    return () => unsubscribe()
-  }, [session])
+  // Initial fetch and real-time subscription
+  useEffect(() => {
+    if (!session?.user?.email) return
+
+    // Initial fetch
+    fetchHistory()
+    
+    // Subscribe to real-time updates
+    const unsubscribe = campaignsService.subscribeToUserCampaigns(
+      session.user.email,
+      (response) => {
+        // Refetch on any change
+        fetchHistory()
+      }
+    )
+    
+    return () => {
+      if (unsubscribe) unsubscribe()
+    }
+  }, [session?.user?.email, fetchHistory])
 
   // Helper functions for campaign details
   const toggleCampaignExpansion = (campaignId: string) => {
@@ -203,6 +187,7 @@ export default function AnalyticsPage() {
       return newSet
     })
   }
+  
   const copyEmailList = async (emails: string[]) => {
     try {
       await navigator.clipboard.writeText(emails.join(', '))
@@ -227,9 +212,9 @@ export default function AnalyticsPage() {
     toast.success("Recipients exported!")
   }
 
-  const formatDate = (value: string | Timestamp) => {
+  const formatDate = (value: string) => {
     try {
-      const date = typeof value === "string" ? new Date(value) : value?.toDate?.() || new Date()
+      const date = new Date(value)
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     } catch {
       return new Date().toLocaleDateString()
@@ -241,23 +226,23 @@ export default function AnalyticsPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
-          <p className="text-muted-foreground">Loading analytics...</p>
+          <p className="text-muted-foreground">Loading email history...</p>
         </div>
       </div>
     )
   }
 
-  if (!analytics) {
+  if (!historyData) {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
         <div className="flex flex-col items-center justify-center px-4 py-24">
           <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-            <BarChart3 className="w-8 h-8 text-muted-foreground" />
+            <History className="w-8 h-8 text-muted-foreground" />
           </div>
-          <h2 className="text-xl font-semibold mb-2">No Analytics Yet</h2>
+          <h2 className="text-xl font-semibold mb-2">No Emails Sent Yet</h2>
           <p className="text-muted-foreground text-center mb-6 max-w-sm">
-            Start sending campaigns to see insights and performance metrics here.
+            Start sending campaigns to see your email history here.
           </p>
           <Button asChild>
             <Link href="/compose">
@@ -276,9 +261,20 @@ export default function AnalyticsPage() {
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2">Campaign Analytics</h1>
-          <p className="text-muted-foreground">Track your email performance and insights</p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2">Email History</h1>
+            <p className="text-muted-foreground">View your sent campaigns and delivery status</p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              window.location.href = '/api/export-report'
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export Report
+          </Button>
         </div>
 
         {/* Stats Grid */}
@@ -290,7 +286,7 @@ export default function AnalyticsPage() {
                   <Mail className="h-5 w-5 text-primary" />
                 </div>
               </div>
-              <div className="text-2xl font-bold">{analytics.totalCampaigns}</div>
+              <div className="text-2xl font-bold">{historyData.totalCampaigns}</div>
               <p className="text-sm text-muted-foreground">Total Campaigns</p>
             </CardContent>
           </Card>
@@ -302,8 +298,8 @@ export default function AnalyticsPage() {
                   <Percent className="h-5 w-5 text-success" />
                 </div>
               </div>
-              <div className="text-2xl font-bold">{analytics.successRate.toFixed(1)}%</div>
-              <p className="text-sm text-muted-foreground">Success Rate</p>
+              <div className="text-2xl font-bold">{historyData.successRate.toFixed(1)}%</div>
+              <p className="text-sm text-muted-foreground">Delivery Rate</p>
             </CardContent>
           </Card>
 
@@ -314,8 +310,8 @@ export default function AnalyticsPage() {
                   <Send className="h-5 w-5 text-secondary" />
                 </div>
               </div>
-              <div className="text-2xl font-bold">{analytics.totalSent.toLocaleString()}</div>
-              <p className="text-sm text-muted-foreground">Emails Sent</p>
+              <div className="text-2xl font-bold">{historyData.totalSent.toLocaleString()}</div>
+              <p className="text-sm text-muted-foreground">Emails Delivered</p>
             </CardContent>
           </Card>
 
@@ -326,7 +322,7 @@ export default function AnalyticsPage() {
                   <Users className="h-5 w-5 text-accent" />
                 </div>
               </div>
-              <div className="text-2xl font-bold">{Math.round(analytics.averageRecipientsPerCampaign)}</div>
+              <div className="text-2xl font-bold">{Math.round(historyData.averageRecipientsPerCampaign)}</div>
               <p className="text-sm text-muted-foreground">Avg Recipients</p>
             </CardContent>
           </Card>
@@ -344,31 +340,33 @@ export default function AnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">This Month</p>
-                <p className="text-2xl font-bold">{analytics.campaignsThisMonth} campaigns</p>
+                <p className="text-2xl font-bold">{historyData.campaignsThisMonth} campaigns</p>
               </div>
               <div className="flex items-center gap-2">
-                {analytics.monthlyTrend === "up" && (
+                {historyData.monthlyTrend === "up" && (
                   <Badge variant="success" className="flex items-center gap-1">
                     <TrendingUp className="h-3 w-3" />
-                    +{analytics.campaignsThisMonth - analytics.campaignsLastMonth} from last month
+                    +{historyData.campaignsThisMonth - historyData.campaignsLastMonth} from last month
                   </Badge>
                 )}
-                {analytics.monthlyTrend === "down" && (
+                {historyData.monthlyTrend === "down" && (
                   <Badge variant="destructive" className="flex items-center gap-1">
                     <TrendingDown className="h-3 w-3" />
-                    {analytics.campaignsThisMonth - analytics.campaignsLastMonth} from last month
+                    {historyData.campaignsThisMonth - historyData.campaignsLastMonth} from last month
                   </Badge>
                 )}
-                {analytics.monthlyTrend === "same" && (
+                {historyData.monthlyTrend === "same" && (
                   <Badge variant="secondary">Same as last month</Badge>
                 )}
               </div>
             </div>
           </CardContent>
-        </Card>        {/* Recent Campaigns */}
+        </Card>
+
+        {/* Sent Campaigns */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Recent Campaigns</h2>
+            <h2 className="text-lg font-semibold">Sent Campaigns</h2>
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -380,18 +378,18 @@ export default function AnalyticsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setExpandedCampaigns(new Set(analytics?.recentCampaigns.map(c => c.id) || []))}
+                onClick={() => setExpandedCampaigns(new Set(historyData?.recentCampaigns.map(c => c.$id) || []))}
               >
                 <Eye className="h-4 w-4 mr-2" />
-                View All
+                Expand All
               </Button>
             </div>
           </div>
 
-          {analytics.recentCampaigns.map((campaign) => {
-            const isExpanded = expandedCampaigns.has(campaign.id)
+          {historyData.recentCampaigns.map((campaign) => {
+            const isExpanded = expandedCampaigns.has(campaign.$id)
             return (
-              <Card key={campaign.id} hover className="overflow-hidden">
+              <Card key={campaign.$id} hover className="overflow-hidden">
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div className="flex-1 min-w-0">
@@ -429,7 +427,7 @@ export default function AnalyticsPage() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        onClick={() => toggleCampaignExpansion(campaign.id)}
+                        onClick={() => toggleCampaignExpansion(campaign.$id)}
                       >
                         {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </Button>
@@ -439,7 +437,7 @@ export default function AnalyticsPage() {
                   <div className="flex items-center gap-4 text-sm">
                     <span className="flex items-center gap-1.5 text-success">
                       <CheckCircle className="h-4 w-4" />
-                      {campaign.sent} sent
+                      {campaign.sent} delivered
                     </span>
                     {campaign.failed > 0 && (
                       <span className="flex items-center gap-1.5 text-destructive">
@@ -520,7 +518,7 @@ export default function AnalyticsPage() {
                                 </div>
                               </div>
                               <Button variant="outline" size="sm" asChild>
-                                <a href={attachment.fileUrl} target="_blank" rel="noopener noreferrer">
+                                <a href={getAttachmentUrl(attachment)} target="_blank" rel="noopener noreferrer">
                                   <ExternalLink className="h-3 w-3 mr-1" />
                                   View
                                 </a>
@@ -680,7 +678,7 @@ export default function AnalyticsPage() {
                           </div>
                         </div>
                         <Button variant="outline" size="icon-sm" asChild>
-                          <a href={attachment.fileUrl} target="_blank" rel="noopener noreferrer">
+                          <a href={getAttachmentUrl(attachment)} target="_blank" rel="noopener noreferrer">
                             <ExternalLink className="h-3 w-3" />
                           </a>
                         </Button>
