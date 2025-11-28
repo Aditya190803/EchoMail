@@ -12,8 +12,6 @@ export interface AttachmentData {
   appwriteUrl?: string // Appwrite Storage URL for server-side fetching
   appwriteFileId?: string // Appwrite file ID
   fileSize?: number
-  // Legacy support
-  cloudinaryUrl?: string // @deprecated - use appwriteUrl instead
 }
 
 export interface CSVRow {

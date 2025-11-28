@@ -15,7 +15,7 @@ import {
   campaignsService,
   templatesService,
   contactGroupsService,
-  scheduledEmailsService,
+  draftEmailsService,
   signaturesService,
   unsubscribesService,
 } from '@/lib/appwrite'
@@ -299,39 +299,39 @@ describe('Contact Groups Service', () => {
   })
 })
 
-describe('Scheduled Emails Service', () => {
+describe('Draft Emails Service', () => {
   beforeEach(() => {
     mockFetch.mockClear()
   })
 
   describe('create', () => {
-    it('should create a scheduled email', async () => {
-      const scheduledEmail = {
-        subject: 'Scheduled Newsletter',
+    it('should create a draft email', async () => {
+      const draftEmail = {
+        subject: 'Draft Newsletter',
         content: '<p>Content</p>',
         recipients: ['user@example.com'],
-        scheduled_at: new Date(Date.now() + 86400000).toISOString(),
+        saved_at: new Date(Date.now() + 86400000).toISOString(),
       }
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ $id: '123', ...scheduledEmail, status: 'pending' }),
+        json: async () => ({ $id: '123', ...draftEmail, status: 'pending' }),
       })
 
-      const result = await scheduledEmailsService.create(scheduledEmail)
+      const result = await draftEmailsService.create(draftEmail)
 
       expect(result.status).toBe('pending')
     })
   })
 
   describe('cancel', () => {
-    it('should cancel a scheduled email', async () => {
+    it('should cancel a draft email', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
         json: async () => ({ $id: '123', status: 'cancelled' }),
       })
 
-      const result = await scheduledEmailsService.cancel('123')
+      const result = await draftEmailsService.cancel('123')
 
       expect(result.status).toBe('cancelled')
     })
