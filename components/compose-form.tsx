@@ -12,7 +12,7 @@ import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RichTextEditor } from "@/components/rich-text-editor"
 import { CSVUpload } from "@/components/csv-upload"
-import { contactsService, campaignsService, templatesService, contactGroupsService, scheduledEmailsService, signaturesService, unsubscribesService, type EmailTemplate, type ContactGroup, type EmailSignature } from "@/lib/appwrite"
+import { contactsService, campaignsService, templatesService, contactGroupsService, draftEmailsService, signaturesService, unsubscribesService, type EmailTemplate, type ContactGroup, type EmailSignature } from "@/lib/appwrite"
 import { useEmailSend } from "@/hooks/useEmailSend"
 import { toast } from "sonner"
 import type { CSVRow } from "@/types/email"
@@ -56,6 +56,9 @@ import {
 // Draft storage key
 const DRAFT_STORAGE_KEY = 'echomail_draft'
 
+// File size threshold for immediate Appwrite upload (5MB)
+const LARGE_FILE_THRESHOLD = 5 * 1024 * 1024
+
 interface EmailDraft {
   subject: string
   content: string
@@ -82,16 +85,16 @@ export function ComposeForm() {
   const [attachments, setAttachments] = useState<any[]>([])
   const [isUploading, setIsUploading] = useState(false)
   
-  // Editing scheduled email state
-  const [editingScheduledId, setEditingScheduledId] = useState<string | null>(null)
+  // Editing draft email state
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null)
   
   // Manual email entry state
   const [manualEmail, setManualEmail] = useState("")
   const [manualName, setManualName] = useState("")
   const [manualEntries, setManualEntries] = useState<{email: string, name: string}[]>([])
   
-  // Scheduling state (only toggle, no date/time needed for drafts)
-  const [isScheduled, setIsScheduled] = useState(false)
+  // Draft state (toggle to save as draft instead of sending immediately)
+  const [saveAsDraft, setSaveAsDraft] = useState(false)
   
   // Signature state
   const [signatures, setSignatures] = useState<EmailSignature[]>([])
@@ -156,19 +159,19 @@ export function ComposeForm() {
       try {
         // First check if we're editing a draft
         const editMode = searchParams.get('edit')
-        if (editMode === 'scheduled') {
-          const scheduledData = sessionStorage.getItem('editScheduledEmail')
-          if (scheduledData) {
-            const scheduled = JSON.parse(scheduledData)
-            setEditingScheduledId(scheduled.id)
-            setSubject(scheduled.subject || "")
-            setContent(scheduled.content || "")
-            setRecipients(scheduled.recipients || [])
-            setIsScheduled(true) // Keep it as draft mode when editing
+        if (editMode === 'draft') {
+          const draftData = sessionStorage.getItem('editDraftEmail')
+          if (draftData) {
+            const draft = JSON.parse(draftData)
+            setEditingDraftId(draft.id)
+            setSubject(draft.subject || "")
+            setContent(draft.content || "")
+            setRecipients(draft.recipients || [])
+            setSaveAsDraft(true) // Keep it as draft mode when editing
             
             // Handle attachments
-            if (scheduled.attachments && scheduled.attachments.length > 0) {
-              const parsedAttachments = scheduled.attachments.map((a: any) => ({
+            if (draft.attachments && draft.attachments.length > 0) {
+              const parsedAttachments = draft.attachments.map((a: any) => ({
                 name: a.fileName,
                 type: 'application/octet-stream',
                 data: a.fileUrl,
@@ -179,7 +182,24 @@ export function ComposeForm() {
               setAttachments(parsedAttachments)
             }
             
-            sessionStorage.removeItem('editScheduledEmail')
+            // Handle CSV data for personalization
+            if (draft.csv_data) {
+              try {
+                const csvDataParsed = typeof draft.csv_data === 'string' 
+                  ? JSON.parse(draft.csv_data) 
+                  : draft.csv_data
+                if (Array.isArray(csvDataParsed) && csvDataParsed.length > 0) {
+                  setCsvData(csvDataParsed)
+                  // Extract headers from the first row
+                  const headers = Object.keys(csvDataParsed[0])
+                  setCsvHeaders(headers)
+                }
+              } catch (e) {
+                console.error("Error parsing csv_data:", e)
+              }
+            }
+            
+            sessionStorage.removeItem('editDraftEmail')
             toast.success("Editing draft")
             return
           }
@@ -343,49 +363,102 @@ export function ComposeForm() {
     }
   }, [])
 
-  // Handle file upload
+  // Handle file upload with smart sizing:
+  // - Small files (<5MB): Keep as base64 in memory for fast sending
+  // - Large files (>=5MB): Upload to Appwrite immediately
   const handleFileUpload = async (files: FileList) => {
     if (!files.length) return
     
     setIsUploading(true)
-    const formData = new FormData()
+    const newAttachments: any[] = []
+    const largeFiles: File[] = []
     
+    // Process files based on size
     for (let i = 0; i < files.length; i++) {
-      formData.append('files', files[i])
+      const file = files[i]
+      
+      if (file.size < LARGE_FILE_THRESHOLD) {
+        // Small file: convert to base64 and keep in memory
+        try {
+          const base64 = await fileToBase64(file)
+          newAttachments.push({
+            name: file.name,
+            type: file.type || 'application/octet-stream',
+            data: base64, // Direct base64 data
+            fileSize: file.size,
+          })
+        } catch (error) {
+          console.error(`Error reading file ${file.name}:`, error)
+          toast.error(`Failed to read ${file.name}`)
+        }
+      } else {
+        // Large file: queue for Appwrite upload
+        largeFiles.push(file)
+      }
     }
     
-    try {
-      const response = await fetch('/api/upload-attachment', {
-        method: 'POST',
-        body: formData,
-      })
+    // Upload large files to Appwrite
+    if (largeFiles.length > 0) {
+      const formData = new FormData()
+      largeFiles.forEach(file => formData.append('files', file))
       
-      const result = await response.json()
-      
-      if (result.success) {
-        const newAttachments = result.uploads
-          .filter((u: any) => !u.error)
-          .map((u: any) => ({
-            name: u.fileName,
-            type: u.fileType,
-            data: u.url,
-            cloudinaryUrl: u.url,
-            appwriteFileId: u.appwrite_file_id,
-            appwriteUrl: u.url,
-            fileSize: u.fileSize,
-          }))
+      try {
+        const response = await fetch('/api/upload-attachment', {
+          method: 'POST',
+          body: formData,
+        })
         
-        setAttachments([...attachments, ...newAttachments])
-        toast.success(`${newAttachments.length} file(s) uploaded`)
-      } else {
-        toast.error("Failed to upload files")
+        const result = await response.json()
+        
+        if (result.success) {
+          result.uploads
+            .filter((u: any) => !u.error)
+            .forEach((u: any) => {
+              newAttachments.push({
+                name: u.fileName,
+                type: u.fileType,
+                data: 'appwrite', // Placeholder - will be fetched once before sending
+                appwriteFileId: u.appwrite_file_id,
+                appwriteUrl: u.url,
+                fileSize: u.fileSize,
+              })
+            })
+        } else {
+          toast.error("Failed to upload large files")
+        }
+      } catch (error) {
+        console.error("Upload error:", error)
+        toast.error("Failed to upload large files")
       }
-    } catch (error) {
-      console.error("Upload error:", error)
-      toast.error("Failed to upload files")
+    }
+    
+    if (newAttachments.length > 0) {
+      setAttachments([...attachments, ...newAttachments])
+      const smallCount = newAttachments.filter(a => a.data !== 'appwrite').length
+      const largeCount = newAttachments.filter(a => a.data === 'appwrite').length
+      if (smallCount > 0 && largeCount > 0) {
+        toast.success(`${smallCount} file(s) ready, ${largeCount} large file(s) uploaded`)
+      } else {
+        toast.success(`${newAttachments.length} file(s) added`)
+      }
     }
     
     setIsUploading(false)
+  }
+  
+  // Helper function to convert File to base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => {
+        const result = reader.result as string
+        // Remove the data URL prefix (e.g., "data:image/png;base64,")
+        const base64 = result.split(',')[1]
+        resolve(base64)
+      }
+      reader.onerror = error => reject(error)
+    })
   }
 
   // Remove attachment
@@ -618,45 +691,104 @@ export function ComposeForm() {
     }
     
     // Handle saving as draft
-    if (isScheduled && session?.user?.email) {
-      // Use current time since drafts don't have scheduled times
+    if (saveAsDraft && session?.user?.email) {
+      // Use current time for draft save timestamp
       const savedAt = new Date().toISOString()
       
       setIsSavingDraft(true)
       try {
+        // Upload any base64 attachments to Appwrite for draft persistence
+        const processedAttachments = await Promise.all(
+          attachments.map(async (a) => {
+            // If it's already in Appwrite, use existing reference
+            if (a.appwriteFileId) {
+              return {
+                fileName: a.name,
+                fileUrl: a.appwriteUrl || '',
+                fileSize: a.fileSize || 0,
+                appwrite_file_id: a.appwriteFileId,
+              }
+            }
+            
+            // If it has base64 data, upload to Appwrite now for draft persistence
+            if (a.data && a.data !== 'appwrite') {
+              try {
+                // Convert base64 back to blob for upload
+                const byteCharacters = atob(a.data)
+                const byteNumbers = new Array(byteCharacters.length)
+                for (let i = 0; i < byteCharacters.length; i++) {
+                  byteNumbers[i] = byteCharacters.charCodeAt(i)
+                }
+                const byteArray = new Uint8Array(byteNumbers)
+                const blob = new Blob([byteArray], { type: a.type })
+                const file = new File([blob], a.name, { type: a.type })
+                
+                const formData = new FormData()
+                formData.append('files', file)
+                
+                const response = await fetch('/api/upload-attachment', {
+                  method: 'POST',
+                  body: formData,
+                })
+                
+                const result = await response.json()
+                
+                if (result.success && result.uploads[0] && !result.uploads[0].error) {
+                  const upload = result.uploads[0]
+                  return {
+                    fileName: upload.fileName,
+                    fileUrl: upload.url,
+                    fileSize: upload.fileSize,
+                    appwrite_file_id: upload.appwrite_file_id,
+                  }
+                }
+              } catch (uploadError) {
+                console.error(`Error uploading attachment ${a.name} for draft:`, uploadError)
+              }
+            }
+            
+            // Fallback: save reference without Appwrite (attachment may be lost)
+            return {
+              fileName: a.name,
+              fileUrl: '',
+              fileSize: a.fileSize || 0,
+              appwrite_file_id: '',
+            }
+          })
+        )
+        
         // Build personalization data for each recipient
-        const recipientCsvData = filteredRecipients.map(email => {
-          const csvRow = csvData.find(row => row.email === email) || {}
-          const manualEntry = manualEntries.find(e => e.email === email)
+        const recipientCsvData = filteredRecipients.map(recipientEmail => {
+          // Find CSV row with case-insensitive email matching
+          const csvRow = csvData.find(row => {
+            const rowEmail = row.email || row.Email || row.EMAIL || ''
+            return rowEmail.toLowerCase() === recipientEmail.toLowerCase()
+          }) || {}
+          const manualEntry = manualEntries.find(e => e.email.toLowerCase() === recipientEmail.toLowerCase())
           return {
-            email,
-            name: manualEntry?.name || '',
+            email: recipientEmail,
+            name: manualEntry?.name || csvRow.name || csvRow.Name || csvRow.NAME || '',
             ...csvRow,
           }
         })
 
-        const scheduledEmailData = {
+        const draftEmailData = {
           subject,
           content: finalContent,
           recipients: filteredRecipients,
-          scheduled_at: savedAt,
-          attachments: attachments.map(a => ({
-            fileName: a.name,
-            fileUrl: a.data || a.cloudinaryUrl || a.appwriteUrl,
-            fileSize: a.fileSize || 0,
-            appwrite_file_id: a.appwriteFileId,
-          })),
+          saved_at: savedAt,
+          attachments: processedAttachments.filter(a => a.appwrite_file_id), // Only save attachments that were uploaded
           csv_data: recipientCsvData,
         }
         
-        if (editingScheduledId) {
+        if (editingDraftId) {
           // Update existing draft
-          await scheduledEmailsService.update(editingScheduledId, scheduledEmailData)
+          await draftEmailsService.update(editingDraftId, draftEmailData)
           clearDraft()
           toast.success("Draft updated")
         } else {
           // Create new draft
-          await scheduledEmailsService.create(scheduledEmailData)
+          await draftEmailsService.create(draftEmailData)
           clearDraft()
           toast.success("Draft saved — send it when you're ready!")
         }
@@ -705,7 +837,7 @@ export function ComposeForm() {
           campaign_type: csvData.length > 0 ? "bulk" : "contact_list",
           attachments: attachments.map(a => ({
             fileName: a.name,
-            fileUrl: a.data || a.cloudinaryUrl || a.appwriteUrl,
+            fileUrl: a.appwriteUrl || a.data,
             fileSize: a.fileSize || 0,
             appwrite_file_id: a.appwriteFileId,
           })),
@@ -1056,13 +1188,13 @@ export function ComposeForm() {
           <div className="flex items-center gap-3 p-4 border rounded-lg bg-muted/30">
             <input
               type="checkbox"
-              id="schedule-toggle"
-              checked={isScheduled}
-              onChange={(e) => setIsScheduled(e.target.checked)}
+              id="draft-toggle"
+              checked={saveAsDraft}
+              onChange={(e) => setSaveAsDraft(e.target.checked)}
               className="h-4 w-4 rounded border-gray-300"
             />
             <div>
-              <Label htmlFor="schedule-toggle" className="flex items-center gap-2 cursor-pointer">
+              <Label htmlFor="draft-toggle" className="flex items-center gap-2 cursor-pointer">
                 <Save className="h-4 w-4" />
                 Save as Draft
               </Label>
@@ -1451,14 +1583,19 @@ export function ComposeForm() {
         
         <Button
           onClick={handleSend}
-          disabled={isSending || isSavingDraft || !subject || !content || recipients.length === 0}
+          disabled={isSending || isSavingDraft || isUploading || !subject || !content || recipients.length === 0}
           size="lg"
         >
-          {isScheduled ? (
+          {saveAsDraft ? (
             isSavingDraft ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                 Saving Draft...
+              </>
+            ) : isUploading ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Uploading Files...
               </>
             ) : (
               <>
@@ -1466,6 +1603,11 @@ export function ComposeForm() {
                 Save as Draft ({recipients.length} {recipients.length === 1 ? "recipient" : "recipients"})
               </>
             )
+          ) : isUploading ? (
+            <>
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              Uploading Files...
+            </>
           ) : (
             <>
               <Send className="h-4 w-4 mr-2" />
