@@ -363,89 +363,6 @@ export function ComposeForm() {
     }
   }, [])
 
-  // Handle file upload with smart sizing:
-  // - Small files (<5MB): Keep as base64 in memory for fast sending
-  // - Large files (>=5MB): Upload to Appwrite immediately
-  const handleFileUpload = async (files: FileList) => {
-    if (!files.length) return
-    
-    setIsUploading(true)
-    const newAttachments: any[] = []
-    const largeFiles: File[] = []
-    
-    // Process files based on size
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i]
-      
-      if (file.size < LARGE_FILE_THRESHOLD) {
-        // Small file: convert to base64 and keep in memory
-        try {
-          const base64 = await fileToBase64(file)
-          newAttachments.push({
-            name: file.name,
-            type: file.type || 'application/octet-stream',
-            data: base64, // Direct base64 data
-            fileSize: file.size,
-          })
-        } catch (error) {
-          console.error(`Error reading file ${file.name}:`, error)
-          toast.error(`Failed to read ${file.name}`)
-        }
-      } else {
-        // Large file: queue for Appwrite upload
-        largeFiles.push(file)
-      }
-    }
-    
-    // Upload large files to Appwrite
-    if (largeFiles.length > 0) {
-      const formData = new FormData()
-      largeFiles.forEach(file => formData.append('files', file))
-      
-      try {
-        const response = await fetch('/api/upload-attachment', {
-          method: 'POST',
-          body: formData,
-        })
-        
-        const result = await response.json()
-        
-        if (result.success) {
-          result.uploads
-            .filter((u: any) => !u.error)
-            .forEach((u: any) => {
-              newAttachments.push({
-                name: u.fileName,
-                type: u.fileType,
-                data: 'appwrite', // Placeholder - will be fetched once before sending
-                appwriteFileId: u.appwrite_file_id,
-                appwriteUrl: u.url,
-                fileSize: u.fileSize,
-              })
-            })
-        } else {
-          toast.error("Failed to upload large files")
-        }
-      } catch (error) {
-        console.error("Upload error:", error)
-        toast.error("Failed to upload large files")
-      }
-    }
-    
-    if (newAttachments.length > 0) {
-      setAttachments([...attachments, ...newAttachments])
-      const smallCount = newAttachments.filter(a => a.data !== 'appwrite').length
-      const largeCount = newAttachments.filter(a => a.data === 'appwrite').length
-      if (smallCount > 0 && largeCount > 0) {
-        toast.success(`${smallCount} file(s) ready, ${largeCount} large file(s) uploaded`)
-      } else {
-        toast.success(`${newAttachments.length} file(s) added`)
-      }
-    }
-    
-    setIsUploading(false)
-  }
-  
   // Helper function to convert File to base64
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -459,6 +376,120 @@ export function ComposeForm() {
       }
       reader.onerror = error => reject(error)
     })
+  }
+
+  // Handle file upload with background processing:
+  // - Immediately show files as "processing"
+  // - Small files (<5MB): Encode to base64 in background
+  // - Large files (>=5MB): Upload to Appwrite in background
+  // - Update state when ready
+  const handleFileUpload = async (files: FileList) => {
+    if (!files.length) return
+    
+    // Immediately add files as "processing" state
+    const processingAttachments: any[] = []
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      const tempId = `temp_${Date.now()}_${i}`
+      processingAttachments.push({
+        tempId,
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        data: 'processing', // Will be replaced with base64 or 'appwrite'
+        fileSize: file.size,
+        isProcessing: true,
+      })
+    }
+    
+    // Add to state immediately so user sees them
+    setAttachments(prev => [...prev, ...processingAttachments])
+    setIsUploading(true)
+    
+    // Process each file in background
+    const fileArray = Array.from(files)
+    
+    // Process small and large files in parallel
+    const processPromises = fileArray.map(async (file, index) => {
+      const tempId = processingAttachments[index].tempId
+      
+      if (file.size < LARGE_FILE_THRESHOLD) {
+        // Small file: convert to base64 in background
+        try {
+          console.log(`🔄 Encoding ${file.name} to base64...`)
+          const base64 = await fileToBase64(file)
+          console.log(`✅ Encoded ${file.name}`)
+          
+          // Update the attachment with the actual data
+          setAttachments(prev => prev.map(a => 
+            a.tempId === tempId 
+              ? { ...a, data: base64, isProcessing: false, tempId: undefined }
+              : a
+          ))
+          return { success: true, name: file.name }
+        } catch (error) {
+          console.error(`Error reading file ${file.name}:`, error)
+          // Remove failed attachment
+          setAttachments(prev => prev.filter(a => a.tempId !== tempId))
+          return { success: false, name: file.name, error }
+        }
+      } else {
+        // Large file: upload to Appwrite in background
+        try {
+          console.log(`📤 Uploading ${file.name} to Appwrite...`)
+          const formData = new FormData()
+          formData.append('files', file)
+          
+          const response = await fetch('/api/upload-attachment', {
+            method: 'POST',
+            body: formData,
+          })
+          
+          const result = await response.json()
+          
+          if (result.success && result.uploads[0] && !result.uploads[0].error) {
+            const upload = result.uploads[0]
+            console.log(`✅ Uploaded ${file.name} to Appwrite`)
+            
+            // Update the attachment with Appwrite info
+            setAttachments(prev => prev.map(a => 
+              a.tempId === tempId 
+                ? { 
+                    ...a, 
+                    data: 'appwrite',
+                    appwriteFileId: upload.appwrite_file_id,
+                    appwriteUrl: upload.url,
+                    isProcessing: false,
+                    tempId: undefined
+                  }
+                : a
+            ))
+            return { success: true, name: file.name }
+          } else {
+            throw new Error(result.uploads?.[0]?.error || 'Upload failed')
+          }
+        } catch (error) {
+          console.error(`Error uploading file ${file.name}:`, error)
+          // Remove failed attachment
+          setAttachments(prev => prev.filter(a => a.tempId !== tempId))
+          return { success: false, name: file.name, error }
+        }
+      }
+    })
+    
+    // Wait for all processing to complete
+    const results = await Promise.all(processPromises)
+    
+    const successCount = results.filter(r => r.success).length
+    const failCount = results.filter(r => !r.success).length
+    
+    if (failCount > 0) {
+      toast.error(`${failCount} file(s) failed to process`)
+    }
+    if (successCount > 0) {
+      toast.success(`${successCount} file(s) ready`)
+    }
+    
+    setIsUploading(false)
   }
 
   // Remove attachment
@@ -880,10 +911,8 @@ export function ComposeForm() {
               variant="outline"
               size="sm"
               onClick={() => {
-                if (confirm("Discard the incomplete campaign?")) {
-                  clearSavedCampaign()
-                  toast.success("Campaign cleared")
-                }
+                clearSavedCampaign()
+                toast.success("Campaign discarded")
               }}
             >
               <Trash2 className="h-4 w-4 mr-1" />
@@ -1098,26 +1127,53 @@ export function ComposeForm() {
             <Label className="flex items-center gap-2">
               <Paperclip className="h-4 w-4" />
               Attachments
-              <span className="text-xs text-muted-foreground font-normal">(max 50MB per file)</span>
+              <span className="text-xs text-muted-foreground font-normal">(Gmail limit: 25MB total)</span>
             </Label>
+            
+            {/* Total size warning */}
+            {(() => {
+              const totalSize = attachments.reduce((sum, a) => sum + (a.fileSize || 0), 0)
+              const totalMB = totalSize / 1024 / 1024
+              if (totalMB > 20) {
+                return (
+                  <div className={`text-xs p-2 rounded ${totalMB > 25 ? 'bg-destructive/10 text-destructive' : 'bg-warning/10 text-warning'}`}>
+                    {totalMB > 25 
+                      ? `⚠️ Total size (${totalMB.toFixed(1)}MB) exceeds Gmail's 25MB limit!`
+                      : `⚠️ Total size: ${totalMB.toFixed(1)}MB (approaching 25MB limit)`
+                    }
+                  </div>
+                )
+              }
+              return null
+            })()}
             
             <div className="flex flex-wrap gap-2">
               {attachments.map((file, index) => (
                 <Badge
-                  key={index}
-                  variant="secondary"
-                  className="flex items-center gap-2 py-2"
+                  key={file.tempId || index}
+                  variant={file.isProcessing ? "outline" : "secondary"}
+                  className={`flex items-center gap-2 py-2 ${file.isProcessing ? 'animate-pulse' : ''}`}
                 >
-                  <Paperclip className="h-3 w-3" />
+                  {file.isProcessing ? (
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Paperclip className="h-3 w-3" />
+                  )}
                   {file.name}
                   {file.fileSize && (
                     <span className="text-xs text-muted-foreground">
                       ({(file.fileSize / 1024 / 1024).toFixed(1)}MB)
                     </span>
                   )}
+                  {file.isProcessing && (
+                    <span className="text-xs text-muted-foreground">
+                      {file.fileSize >= LARGE_FILE_THRESHOLD ? 'uploading...' : 'encoding...'}
+                    </span>
+                  )}
                   <button
                     onClick={() => removeAttachment(index)}
                     className="hover:text-destructive"
+                    disabled={file.isProcessing}
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -1583,7 +1639,7 @@ export function ComposeForm() {
         
         <Button
           onClick={handleSend}
-          disabled={isSending || isSavingDraft || isUploading || !subject || !content || recipients.length === 0}
+          disabled={isSending || isSavingDraft || isUploading || attachments.some(a => a.isProcessing) || !subject || !content || recipients.length === 0}
           size="lg"
         >
           {saveAsDraft ? (
@@ -1592,10 +1648,10 @@ export function ComposeForm() {
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                 Saving Draft...
               </>
-            ) : isUploading ? (
+            ) : isUploading || attachments.some(a => a.isProcessing) ? (
               <>
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Uploading Files...
+                Processing Files...
               </>
             ) : (
               <>
@@ -1603,10 +1659,10 @@ export function ComposeForm() {
                 Save as Draft ({recipients.length} {recipients.length === 1 ? "recipient" : "recipients"})
               </>
             )
-          ) : isUploading ? (
+          ) : isUploading || attachments.some(a => a.isProcessing) ? (
             <>
               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              Uploading Files...
+              Processing Files...
             </>
           ) : (
             <>
