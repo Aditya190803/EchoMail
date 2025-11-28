@@ -36,6 +36,13 @@ import {
   Tag,
   Pen,
   FileCode,
+  StopCircle,
+  Play,
+  Wifi,
+  WifiOff,
+  ChevronLeft,
+  ChevronRight,
+  User,
 } from "lucide-react"
 import {
   Dialog,
@@ -111,6 +118,9 @@ export function ComposeForm() {
   const [csvData, setCsvData] = useState<any[]>([])
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
   
+  // Preview state
+  const [previewRecipientIndex, setPreviewRecipientIndex] = useState(0)
+  
   // Draft state
   const [hasDraft, setHasDraft] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
@@ -125,10 +135,18 @@ export function ComposeForm() {
     progress,
     sendStatus,
     isLoading: isSending,
+    isStopping,
+    isPaused,
+    isOffline,
     error: sendError,
     failedEmails,
     hasPendingRetries,
     retryFailedEmails,
+    stopSending,
+    resumeCampaign,
+    clearSavedCampaign,
+    hasSavedCampaign,
+    savedCampaignInfo,
     quotaInfo,
   } = useEmailSend()
 
@@ -518,6 +536,45 @@ export function ComposeForm() {
     }
   }
 
+  // Replace placeholders in text with recipient data
+  const replacePlaceholders = (text: string, data: Record<string, string>): string => {
+    // Support both {{placeholder}} and {placeholder} formats
+    return text
+      .replace(/\{\{(\w+)\}\}/g, (match, key) => data[key.toLowerCase()] || data[key] || match)
+      .replace(/\{(\w+)\}/g, (match, key) => data[key.toLowerCase()] || data[key] || match)
+  }
+
+  // Get personalized content for a specific recipient
+  const getPersonalizedContent = (recipientIndex: number) => {
+    if (recipients.length === 0) {
+      return { email: "recipient@example.com", subject: subject || "(No subject)", content: content || "<p>Your email content will appear here...</p>" }
+    }
+
+    const recipientEmail = recipients[recipientIndex] || recipients[0]
+    
+    // Find data for this recipient from CSV data or manual entries
+    const csvRow = csvData.find(row => row.email === recipientEmail) || {}
+    const manualEntry = manualEntries.find(e => e.email === recipientEmail)
+    
+    // Merge data sources (CSV takes precedence, then manual entry)
+    const recipientData: Record<string, string> = {
+      email: recipientEmail,
+      name: manualEntry?.name || '',
+      ...csvRow,
+    }
+
+    // Apply personalization
+    const personalizedSubject = replacePlaceholders(subject, recipientData)
+    const personalizedContent = replacePlaceholders(content, recipientData)
+
+    return {
+      email: recipientEmail,
+      subject: personalizedSubject || "(No subject)",
+      content: personalizedContent || "<p>Your email content will appear here...</p>",
+      data: recipientData
+    }
+  }
+
   // Send emails
   const handleSend = async () => {
     if (!subject.trim()) {
@@ -565,7 +622,19 @@ export function ComposeForm() {
       // Use current time since drafts don't have scheduled times
       const savedAt = new Date().toISOString()
       
+      setIsSavingDraft(true)
       try {
+        // Build personalization data for each recipient
+        const recipientCsvData = filteredRecipients.map(email => {
+          const csvRow = csvData.find(row => row.email === email) || {}
+          const manualEntry = manualEntries.find(e => e.email === email)
+          return {
+            email,
+            name: manualEntry?.name || '',
+            ...csvRow,
+          }
+        })
+
         const scheduledEmailData = {
           subject,
           content: finalContent,
@@ -577,6 +646,7 @@ export function ComposeForm() {
             fileSize: a.fileSize || 0,
             appwrite_file_id: a.appwriteFileId,
           })),
+          csv_data: recipientCsvData,
         }
         
         if (editingScheduledId) {
@@ -597,6 +667,8 @@ export function ComposeForm() {
         console.error("Error saving draft:", error)
         toast.error("Failed to save draft")
         return
+      } finally {
+        setIsSavingDraft(false)
       }
     }
     
@@ -658,6 +730,47 @@ export function ComposeForm() {
 
   return (
     <div className="space-y-6">
+      {/* Resume Campaign Banner */}
+      {hasSavedCampaign && savedCampaignInfo && (
+        <div className="flex items-center justify-between p-4 bg-warning/10 border border-warning/30 rounded-lg">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-warning" />
+            <div>
+              <p className="font-medium text-sm">Incomplete Campaign Found</p>
+              <p className="text-xs text-muted-foreground">
+                {savedCampaignInfo.subject ? `"${savedCampaignInfo.subject}" - ` : ""}
+                {savedCampaignInfo.remaining} of {savedCampaignInfo.total} emails remaining
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (confirm("Discard the incomplete campaign?")) {
+                  clearSavedCampaign()
+                  toast.success("Campaign cleared")
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Discard
+            </Button>
+            <Button
+              size="sm"
+              onClick={async () => {
+                setShowSendingDialog(true)
+                await resumeCampaign()
+              }}
+            >
+              <Play className="h-4 w-4 mr-1" />
+              Resume
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Draft Status Bar */}
       {(hasDraft || lastSaved) && (
         <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
@@ -1219,37 +1332,107 @@ export function ComposeForm() {
                 Email Preview
               </CardTitle>
               <CardDescription>
-                This is how your email will appear to recipients
+                Preview personalized emails for each recipient
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="border rounded-lg p-4 bg-white dark:bg-zinc-900">
-                <div className="border-b pb-3 mb-3">
-                  <p className="text-sm text-muted-foreground">
-                    <span className="font-medium">To:</span> {recipients[0] || "recipient@example.com"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    <span className="font-medium">Subject:</span> {subject || "(No subject)"}
-                  </p>
-                </div>
-                <div 
-                  className="prose dark:prose-invert max-w-none"
-                  dangerouslySetInnerHTML={{ __html: content || "<p>Your email content will appear here...</p>" }}
-                />
-                {attachments.length > 0 && (
-                  <div className="border-t pt-3 mt-4">
-                    <p className="text-sm font-medium mb-2">Attachments:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {attachments.map((att, i) => (
-                        <Badge key={i} variant="secondary">
-                          <Paperclip className="h-3 w-3 mr-1" />
-                          {att.name}
-                        </Badge>
-                      ))}
-                    </div>
+              {/* Recipient Selector */}
+              {recipients.length > 0 && (
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setPreviewRecipientIndex(Math.max(0, previewRecipientIndex - 1))}
+                    disabled={previewRecipientIndex === 0}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">
+                      Recipient {previewRecipientIndex + 1} of {recipients.length}
+                    </span>
                   </div>
-                )}
-              </div>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setPreviewRecipientIndex(Math.min(recipients.length - 1, previewRecipientIndex + 1))}
+                    disabled={previewRecipientIndex >= recipients.length - 1}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+
+              {/* Personalization Info */}
+              {(() => {
+                const preview = getPersonalizedContent(previewRecipientIndex)
+                const hasPlaceholders = (subject + content).match(/\{\{?\w+\}?\}/)
+                const csvRow = csvData.find(row => row.email === preview.email)
+                const manualEntry = manualEntries.find(e => e.email === preview.email)
+                
+                return (
+                  <>
+                    {hasPlaceholders && (csvRow || manualEntry) && (
+                      <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                        <p className="text-sm font-medium text-primary mb-2">Personalization Data:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(preview.data || {}).filter(([key, value]) => value && key !== 'email').map(([key, value]) => (
+                            <Badge key={key} variant="outline" className="text-xs">
+                              {key}: {value}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="border rounded-lg p-4 bg-white dark:bg-zinc-900">
+                      <div className="border-b pb-3 mb-3">
+                        <p className="text-sm text-muted-foreground">
+                          <span className="font-medium">To:</span> {preview.email}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          <span className="font-medium">Subject:</span> {preview.subject}
+                        </p>
+                      </div>
+                      <div 
+                        className="prose dark:prose-invert max-w-none"
+                        dangerouslySetInnerHTML={{ __html: preview.content }}
+                      />
+                      {attachments.length > 0 && (
+                        <div className="border-t pt-3 mt-4">
+                          <p className="text-sm font-medium mb-2">Attachments:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {attachments.map((att, i) => (
+                              <Badge key={i} variant="secondary">
+                                <Paperclip className="h-3 w-3 mr-1" />
+                                {att.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )
+              })()}
+
+              {recipients.length === 0 && (
+                <div className="border rounded-lg p-4 bg-white dark:bg-zinc-900">
+                  <div className="border-b pb-3 mb-3">
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-medium">To:</span> recipient@example.com
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-medium">Subject:</span> {subject || "(No subject)"}
+                    </p>
+                  </div>
+                  <div 
+                    className="prose dark:prose-invert max-w-none"
+                    dangerouslySetInnerHTML={{ __html: content || "<p>Your email content will appear here...</p>" }}
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1268,14 +1451,21 @@ export function ComposeForm() {
         
         <Button
           onClick={handleSend}
-          disabled={isSending || !subject || !content || recipients.length === 0}
+          disabled={isSending || isSavingDraft || !subject || !content || recipients.length === 0}
           size="lg"
         >
           {isScheduled ? (
-            <>
-              <Save className="h-4 w-4 mr-2" />
-              Save as Draft ({recipients.length} {recipients.length === 1 ? "recipient" : "recipients"})
-            </>
+            isSavingDraft ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Saving Draft...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4 mr-2" />
+                Save as Draft ({recipients.length} {recipients.length === 1 ? "recipient" : "recipients"})
+              </>
+            )
           ) : (
             <>
               <Send className="h-4 w-4 mr-2" />
@@ -1286,18 +1476,26 @@ export function ComposeForm() {
       </div>
 
       {/* Sending Dialog */}
-      <Dialog open={showSendingDialog} onOpenChange={setShowSendingDialog}>
+      <Dialog open={showSendingDialog} onOpenChange={(open) => {
+        // Prevent closing while sending unless stopped
+        if (!open && isSending && !isStopping) {
+          return
+        }
+        setShowSendingDialog(open)
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {isSending ? (
+              {isStopping ? (
+                <StopCircle className="h-5 w-5 text-warning animate-pulse" />
+              ) : isSending ? (
                 <RefreshCw className="h-5 w-5 animate-spin" />
-              ) : progress.percentage === 100 ? (
+              ) : progress.percentage === 100 && !sendError ? (
                 <CheckCircle className="h-5 w-5 text-success" />
-              ) : sendError ? (
-                <XCircle className="h-5 w-5 text-destructive" />
+              ) : sendError || hasPendingRetries ? (
+                <AlertCircle className="h-5 w-5 text-warning" />
               ) : null}
-              {isSending ? "Sending Emails..." : "Campaign Status"}
+              {isStopping ? "Stopping..." : isSending ? "Sending Emails..." : "Campaign Status"}
             </DialogTitle>
             <DialogDescription>
               {progress.status}
@@ -1307,18 +1505,24 @@ export function ComposeForm() {
           <div className="space-y-4">
             <Progress value={progress.percentage} className="h-3" />
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-4 bg-success/10 rounded-lg">
-                <div className="text-2xl font-bold text-success">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center p-3 bg-success/10 rounded-lg">
+                <div className="text-xl font-bold text-success">
                   {sendStatus.filter(s => s.status === "success").length}
                 </div>
-                <div className="text-sm text-muted-foreground">Sent</div>
+                <div className="text-xs text-muted-foreground">Sent</div>
               </div>
-              <div className="text-center p-4 bg-destructive/10 rounded-lg">
-                <div className="text-2xl font-bold text-destructive">
-                  {sendStatus.filter(s => s.status === "error" || s.status === "skipped").length}
+              <div className="text-center p-3 bg-destructive/10 rounded-lg">
+                <div className="text-xl font-bold text-destructive">
+                  {sendStatus.filter(s => s.status === "error").length}
                 </div>
-                <div className="text-sm text-muted-foreground">Failed</div>
+                <div className="text-xs text-muted-foreground">Failed</div>
+              </div>
+              <div className="text-center p-3 bg-warning/10 rounded-lg">
+                <div className="text-xl font-bold text-warning">
+                  {sendStatus.filter(s => s.status === "skipped" || s.status === "cancelled" || s.status === "pending").length}
+                </div>
+                <div className="text-xs text-muted-foreground">Remaining</div>
               </div>
             </div>
 
@@ -1328,16 +1532,52 @@ export function ComposeForm() {
               </div>
             )}
 
+            {/* Stop Button - visible while sending */}
+            {isSending && !isStopping && (
+              <Button 
+                onClick={stopSending} 
+                variant="destructive" 
+                className="w-full"
+              >
+                <StopCircle className="h-4 w-4 mr-2" />
+                Stop Sending
+              </Button>
+            )}
+
+            {/* Network status indicator */}
+            {isOffline && (
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-2">
+                <WifiOff className="h-4 w-4 text-destructive" />
+                <p className="text-sm text-destructive">Network disconnected. Waiting for connection...</p>
+              </div>
+            )}
+
+            {/* Paused indicator (rate limit or network) */}
+            {isPaused && !isOffline && (
+              <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg flex items-center gap-2">
+                <Clock className="h-4 w-4 text-warning animate-pulse" />
+                <p className="text-sm text-warning">Paused - waiting to resume...</p>
+              </div>
+            )}
+
+            {/* Stopping indicator */}
+            {isStopping && (
+              <div className="p-3 bg-warning/10 border border-warning/20 rounded-lg text-center">
+                <p className="text-sm text-warning">Stopping after current email completes...</p>
+              </div>
+            )}
+
+            {/* Retry/Resume buttons - visible when not sending */}
             {hasPendingRetries && !isSending && (
               <Button onClick={retryFailedEmails} variant="outline" className="w-full">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Retry Failed Emails ({failedEmails.length})
+                <Play className="h-4 w-4 mr-2" />
+                Resume Sending ({failedEmails.length} remaining)
               </Button>
             )}
 
             {!isSending && (
               <Button onClick={() => setShowSendingDialog(false)} className="w-full">
-                {progress.percentage === 100 ? "Done" : "Close"}
+                {progress.percentage === 100 && !sendError ? "Done" : "Close"}
               </Button>
             )}
           </div>
