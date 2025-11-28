@@ -3,8 +3,10 @@ import { formatEmailHTML, sanitizeEmailHTML } from './email-formatter'
 export interface AttachmentData {
   name: string
   type: string
-  data: string // base64 encoded data, or 'cloudinary' if using cloudinaryUrl
-  cloudinaryUrl?: string // If provided, attachment will be fetched from this URL
+  data: string // base64 encoded data, or URL to fetch from
+  cloudinaryUrl?: string // Legacy: If provided, attachment will be fetched from this URL
+  appwriteFileId?: string // If provided, attachment will be fetched from Appwrite storage
+  appwriteUrl?: string // Full URL to fetch attachment from Appwrite
 }
 
 function sanitizeText(text: string): string {
@@ -184,8 +186,29 @@ export async function sendEmailViaAPI(
       
       console.log(`📎 Processing attachment: ${attachment.name} (${attachment.type})`)
       
-      if (attachment.cloudinaryUrl) {
-        console.log(`☁️ Fetching attachment from Cloudinary: ${attachment.name}`)
+      // Handle Appwrite storage attachments
+      if (attachment.appwriteUrl || attachment.appwriteFileId) {
+        const fetchUrl = attachment.appwriteUrl || attachment.data
+        console.log(`📦 Fetching attachment from Appwrite: ${attachment.name}`)
+        try {
+          const attachmentResponse = await fetchWithTimeout(fetchUrl, {
+            method: 'GET'
+          })
+          
+          if (!attachmentResponse.ok) {
+            throw new Error(`Failed to download attachment: ${attachmentResponse.statusText}`)
+          }
+          
+          const arrayBuffer = await attachmentResponse.arrayBuffer()
+          attachmentData = Buffer.from(arrayBuffer).toString('base64')
+          console.log(`✅ Successfully downloaded attachment from Appwrite: ${attachment.name}`)
+        } catch (error) {
+          console.error(`❌ Failed to download attachment ${attachment.name} from Appwrite:`, error)
+          throw new Error(`Failed to download attachment ${attachment.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
+      } else if (attachment.cloudinaryUrl) {
+        // Legacy Cloudinary support
+        console.log(`☁️ Fetching attachment from Cloudinary (legacy): ${attachment.name}`)
         try {
           const attachmentResponse = await fetchWithTimeout(attachment.cloudinaryUrl, {
             method: 'GET'
