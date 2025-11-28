@@ -36,11 +36,11 @@ import { useState } from "react"
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Compose", href: "/compose", icon: PenSquare },
+  { name: "Drafts", href: "/draft", icon: Clock },
   { name: "Templates", href: "/templates", icon: FileText },
   { name: "Contacts", href: "/contacts", icon: Users },
-  { name: "Scheduled", href: "/scheduled", icon: Clock },
-  { name: "A/B Tests", href: "/ab-testing", icon: Beaker },
   { name: "Analytics", href: "/analytics", icon: BarChart3 },
+  { name: "A/B Tests", href: "/ab-testing", icon: Beaker },
 ]
 
 const settingsMenu = [
@@ -61,7 +61,7 @@ export function Navbar() {
       <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center">
             <Link href={session ? "/dashboard" : "/"} className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-md shadow-primary/20">
                 <Mail className="h-5 w-5 text-white" />
@@ -74,7 +74,7 @@ export function Navbar() {
 
           {/* Desktop Navigation */}
           {session && (
-            <div className="hidden md:flex items-center gap-1">
+            <div className="hidden lg:flex items-center gap-1">
               {navigation.map((item) => {
                 const isActive = pathname === item.href
                 const Icon = item.icon
@@ -83,7 +83,7 @@ export function Navbar() {
                     key={item.name}
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200",
+                      "flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200",
                       isActive
                         ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -101,7 +101,7 @@ export function Navbar() {
                   <Button
                     variant="ghost"
                     className={cn(
-                      "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200",
+                      "flex items-center gap-1.5 px-3 py-2 h-auto rounded-lg text-sm font-medium transition-all duration-200",
                       pathname.startsWith("/settings") || pathname === "/contacts/duplicates"
                         ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted"
@@ -109,7 +109,7 @@ export function Navbar() {
                   >
                     <Settings className="h-4 w-4" />
                     Settings
-                    <ChevronDown className="h-3 w-3" />
+                    <ChevronDown className="h-3 w-3 ml-0.5" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
@@ -130,7 +130,7 @@ export function Navbar() {
           )}
 
           {/* Right side */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <ThemeToggle />
             <div className="hidden sm:block">
               <AuthButton />
@@ -141,7 +141,7 @@ export function Navbar() {
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="md:hidden"
+                className="lg:hidden"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               >
                 {mobileMenuOpen ? (
@@ -156,7 +156,7 @@ export function Navbar() {
 
         {/* Mobile Navigation */}
         {session && mobileMenuOpen && (
-          <div className="md:hidden py-4 space-y-1 animate-fade-in">
+          <div className="lg:hidden py-4 space-y-1 animate-fade-in">
             {navigation.map((item) => {
               const isActive = pathname === item.href
               const Icon = item.icon
