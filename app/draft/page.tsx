@@ -53,17 +53,17 @@ import {
   User,
 } from "lucide-react"
 import Link from "next/link"
-import { scheduledEmailsService, type ScheduledEmail } from "@/lib/appwrite"
+import { draftEmailsService, type DraftEmail } from "@/lib/appwrite"
 import { toast } from "sonner"
 import { format, formatDistanceToNow, isPast } from "date-fns"
 
-export default function ScheduledPage() {
+export default function DraftPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
-  const [scheduledEmails, setScheduledEmails] = useState<ScheduledEmail[]>([])
+  const [draftEmails, setDraftEmails] = useState<DraftEmail[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isMounted, setIsMounted] = useState(false)
-  const [previewEmail, setPreviewEmail] = useState<ScheduledEmail | null>(null)
+  const [previewEmail, setPreviewEmail] = useState<DraftEmail | null>(null)
   const [previewRecipientIndex, setPreviewRecipientIndex] = useState(0)
   const [sendingId, setSendingId] = useState<string | null>(null)
 
@@ -77,16 +77,16 @@ export default function ScheduledPage() {
     }
   }, [status, router])
 
-  const fetchScheduledEmails = useCallback(async () => {
+  const fetchDraftEmails = useCallback(async () => {
     if (!session?.user?.email) return
     
     setIsLoading(true)
     try {
-      const response = await scheduledEmailsService.listByUser(session.user.email)
-      setScheduledEmails(response.documents)
+      const response = await draftEmailsService.listByUser(session.user.email)
+      setDraftEmails(response.documents)
     } catch (error) {
-      console.error("Error fetching scheduled emails:", error)
-      toast.error("Failed to load scheduled emails")
+      console.error("Error fetching draft emails:", error)
+      toast.error("Failed to load draft emails")
     }
     setIsLoading(false)
   }, [session?.user?.email])
@@ -94,17 +94,17 @@ export default function ScheduledPage() {
   useEffect(() => {
     if (!session?.user?.email) return
     
-    fetchScheduledEmails()
+    fetchDraftEmails()
     
-    const unsubscribe = scheduledEmailsService.subscribeToUserScheduledEmails(
+    const unsubscribe = draftEmailsService.subscribeToUserDraftEmails(
       session.user.email,
-      () => fetchScheduledEmails()
+      () => fetchDraftEmails()
     )
     
     return () => {
       if (unsubscribe) unsubscribe()
     }
-  }, [session?.user?.email, fetchScheduledEmails])
+  }, [session?.user?.email, fetchDraftEmails])
 
   // Reset preview index when changing email
   useEffect(() => {
@@ -119,7 +119,7 @@ export default function ScheduledPage() {
   }
 
   // Get personalized content for a specific recipient
-  const getPreviewContent = (email: ScheduledEmail, recipientIndex: number) => {
+  const getPreviewContent = (email: DraftEmail, recipientIndex: number) => {
     const recipientEmail = email.recipients[recipientIndex] || email.recipients[0]
     
     // Try to get recipient data from stored csv_data
@@ -128,9 +128,18 @@ export default function ScheduledPage() {
     if (email.csv_data) {
       try {
         const csvData = typeof email.csv_data === 'string' ? JSON.parse(email.csv_data) : email.csv_data
-        const row = csvData.find((r: any) => r.email === recipientEmail)
+        // Case-insensitive email matching
+        const row = csvData.find((r: any) => {
+          const rowEmail = r.email || r.Email || r.EMAIL || ''
+          return rowEmail.toLowerCase() === recipientEmail.toLowerCase()
+        })
         if (row) {
-          recipientData = { ...row }
+          // Normalize keys to lowercase for consistent placeholder matching
+          recipientData = Object.entries(row).reduce((acc, [key, value]) => {
+            acc[key.toLowerCase()] = String(value)
+            acc[key] = String(value) // Keep original case too
+            return acc
+          }, {} as Record<string, string>)
         }
       } catch (e) {
         console.error("Error parsing csv_data:", e)
@@ -145,83 +154,84 @@ export default function ScheduledPage() {
     }
   }
 
-  const cancelScheduledEmail = async (emailId: string) => {
+  const cancelDraftEmail = async (emailId: string) => {
     try {
-      await scheduledEmailsService.cancel(emailId)
-      toast.success("Scheduled email cancelled")
-      fetchScheduledEmails()
+      await draftEmailsService.cancel(emailId)
+      toast.success("Draft email cancelled")
+      fetchDraftEmails()
     } catch (error) {
       console.error("Error cancelling email:", error)
-      toast.error("Failed to cancel scheduled email")
+      toast.error("Failed to cancel draft email")
     }
   }
 
-  const deleteScheduledEmail = async (emailId: string) => {
+  const deleteDraftEmail = async (emailId: string) => {
     try {
-      await scheduledEmailsService.delete(emailId)
-      toast.success("Scheduled email deleted")
-      fetchScheduledEmails()
+      await draftEmailsService.delete(emailId)
+      toast.success("Draft email deleted")
+      fetchDraftEmails()
     } catch (error) {
       console.error("Error deleting email:", error)
-      toast.error("Failed to delete scheduled email")
+      toast.error("Failed to delete draft email")
     }
   }
 
-  const sendNow = async (email: ScheduledEmail) => {
+  const sendNow = async (email: DraftEmail) => {
     if (!email.$id) return
     
     setSendingId(email.$id)
     
     try {
-      // Call the send API (API will handle status updates)
-      const response = await fetch('/api/send-scheduled-email', {
+      // Call the send draft API (API will handle status updates)
+      const response = await fetch('/api/send-draft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scheduledEmailId: email.$id }),
+        body: JSON.stringify({ draftId: email.$id }),
       })
       
       const data = await response.json()
       
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to send email')
+        throw new Error(data.error || 'Failed to send draft')
       }
       
       if (data.summary?.failed > 0) {
         toast.warning(`Sent ${data.summary.sent} of ${data.summary.total} emails. ${data.summary.failed} failed.`)
       } else {
-        toast.success("Email sent successfully!")
+        toast.success("Draft sent successfully!")
       }
-      fetchScheduledEmails()
+      fetchDraftEmails()
     } catch (error) {
-      console.error("Error sending email:", error)
-      const errorMessage = error instanceof Error ? error.message : "Failed to send email"
+      console.error("Error sending draft:", error)
+      const errorMessage = error instanceof Error ? error.message : "Failed to send draft"
       toast.error(errorMessage)
-      fetchScheduledEmails() // Refresh to show updated status
+      fetchDraftEmails() // Refresh to show updated status
     } finally {
       setSendingId(null)
     }
   }
 
-  const editScheduledEmail = (email: ScheduledEmail) => {
-    // Store the scheduled email data in sessionStorage for the compose page to pick up
-    sessionStorage.setItem('editScheduledEmail', JSON.stringify({
+  const editDraftEmail = (email: DraftEmail) => {
+    // Store the draft email data in sessionStorage for the compose page to pick up
+    sessionStorage.setItem('editDraftEmail', JSON.stringify({
       id: email.$id,
       subject: email.subject,
       content: email.content,
       recipients: email.recipients,
-      scheduled_at: email.scheduled_at,
+      saved_at: email.saved_at,
       attachments: email.attachments,
+      csv_data: email.csv_data,
     }))
-    router.push('/compose?edit=scheduled')
+    router.push('/compose?edit=draft')
   }
 
-  const getStatusBadge = (email: ScheduledEmail) => {
+  const getStatusBadge = (email: DraftEmail) => {
     switch (email.status) {
       case 'pending':
-        if (isPast(new Date(email.scheduled_at))) {
+        if (isPast(new Date(email.saved_at))) {
           return <Badge variant="default" className="flex items-center gap-1"><Send className="h-3 w-3" /> Ready to Send</Badge>
         }
-        return <Badge variant="secondary" className="flex items-center gap-1"><Clock className="h-3 w-3" /> Queued</Badge>
+        return <Badge variant="secondary" className="flex items-center gap-1"><Clock className="h-3 w-3" /> Saved</Badge>
       case 'sending':
         return <Badge variant="info" className="flex items-center gap-1"><RefreshCw className="h-3 w-3 animate-spin" /> Sending</Badge>
       case 'sent':
@@ -316,8 +326,8 @@ export default function ScheduledPage() {
 
   if (status === "unauthenticated") return null
 
-  const pendingEmails = scheduledEmails.filter(e => e.status === 'pending')
-  const completedEmails = scheduledEmails.filter(e => ['sent', 'failed', 'cancelled'].includes(e.status))
+  const pendingEmails = draftEmails.filter(e => e.status === 'pending')
+  const completedEmails = draftEmails.filter(e => ['sent', 'failed', 'cancelled'].includes(e.status))
 
   return (
     <div className="min-h-screen bg-background">
@@ -373,7 +383,7 @@ export default function ScheduledPage() {
                   <CheckCircle className="h-5 w-5 text-success" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{scheduledEmails.filter(e => e.status === 'sent').length}</p>
+                  <p className="text-2xl font-bold">{draftEmails.filter(e => e.status === 'sent').length}</p>
                   <p className="text-sm text-muted-foreground">Sent</p>
                 </div>
               </div>
@@ -386,7 +396,7 @@ export default function ScheduledPage() {
                   <XCircle className="h-5 w-5 text-destructive" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{scheduledEmails.filter(e => e.status === 'failed').length}</p>
+                  <p className="text-2xl font-bold">{draftEmails.filter(e => e.status === 'failed').length}</p>
                   <p className="text-sm text-muted-foreground">Failed</p>
                 </div>
               </div>
@@ -399,7 +409,7 @@ export default function ScheduledPage() {
                   <Pause className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{scheduledEmails.filter(e => e.status === 'cancelled').length}</p>
+                  <p className="text-2xl font-bold">{draftEmails.filter(e => e.status === 'cancelled').length}</p>
                   <p className="text-sm text-muted-foreground">Cancelled</p>
                 </div>
               </div>
@@ -423,14 +433,14 @@ export default function ScheduledPage() {
                         <div className="flex items-center gap-2 mb-2">
                           {getStatusBadge(email)}
                           <span className="text-sm text-muted-foreground">
-                            {formatDistanceToNow(new Date(email.scheduled_at), { addSuffix: true })}
+                            {formatDistanceToNow(new Date(email.saved_at), { addSuffix: true })}
                           </span>
                         </div>
                         <h3 className="font-semibold text-lg mb-1 truncate">{email.subject}</h3>
                         <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
-                            {format(new Date(email.scheduled_at), 'PPP p')}
+                            {format(new Date(email.saved_at), 'PPP p')}
                           </span>
                           <span className="flex items-center gap-1">
                             <Users className="h-4 w-4" />
@@ -449,7 +459,7 @@ export default function ScheduledPage() {
                             <Eye className="h-4 w-4 mr-2" />
                             Preview
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => editScheduledEmail(email)}>
+                          <DropdownMenuItem onClick={() => editDraftEmail(email)}>
                             <Edit className="h-4 w-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
@@ -465,7 +475,7 @@ export default function ScheduledPage() {
                             {sendingId === email.$id ? 'Sending...' : 'Send Now'}
                           </DropdownMenuItem>
                           <DropdownMenuItem 
-                            onClick={() => cancelScheduledEmail(email.$id!)}
+                            onClick={() => cancelDraftEmail(email.$id!)}
                             className="text-warning"
                           >
                             <Pause className="h-4 w-4 mr-2" />
@@ -483,15 +493,15 @@ export default function ScheduledPage() {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Scheduled Email</AlertDialogTitle>
+                                <AlertDialogTitle>Delete Draft Email</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Are you sure you want to delete this scheduled email? This action cannot be undone.
+                                  Are you sure you want to delete this draft email? This action cannot be undone.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
-                                  onClick={() => deleteScheduledEmail(email.$id!)}
+                                  onClick={() => deleteDraftEmail(email.$id!)}
                                   className="bg-destructive text-destructive-foreground"
                                 >
                                   Delete
@@ -527,7 +537,7 @@ export default function ScheduledPage() {
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground flex-shrink-0">
                         <span>{email.recipients.length} recipients</span>
-                        <span>{format(new Date(email.scheduled_at), 'PP')}</span>
+                        <span>{format(new Date(email.saved_at), 'PP')}</span>
                         <Button variant="ghost" size="icon-sm" onClick={() => setPreviewEmail(email)}>
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -546,7 +556,7 @@ export default function ScheduledPage() {
         )}
 
         {/* Empty State */}
-        {scheduledEmails.length === 0 && !isLoading && (
+        {draftEmails.length === 0 && !isLoading && (
           <Card>
             <CardContent className="py-16">
               <div className="text-center">
@@ -570,12 +580,15 @@ export default function ScheduledPage() {
       </main>
 
       {/* Preview Dialog */}
-      <Dialog open={!!previewEmail} onOpenChange={() => setPreviewEmail(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <Dialog open={!!previewEmail} onOpenChange={(open) => !open && setPreviewEmail(null)}>
+        <DialogContent 
+          className="max-w-2xl max-h-[80vh] overflow-y-auto"
+          onCloseAutoFocus={(e) => e.preventDefault()}
+        >
           <DialogHeader>
             <DialogTitle>Email Preview</DialogTitle>
             <DialogDescription>
-              Saved {previewEmail && format(new Date(previewEmail.scheduled_at), 'PPP p')}
+              Saved {previewEmail && format(new Date(previewEmail.saved_at), 'PPP p')}
             </DialogDescription>
           </DialogHeader>
           {previewEmail && (() => {
