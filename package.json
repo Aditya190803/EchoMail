@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "appwrite:setup": "ts-node --esm scripts/setup-appwrite.ts",
+    "appwrite:delete-database": "ts-node --esm scripts/delete-database.ts",
+    "migrate:firebase-to-appwrite": "ts-node --esm scripts/migrate-firebase-to-appwrite.ts"
   },
   "dependencies": {
     "@auth/core": "latest",
@@ -55,6 +58,7 @@
     "@tiptap/pm": "latest",
     "@tiptap/react": "latest",
     "@tiptap/starter-kit": "latest",
+    "appwrite": "^21.4.0",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.6.1",
@@ -73,6 +77,7 @@
     "next-auth": "latest",
     "next-cloudinary": "^6.16.0",
     "next-themes": "latest",
+    "node-appwrite": "^20.3.0",
     "nodemailer": "latest",
     "papaparse": "latest",
     "react": "^18.2.0",
@@ -89,12 +94,16 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@eslint/js": "^9.39.1",
     "@types/mjml": "^4.7.4",
     "@types/node": "^22",
     "@types/papaparse": "^5.3.16",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^15.0.0",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"
