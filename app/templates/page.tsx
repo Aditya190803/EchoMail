@@ -220,7 +220,7 @@ export default function TemplatesPage() {
     }
   }
 
-  const useTemplate = (template: EmailTemplate) => {
+  const applyTemplate = (template: EmailTemplate) => {
     // Store template in sessionStorage and redirect to compose
     sessionStorage.setItem('selectedTemplate', JSON.stringify({
       subject: template.subject,
@@ -406,7 +406,7 @@ export default function TemplatesPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => useTemplate(template)}>
+                            <DropdownMenuItem onClick={() => applyTemplate(template)}>
                               <Mail className="h-4 w-4 mr-2" />
                               Use Template
                             </DropdownMenuItem>
@@ -473,7 +473,7 @@ export default function TemplatesPage() {
                           <Clock className="h-3 w-3" />
                           {formatDate(template.updated_at || template.created_at || '')}
                         </div>
-                        <Button size="sm" onClick={() => useTemplate(template)}>
+                        <Button size="sm" onClick={() => applyTemplate(template)}>
                           Use
                         </Button>
                       </div>

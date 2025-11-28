@@ -80,7 +80,7 @@ export default function DuplicatesPage() {
         name: (doc as any).name,
         company: (doc as any).company,
         phone: (doc as any).phone,
-        created_at: (doc as any).created_at || doc.$createdAt,
+        created_at: (doc as any).created_at,
       })) as Contact[]
       
       setContacts(contactsData)

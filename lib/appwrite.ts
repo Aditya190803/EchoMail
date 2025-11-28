@@ -170,7 +170,7 @@ async function apiRequest<T>(
 // ============================================
 
 export const contactsService = {
-  async create(contact: Omit<Contact, '$id' | 'created_at' | 'user_email'>) {
+  async create(contact: Omit<Contact, '$id' | 'created_at'>) {
     return apiRequest<Contact>('/api/appwrite/contacts', {
       method: 'POST',
       body: JSON.stringify(contact),
@@ -222,7 +222,7 @@ export const campaignsService = {
 // ============================================
 
 export const templatesService = {
-  async create(template: Omit<EmailTemplate, '$id' | 'created_at' | 'updated_at' | 'user_email'>) {
+  async create(template: Omit<EmailTemplate, '$id' | 'created_at' | 'updated_at'>) {
     return apiRequest<EmailTemplate>('/api/appwrite/templates', {
       method: 'POST',
       body: JSON.stringify(template),
@@ -263,7 +263,7 @@ export const templatesService = {
 // ============================================
 
 export const contactGroupsService = {
-  async create(group: Omit<ContactGroup, '$id' | 'created_at' | 'updated_at' | 'user_email'>) {
+  async create(group: Omit<ContactGroup, '$id' | 'created_at' | 'updated_at'>) {
     return apiRequest<ContactGroup>('/api/appwrite/contact-groups', {
       method: 'POST',
       body: JSON.stringify(group),
@@ -407,7 +407,7 @@ export const signaturesService = {
 // ============================================
 
 export const unsubscribesService = {
-  async create(unsubscribe: Omit<Unsubscribe, '$id' | 'unsubscribed_at' | 'user_email'>) {
+  async create(unsubscribe: Omit<Unsubscribe, '$id' | 'unsubscribed_at'>) {
     return apiRequest<Unsubscribe>('/api/appwrite/unsubscribes', {
       method: 'POST',
       body: JSON.stringify(unsubscribe),
@@ -445,7 +445,7 @@ export const unsubscribesService = {
 // ============================================
 
 export const webhooksService = {
-  async create(webhook: Omit<Webhook, '$id' | 'created_at' | 'updated_at' | 'last_triggered_at' | 'user_email'>) {
+  async create(webhook: Omit<Webhook, '$id' | 'created_at' | 'updated_at' | 'last_triggered_at'>) {
     return apiRequest<Webhook>('/api/appwrite/webhooks', {
       method: 'POST',
       body: JSON.stringify(webhook),
@@ -489,7 +489,7 @@ export const webhooksService = {
 // ============================================
 
 export const abTestsService = {
-  async create(test: Omit<ABTest, '$id' | 'created_at' | 'variant_a_sent' | 'variant_b_sent' | 'variant_a_opens' | 'variant_b_opens' | 'variant_a_clicks' | 'variant_b_clicks' | 'user_email'>) {
+  async create(test: Omit<ABTest, '$id' | 'created_at' | 'variant_a_sent' | 'variant_b_sent' | 'variant_a_opens' | 'variant_b_opens' | 'variant_a_clicks' | 'variant_b_clicks'>) {
     return apiRequest<ABTest>('/api/appwrite/ab-tests', {
       method: 'POST',
       body: JSON.stringify(test),
@@ -553,11 +553,21 @@ export const ID = {
   unique: () => Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
 }
 
+// Query export for backward compatibility (not used with API routes)
+export const Query = {
+  equal: (field: string, value: string) => ({ field, value }),
+  limit: (n: number) => ({ limit: n }),
+  offset: (n: number) => ({ offset: n }),
+  orderDesc: (field: string) => ({ orderDesc: field }),
+  orderAsc: (field: string) => ({ orderAsc: field }),
+}
+
 // Test connection function (just returns success since we're using API routes)
-export const testAppwriteConnection = async () => {
+export const testAppwriteConnection = async (): Promise<{ success: boolean; message: string; projectId?: string; error?: string }> => {
   return { 
     success: true, 
-    message: "Using API routes for Appwrite operations"
+    message: "Using API routes for Appwrite operations",
+    projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || 'via-api',
   }
 }
 

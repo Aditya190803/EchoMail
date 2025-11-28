@@ -23,6 +23,7 @@ import {
   Sparkles,
   Zap,
   Target,
+  BarChart3,
 } from "lucide-react"
 import Link from "next/link"
 import { campaignsService, EmailCampaign } from "@/lib/appwrite"

@@ -67,12 +67,12 @@ describe('Contacts Service', () => {
         name: 'New User',
         company: 'Test Corp',
         phone: '123-456-7890',
+        user_email: 'test@example.com',
       }
 
       const mockResponse = {
         $id: '123',
         ...newContact,
-        user_email: 'test@example.com',
         created_at: new Date().toISOString(),
       }
 
@@ -97,7 +97,7 @@ describe('Contacts Service', () => {
         json: async () => ({ error: 'Failed to create contact' }),
       })
 
-      await expect(contactsService.create({ email: 'test@example.com' })).rejects.toThrow()
+      await expect(contactsService.create({ email: 'test@example.com', user_email: 'test@example.com' })).rejects.toThrow()
     })
   })
 
@@ -209,6 +209,7 @@ describe('Templates Service', () => {
         name: 'New Template',
         subject: 'Subject Line',
         content: '<p>Template content</p>',
+        user_email: 'test@example.com',
       }
 
       mockFetch.mockResolvedValueOnce({
@@ -437,6 +438,7 @@ describe('Unsubscribes Service', () => {
       const result = await unsubscribesService.create({
         email: 'unsub@example.com',
         reason: 'Not interested',
+        user_email: 'test@example.com',
       })
 
       expect(result.email).toBe('unsub@example.com')
