@@ -30,6 +30,7 @@ import {
   UserMinus,
   Database,
   Beaker,
+  Shield,
 } from "lucide-react"
 import { useState } from "react"
 
@@ -48,6 +49,9 @@ const settingsMenu = [
   { name: "Signatures", href: "/settings/signatures", icon: PenSquare },
   { name: "Unsubscribes", href: "/settings/unsubscribes", icon: UserMinus },
   { name: "Webhooks", href: "/settings/webhooks", icon: Link2 },
+  { name: "Teams", href: "/settings/teams", icon: Users },
+  { name: "Privacy & Data", href: "/settings/gdpr", icon: Shield },
+  { name: "Audit Logs", href: "/settings/audit-logs", icon: FileText },
   { name: "Duplicates", href: "/contacts/duplicates", icon: Database },
 ]
 
