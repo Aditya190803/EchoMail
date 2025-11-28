@@ -2,8 +2,6 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { sendEmailViaAPI, replacePlaceholders } from "@/lib/gmail"
-import { db } from "@/lib/firebase"
-import { collection, addDoc, serverTimestamp } from "firebase/firestore"
 
 /**
  * Simplified email sending endpoint with sequential processing.

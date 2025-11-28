@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { uploadToCloudinary } from '@/lib/cloudinary'
+import { serverStorageService } from '@/lib/appwrite-server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 
@@ -25,19 +25,20 @@ export async function POST(request: NextRequest) {
         const arrayBuffer = await file.arrayBuffer()
         const buffer = Buffer.from(arrayBuffer)
         
-        // Upload to Cloudinary
-        const result = await uploadToCloudinary(
+        // Upload to Appwrite Storage
+        const result = await serverStorageService.uploadFile(
           buffer,
           file.name,
+          file.type,
           session.user.email
         )
         
         uploadResults.push({
-          fileName: file.name,
-          fileSize: file.size,
+          fileName: result.fileName,
+          fileSize: result.fileSize,
           fileType: file.type,
           url: result.url,
-          public_id: result.public_id
+          appwrite_file_id: result.fileId
         })
       } catch (error) {
         console.error(`Error uploading ${file.name}:`, error)

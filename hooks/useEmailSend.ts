@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
+import { signIn } from 'next-auth/react'
 
 interface EmailResult {
   email: string
@@ -32,6 +33,7 @@ interface QuotaInfo {
 
 interface SendOptions {
   delayBetweenEmails?: number // milliseconds
+  checkTokenEveryN?: number // Check token every N emails
 }
 
 interface UseEmailSendResult {
@@ -47,11 +49,13 @@ interface UseEmailSendResult {
   quotaInfo: QuotaInfo
   updateQuotaUsed: (count: number) => void
   resetDailyQuota: () => void
+  checkTokenStatus: () => Promise<{ valid: boolean; minutesRemaining: number }>
 }
 
 const MAX_RETRIES = 3
 const RETRY_DELAY_MS = 2000 // 2 seconds between retries
 const DEFAULT_BETWEEN_EMAILS_DELAY_MS = 1000 // 1 second between different emails
+const DEFAULT_TOKEN_CHECK_INTERVAL = 10 // Check token every 10 emails
 
 // Gmail API quotas (conservative estimates)
 // Free Gmail: ~500 emails/day, Workspace: ~2000/day
@@ -66,6 +70,7 @@ const QUOTA_STORAGE_KEY = 'echomail_gmail_quota'
  * - Retries failed emails up to 3 times
  * - Configurable delay between emails to avoid rate limiting
  * - Tracks estimated Gmail quota usage
+ * - Checks and refreshes OAuth token during long campaigns
  * - Stops sending if an email fails after all retries (to avoid wasting quota on rate limits)
  * - Allows users to retry remaining emails later
  */
@@ -171,6 +176,41 @@ export function useEmailSend(): UseEmailSendResult {
     }
   }, [])
 
+  // Check token status and trigger refresh if needed
+  const checkTokenStatus = useCallback(async (): Promise<{ valid: boolean; minutesRemaining: number; requiresReauth?: boolean }> => {
+    try {
+      const response = await fetch('/api/refresh-token', {
+        method: 'GET',
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        console.warn('Token check failed:', data.error)
+        return { 
+          valid: false, 
+          minutesRemaining: 0,
+          requiresReauth: data.requiresReauth || true
+        }
+      }
+      
+      // If token is expiring soon, trigger a background session refresh
+      if (data.isExpiringSoon) {
+        console.log(`⚠️ Token expiring soon (${data.minutesRemaining} min remaining), refreshing...`)
+        // The NextAuth JWT callback will automatically refresh on next request
+        await fetch('/api/auth/session')
+      }
+      
+      return {
+        valid: data.valid,
+        minutesRemaining: data.minutesRemaining
+      }
+    } catch (error) {
+      console.error('Token status check error:', error)
+      return { valid: false, minutesRemaining: 0, requiresReauth: true }
+    }
+  }, [])
+
   // Helper to check if error is retryable
   const isRetryableError = (errorMessage: string): boolean => {
     const nonRetryableErrors = [
@@ -264,6 +304,7 @@ export function useEmailSend(): UseEmailSendResult {
   const sendEmails = useCallback(async (personalizedEmails: any[], options?: SendOptions): Promise<EmailResult[]> => {
     // Set the delay from options or use default
     const delayBetweenEmails = options?.delayBetweenEmails ?? DEFAULT_BETWEEN_EMAILS_DELAY_MS
+    const tokenCheckInterval = options?.checkTokenEveryN ?? DEFAULT_TOKEN_CHECK_INTERVAL
     currentDelayRef.current = delayBetweenEmails
     
     setIsLoading(true)
@@ -274,6 +315,18 @@ export function useEmailSend(): UseEmailSendResult {
     
     const totalEmails = personalizedEmails.length
     console.log(`🚀 Sending ${totalEmails} emails with retry logic (max ${MAX_RETRIES} retries per email, ${delayBetweenEmails}ms delay)`)
+    
+    // Check token status before starting
+    const initialTokenStatus = await checkTokenStatus()
+    if (!initialTokenStatus.valid) {
+      setError('Your session has expired. Please sign in again.')
+      setIsLoading(false)
+      if (initialTokenStatus.requiresReauth) {
+        signIn('google')
+      }
+      return []
+    }
+    console.log(`🔐 Token valid for ${initialTokenStatus.minutesRemaining} minutes`)
     
     // Check quota before starting
     if (quotaInfo.estimatedRemaining < totalEmails) {
@@ -300,6 +353,49 @@ export function useEmailSend(): UseEmailSendResult {
     try {
       for (let i = 0; i < personalizedEmails.length; i++) {
         const email = personalizedEmails[i]
+        
+        // Check token every N emails to prevent expiry during long campaigns
+        if (i > 0 && i % tokenCheckInterval === 0) {
+          setProgress(prev => ({
+            ...prev,
+            status: `Checking session status...`
+          }))
+          
+          const tokenStatus = await checkTokenStatus()
+          if (!tokenStatus.valid) {
+            console.error('🔐 Token expired during campaign')
+            // Store remaining emails for retry
+            const remainingEmails = personalizedEmails.slice(i)
+            remainingEmailsRef.current = remainingEmails
+            setFailedEmails(remainingEmails)
+            setStoppedDueToError(true)
+            setError(`Session expired after sending ${i} emails. ${remainingEmails.length} emails remaining. Please sign in again and retry.`)
+            
+            // Mark remaining as skipped
+            for (let j = 0; j < remainingEmails.length; j++) {
+              const remainingIndex = i + j
+              results.push({ 
+                email: remainingEmails[j].to, 
+                status: "skipped", 
+                error: "Session expired",
+                index: remainingIndex
+              })
+              setSendStatus(prev => prev.map(s => 
+                s.index === remainingIndex ? { 
+                  ...s, 
+                  status: "skipped" as const,
+                  error: "Session expired"
+                } : s
+              ))
+            }
+            
+            if (tokenStatus.requiresReauth) {
+              signIn('google')
+            }
+            break
+          }
+          console.log(`🔐 Token still valid (${tokenStatus.minutesRemaining} min remaining)`)
+        }
         
         setProgress({
           currentEmail: i + 1,
@@ -395,7 +491,7 @@ export function useEmailSend(): UseEmailSendResult {
     } finally {
       setIsLoading(false)
     }
-  }, [quotaInfo.estimatedRemaining, updateQuotaUsed])
+  }, [quotaInfo.estimatedRemaining, updateQuotaUsed, checkTokenStatus])
 
   // Function to retry failed/skipped emails
   const retryFailedEmails = useCallback(async (): Promise<EmailResult[]> => {
@@ -428,6 +524,7 @@ export function useEmailSend(): UseEmailSendResult {
     stoppedDueToError,
     quotaInfo,
     updateQuotaUsed,
-    resetDailyQuota
+    resetDailyQuota,
+    checkTokenStatus
   }
 }
