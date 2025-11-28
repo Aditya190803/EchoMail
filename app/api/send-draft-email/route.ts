@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { sendEmailViaAPI, replacePlaceholders, preResolveAttachments, clearAttachmentCache } from "@/lib/gmail"
+import { sendEmailViaAPI, replacePlaceholders, preResolveAttachments, clearAttachmentCache, preBuildEmailTemplate, sendEmailWithTemplate } from "@/lib/gmail"
 import { databases, config, Query } from "@/lib/appwrite-server"
 
 /**
@@ -92,30 +92,78 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Send emails
-    for (let i = 0; i < recipients.length; i++) {
-      const recipientEmail = recipients[i]
+    // Use optimized template-based sending for bulk emails (no personalization in this endpoint)
+    if (recipients.length > 1) {
+      console.log(`🚀 Using optimized template-based bulk sending (${recipients.length} recipients)`)
       
       try {
-        await sendEmailViaAPI(
+        // Pre-build the email template ONCE
+        await preBuildEmailTemplate(
           session.accessToken,
-          recipientEmail,
           (doc as any).subject,
           (doc as any).content,
-          resolvedAttachments // Use pre-resolved attachments
+          resolvedAttachments
         )
-
-        results.push({ email: recipientEmail, status: 'success' })
-        successCount++
+        
+        // Send to each recipient using the cached template (FAST)
+        for (let i = 0; i < recipients.length; i++) {
+          const recipientEmail = recipients[i]
+          
+          try {
+            await sendEmailWithTemplate(session.accessToken, recipientEmail)
+            results.push({ email: recipientEmail, status: 'success' })
+            successCount++
+            console.log(`✅ Sent ${i + 1}/${recipients.length} to ${recipientEmail}`)
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Unknown error"
+            results.push({ email: recipientEmail, status: 'error', error: errorMessage })
+            failedCount++
+          }
+          
+          // Wait between emails to avoid rate limiting
+          if (i < recipients.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000))
+          }
+        }
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Unknown error"
-        results.push({ email: recipientEmail, status: 'error', error: errorMessage })
-        failedCount++
+        console.error('❌ Failed to build email template:', error)
+        await databases.updateDocument(
+          config.databaseId,
+          config.draftEmailsCollectionId,
+          draftEmailId,
+          { status: 'pending', error: 'Failed to build email template' }
+        )
+        return NextResponse.json({ 
+          error: "Failed to build email template",
+          details: error instanceof Error ? error.message : "Unknown error"
+        }, { status: 500 })
       }
+    } else {
+      // Single recipient - use standard method
+      for (let i = 0; i < recipients.length; i++) {
+        const recipientEmail = recipients[i]
+        
+        try {
+          await sendEmailViaAPI(
+            session.accessToken,
+            recipientEmail,
+            (doc as any).subject,
+            (doc as any).content,
+            resolvedAttachments // Use pre-resolved attachments
+          )
 
-      // Wait between emails to avoid rate limiting
-      if (i < recipients.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 1000))
+          results.push({ email: recipientEmail, status: 'success' })
+          successCount++
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : "Unknown error"
+          results.push({ email: recipientEmail, status: 'error', error: errorMessage })
+          failedCount++
+        }
+
+        // Wait between emails to avoid rate limiting
+        if (i < recipients.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        }
       }
     }
 

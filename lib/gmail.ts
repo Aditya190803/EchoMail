@@ -12,6 +12,15 @@ export interface AttachmentData {
 // Cache for resolved attachments (keyed by appwriteFileId)
 const attachmentCache = new Map<string, string>()
 
+// Cache for pre-built email templates (for bulk sending)
+interface EmailTemplate {
+  fromEmail: string
+  subject: string
+  bodyParts: string // Pre-built MIME body (everything after headers)
+  totalSize: number
+}
+let cachedEmailTemplate: EmailTemplate | null = null
+
 /**
  * Pre-resolve all Appwrite attachments to base64 ONCE before sending loop.
  * This prevents downloading the same attachment multiple times for bulk sends.
@@ -85,6 +94,198 @@ export async function preResolveAttachments(attachments: AttachmentData[]): Prom
  */
 export function clearAttachmentCache(): void {
   attachmentCache.clear()
+  cachedEmailTemplate = null
+}
+
+/**
+ * Pre-build the email template ONCE before bulk sending.
+ * This builds the entire MIME body (with attachments) once, so each send only needs to swap the To header.
+ * This dramatically speeds up bulk sends with large attachments.
+ */
+export async function preBuildEmailTemplate(
+  accessToken: string,
+  subject: string,
+  htmlBody: string,
+  attachments?: AttachmentData[],
+): Promise<void> {
+  console.log('🔨 Pre-building email template for bulk send...')
+  
+  // Get user profile
+  const userResponse = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
+    method: "GET",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  
+  if (!userResponse.ok) {
+    throw new Error("Failed to get user profile from Gmail API")
+  }
+  
+  const userProfile = await userResponse.json()
+  const fromEmail = userProfile.emailAddress
+  
+  // Build the MIME body parts (everything that stays constant)
+  const sanitizedHtmlBody = sanitizeEmailHTML(htmlBody)
+  const formattedHtmlBody = formatEmailHTML(sanitizedHtmlBody)
+  
+  const mixedBoundary = "----=_Part_" + Math.random().toString(36).substr(2, 9)
+  const altBoundary = "----=_Alt_" + Math.random().toString(36).substr(2, 9)
+  
+  // Create plain text version
+  const plainText = formattedHtmlBody
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+
+  const encodedSubject = encodeSubject(subject)
+  
+  let bodyParts: string[]
+  
+  if (attachments && attachments.length > 0) {
+    bodyParts = [
+      `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
+      "",
+      `--${mixedBoundary}`,
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+      "",
+      `--${altBoundary}`,
+      `Content-Type: text/plain; charset="UTF-8"`,
+      `Content-Transfer-Encoding: quoted-printable`,
+      "",
+      plainText,
+      "",
+      `--${altBoundary}`,
+      `Content-Type: text/html; charset="UTF-8"`,
+      `Content-Transfer-Encoding: quoted-printable`,
+      "",
+      formattedHtmlBody,
+      "",
+      `--${altBoundary}--`,
+    ]
+    
+    for (const attachment of attachments) {
+      const encodedFilename = `=?UTF-8?B?${Buffer.from(attachment.name, 'utf8').toString('base64')}?=`
+      
+      if (!attachment.data || attachment.data === 'appwrite' || attachment.data.startsWith('http')) {
+        throw new Error(`Attachment ${attachment.name} was not pre-resolved. Call preResolveAttachments() first.`)
+      }
+      
+      bodyParts.push(`--${mixedBoundary}`)
+      bodyParts.push(`Content-Type: ${attachment.type}; name="${encodedFilename}"`)
+      bodyParts.push(`Content-Disposition: attachment; filename="${encodedFilename}"`)
+      bodyParts.push(`Content-Transfer-Encoding: base64`)
+      bodyParts.push("")
+      bodyParts.push(attachment.data)
+    }
+    
+    bodyParts.push(`--${mixedBoundary}--`)
+  } else {
+    bodyParts = [
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+      "",
+      `--${altBoundary}`,
+      `Content-Type: text/plain; charset="UTF-8"`,
+      `Content-Transfer-Encoding: quoted-printable`,
+      "",
+      plainText,
+      "",
+      `--${altBoundary}`,
+      `Content-Type: text/html; charset="UTF-8"`,
+      `Content-Transfer-Encoding: quoted-printable`,
+      "",
+      formattedHtmlBody,
+      "",
+      `--${altBoundary}--`,
+    ]
+  }
+  
+  const bodyString = bodyParts.join("\n")
+  
+  cachedEmailTemplate = {
+    fromEmail,
+    subject: encodedSubject,
+    bodyParts: bodyString,
+    totalSize: bodyString.length,
+  }
+  
+  console.log(`✅ Email template pre-built (${(cachedEmailTemplate.totalSize / 1024 / 1024).toFixed(2)}MB body)`)
+}
+
+/**
+ * Send email using pre-built template (FAST - only swaps To header)
+ * Call preBuildEmailTemplate() once before using this for bulk sends.
+ */
+export async function sendEmailWithTemplate(
+  accessToken: string,
+  to: string,
+): Promise<any> {
+  if (!cachedEmailTemplate) {
+    throw new Error('No email template cached. Call preBuildEmailTemplate() first.')
+  }
+  
+  const validatedTo = validateAndSanitizeEmail(to)
+  
+  // Build complete email with just header changes
+  const email = [
+    `From: ${cachedEmailTemplate.fromEmail}`,
+    `To: ${validatedTo}`,
+    `Subject: ${cachedEmailTemplate.subject}`,
+    `MIME-Version: 1.0`,
+    cachedEmailTemplate.bodyParts,
+  ].join("\n")
+  
+  // Encode for Gmail API
+  const encodedEmail = Buffer.from(email, 'utf8')
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "")
+  
+  // Calculate timeout based on size
+  const totalSize = cachedEmailTemplate.totalSize
+  const BASE_TIMEOUT = 60000
+  const TIMEOUT_PER_5MB = 60000
+  const MAX_TIMEOUT = 600000
+  const SEND_TIMEOUT = Math.min(BASE_TIMEOUT + Math.ceil(totalSize / (5 * 1024 * 1024)) * TIMEOUT_PER_5MB, MAX_TIMEOUT)
+  
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), SEND_TIMEOUT)
+  
+  try {
+    const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ raw: encodedEmail }),
+      signal: controller.signal,
+    })
+    
+    clearTimeout(timeoutId)
+    
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Gmail API error (${response.status}): ${errorText}`)
+    }
+    
+    const result = await response.json()
+    console.log(`✅ Email sent to ${validatedTo} (ID: ${result.id})`)
+    return result
+  } catch (error) {
+    clearTimeout(timeoutId)
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Timeout after ${SEND_TIMEOUT / 1000}s. Email may have been sent - check Gmail Sent folder.`)
+    }
+    throw error
+  }
 }
 
 function sanitizeText(text: string): string {

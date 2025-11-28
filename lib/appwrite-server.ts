@@ -1,7 +1,7 @@
 import { Client, Databases, Storage, Query, ID } from 'node-appwrite'
 
-// Server-side Appwrite configuration - NO HARDCODED VALUES
-const appwriteConfig = {
+// Server-side Appwrite configuration - lazy loaded to avoid build-time errors
+const getAppwriteConfig = () => ({
   endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!,
   projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!,
   apiKey: process.env.APPWRITE_API_KEY!,
@@ -18,20 +18,53 @@ const appwriteConfig = {
   webhooksCollectionId: process.env.NEXT_PUBLIC_APPWRITE_WEBHOOKS_COLLECTION_ID!,
   trackingEventsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_TRACKING_EVENTS_COLLECTION_ID!,
   abTestsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_AB_TESTS_COLLECTION_ID!,
+})
+
+// Lazy initialization for client and services
+let _client: Client | null = null
+let _databases: Databases | null = null
+let _storage: Storage | null = null
+let _config: ReturnType<typeof getAppwriteConfig> | null = null
+
+const getClient = () => {
+  if (!_client) {
+    const cfg = getAppwriteConfig()
+    _client = new Client()
+      .setEndpoint(cfg.endpoint)
+      .setProject(cfg.projectId)
+      .setKey(cfg.apiKey)
+  }
+  return _client
 }
 
-// Initialize server-side Appwrite client
-const client = new Client()
-  .setEndpoint(appwriteConfig.endpoint)
-  .setProject(appwriteConfig.projectId)
-  .setKey(appwriteConfig.apiKey)
+// Export lazy-loaded services
+export const databases = new Proxy({} as Databases, {
+  get(_, prop) {
+    if (!_databases) {
+      _databases = new Databases(getClient())
+    }
+    return (_databases as any)[prop]
+  }
+})
 
-// Initialize services
-export const databases = new Databases(client)
-export const storage = new Storage(client)
+export const storage = new Proxy({} as Storage, {
+  get(_, prop) {
+    if (!_storage) {
+      _storage = new Storage(getClient())
+    }
+    return (_storage as any)[prop]
+  }
+})
 
-// Export config and helpers
-export const config = appwriteConfig
+// Export config getter and helpers
+export const config = new Proxy({} as ReturnType<typeof getAppwriteConfig>, {
+  get(_, prop) {
+    if (!_config) {
+      _config = getAppwriteConfig()
+    }
+    return (_config as any)[prop]
+  }
+})
 export { Query, ID }
 
 // ============================================
@@ -54,13 +87,13 @@ export const serverStorageService = {
     const inputFile = InputFile.fromBuffer(buffer, fileName)
     
     const result = await storage.createFile(
-      appwriteConfig.attachmentsBucketId,
+      config.attachmentsBucketId,
       uniqueId,
       inputFile
     )
     
     // Build the file URL
-    const fileUrl = `${appwriteConfig.endpoint}/storage/buckets/${appwriteConfig.attachmentsBucketId}/files/${result.$id}/view?project=${appwriteConfig.projectId}`
+    const fileUrl = `${config.endpoint}/storage/buckets/${config.attachmentsBucketId}/files/${result.$id}/view?project=${config.projectId}`
     
     return {
       fileId: result.$id,
@@ -73,7 +106,7 @@ export const serverStorageService = {
   // Get file as buffer for email attachment
   async getFileBuffer(fileId: string): Promise<Buffer> {
     const result = await storage.getFileDownload(
-      appwriteConfig.attachmentsBucketId,
+      config.attachmentsBucketId,
       fileId
     )
     // result is an ArrayBuffer
@@ -82,13 +115,13 @@ export const serverStorageService = {
 
   // Get file view URL
   getFileUrl(fileId: string): string {
-    return `${appwriteConfig.endpoint}/storage/buckets/${appwriteConfig.attachmentsBucketId}/files/${fileId}/view?project=${appwriteConfig.projectId}`
+    return `${config.endpoint}/storage/buckets/${config.attachmentsBucketId}/files/${fileId}/view?project=${config.projectId}`
   },
 
   // Delete a file
   async deleteFile(fileId: string) {
     return storage.deleteFile(
-      appwriteConfig.attachmentsBucketId,
+      config.attachmentsBucketId,
       fileId
     )
   },
@@ -113,8 +146,8 @@ export const serverCampaignsService = {
     send_results?: any[]
   }) {
     return databases.createDocument(
-      appwriteConfig.databaseId,
-      appwriteConfig.campaignsCollectionId,
+      config.databaseId,
+      config.campaignsCollectionId,
       ID.unique(),
       {
         ...campaign,
@@ -127,4 +160,5 @@ export const serverCampaignsService = {
   },
 }
 
-export default client
+// Export the client getter for cases that need direct access
+export const getAppwriteClient = getClient
