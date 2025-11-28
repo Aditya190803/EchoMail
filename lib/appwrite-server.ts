@@ -8,6 +8,8 @@ const appwriteConfig = {
   databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
   contactsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_CONTACTS_COLLECTION_ID!,
   campaignsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_CAMPAIGNS_COLLECTION_ID!,
+  templatesCollectionId: process.env.NEXT_PUBLIC_APPWRITE_TEMPLATES_COLLECTION_ID!,
+  contactGroupsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_CONTACT_GROUPS_COLLECTION_ID!,
   attachmentsBucketId: process.env.NEXT_PUBLIC_APPWRITE_ATTACHMENTS_BUCKET_ID!,
   // Additional feature collections
   scheduledEmailsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_SCHEDULED_EMAILS_COLLECTION_ID!,
