@@ -68,12 +68,12 @@ export interface ContactGroup {
   updated_at?: string
 }
 
-export interface ScheduledEmail {
+export interface DraftEmail {
   $id?: string
   subject: string
   content: string
   recipients: string[]
-  scheduled_at: string
+  saved_at: string
   status: 'pending' | 'sending' | 'sent' | 'failed' | 'cancelled'
   user_email: string
   attachments?: {
@@ -315,30 +315,30 @@ export const contactGroupsService = {
 }
 
 // ============================================
-// Scheduled Emails Service (via API)
+// Draft Emails Service (via API)
 // ============================================
 
-export const scheduledEmailsService = {
-  async create(email: Omit<ScheduledEmail, '$id' | 'created_at' | 'sent_at' | 'user_email' | 'status'>) {
-    return apiRequest<ScheduledEmail>('/api/appwrite/scheduled-emails', {
+export const draftEmailsService = {
+  async create(email: Omit<DraftEmail, '$id' | 'created_at' | 'sent_at' | 'user_email' | 'status'>) {
+    return apiRequest<DraftEmail>('/api/appwrite/draft-emails', {
       method: 'POST',
       body: JSON.stringify(email),
     })
   },
 
-  async listByUser(_userEmail: string): Promise<{ total: number; documents: ScheduledEmail[] }> {
-    return apiRequest('/api/appwrite/scheduled-emails')
+  async listByUser(_userEmail: string): Promise<{ total: number; documents: DraftEmail[] }> {
+    return apiRequest('/api/appwrite/draft-emails')
   },
 
-  async update(emailId: string, data: Partial<Omit<ScheduledEmail, '$id' | 'user_email' | 'created_at' | 'status'>>) {
-    return apiRequest<ScheduledEmail>('/api/appwrite/scheduled-emails', {
+  async update(emailId: string, data: Partial<Omit<DraftEmail, '$id' | 'user_email' | 'created_at' | 'status'>>) {
+    return apiRequest<DraftEmail>('/api/appwrite/draft-emails', {
       method: 'PUT',
       body: JSON.stringify({ id: emailId, ...data }),
     })
   },
 
-  async updateStatus(emailId: string, status: ScheduledEmail['status'], error?: string) {
-    return apiRequest<ScheduledEmail>('/api/appwrite/scheduled-emails', {
+  async updateStatus(emailId: string, status: DraftEmail['status'], error?: string) {
+    return apiRequest<DraftEmail>('/api/appwrite/draft-emails', {
       method: 'PUT',
       body: JSON.stringify({ id: emailId, status, error }),
     })
@@ -349,12 +349,12 @@ export const scheduledEmailsService = {
   },
 
   async delete(emailId: string) {
-    return apiRequest(`/api/appwrite/scheduled-emails?id=${emailId}`, {
+    return apiRequest(`/api/appwrite/draft-emails?id=${emailId}`, {
       method: 'DELETE',
     })
   },
 
-  subscribeToUserScheduledEmails(_userEmail: string, _callback: (response: any) => void) {
+  subscribeToUserDraftEmails(_userEmail: string, _callback: (response: any) => void) {
     return () => {}
   },
 }

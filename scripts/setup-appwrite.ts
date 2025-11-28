@@ -88,15 +88,16 @@ const collections = [
     ],
   },
   {
-    id: 'scheduled_emails',
-    name: 'Scheduled Emails',
+    id: 'draft_emails',
+    name: 'Draft Emails',
     attributes: [
       { key: 'subject', type: 'string', size: 500, required: true },
       { key: 'content', type: 'string', size: 100000, required: false },
       { key: 'recipients', type: 'string', size: 1000000, required: false },
-      { key: 'scheduled_at', type: 'string', size: 50, required: true },
+      { key: 'saved_at', type: 'string', size: 50, required: true },
       { key: 'status', type: 'string', size: 50, required: false },
       { key: 'attachments', type: 'string', size: 100000, required: false },
+      { key: 'csv_data', type: 'string', size: 1000000, required: false },
       { key: 'user_email', type: 'string', size: 255, required: true },
       { key: 'created_at', type: 'string', size: 50, required: false },
       { key: 'sent_at', type: 'string', size: 50, required: false },
@@ -104,7 +105,7 @@ const collections = [
     indexes: [
       { key: 'user_email_idx', type: 'key', attributes: ['user_email'] },
       { key: 'status_idx', type: 'key', attributes: ['status'] },
-      { key: 'scheduled_at_idx', type: 'key', attributes: ['scheduled_at'] },
+      { key: 'saved_at_idx', type: 'key', attributes: ['saved_at'] },
     ],
   },
   {
@@ -354,7 +355,7 @@ async function generateEnvVariables() {
   console.log(`NEXT_PUBLIC_APPWRITE_CAMPAIGNS_COLLECTION_ID=campaigns`)
   console.log(`NEXT_PUBLIC_APPWRITE_TEMPLATES_COLLECTION_ID=templates`)
   console.log(`NEXT_PUBLIC_APPWRITE_CONTACT_GROUPS_COLLECTION_ID=contact_groups`)
-  console.log(`NEXT_PUBLIC_APPWRITE_SCHEDULED_EMAILS_COLLECTION_ID=scheduled_emails`)
+  console.log(`NEXT_PUBLIC_APPWRITE_DRAFT_EMAILS_COLLECTION_ID=draft_emails`)
   console.log(`NEXT_PUBLIC_APPWRITE_SIGNATURES_COLLECTION_ID=signatures`)
   console.log(`NEXT_PUBLIC_APPWRITE_UNSUBSCRIBES_COLLECTION_ID=unsubscribes`)
   console.log(`NEXT_PUBLIC_APPWRITE_WEBHOOKS_COLLECTION_ID=webhooks`)

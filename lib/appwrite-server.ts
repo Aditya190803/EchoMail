@@ -12,7 +12,7 @@ const appwriteConfig = {
   contactGroupsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_CONTACT_GROUPS_COLLECTION_ID!,
   attachmentsBucketId: process.env.NEXT_PUBLIC_APPWRITE_ATTACHMENTS_BUCKET_ID!,
   // Additional feature collections
-  scheduledEmailsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_SCHEDULED_EMAILS_COLLECTION_ID!,
+  draftEmailsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_DRAFT_EMAILS_COLLECTION_ID!,
   signaturesCollectionId: process.env.NEXT_PUBLIC_APPWRITE_SIGNATURES_COLLECTION_ID!,
   unsubscribesCollectionId: process.env.NEXT_PUBLIC_APPWRITE_UNSUBSCRIBES_COLLECTION_ID!,
   webhooksCollectionId: process.env.NEXT_PUBLIC_APPWRITE_WEBHOOKS_COLLECTION_ID!,
