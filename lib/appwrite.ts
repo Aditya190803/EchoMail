@@ -82,6 +82,7 @@ export interface ScheduledEmail {
     fileSize: number
     appwrite_file_id?: string
   }[]
+  csv_data?: Record<string, string>[] // Personalization data for each recipient
   created_at?: string
   sent_at?: string
   error?: string
