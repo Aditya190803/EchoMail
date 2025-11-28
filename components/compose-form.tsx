@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -34,7 +34,6 @@ import {
   RefreshCw,
   FileText,
   Tag,
-  Calendar,
   Pen,
   FileCode,
 } from "lucide-react"
@@ -67,6 +66,7 @@ interface Contact {
 export function ComposeForm() {
   const { data: session } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
   
   // Form state
   const [subject, setSubject] = useState("")
@@ -75,10 +75,16 @@ export function ComposeForm() {
   const [attachments, setAttachments] = useState<any[]>([])
   const [isUploading, setIsUploading] = useState(false)
   
-  // Scheduling state
+  // Editing scheduled email state
+  const [editingScheduledId, setEditingScheduledId] = useState<string | null>(null)
+  
+  // Manual email entry state
+  const [manualEmail, setManualEmail] = useState("")
+  const [manualName, setManualName] = useState("")
+  const [manualEntries, setManualEntries] = useState<{email: string, name: string}[]>([])
+  
+  // Scheduling state (only toggle, no date/time needed for drafts)
   const [isScheduled, setIsScheduled] = useState(false)
-  const [scheduledDate, setScheduledDate] = useState("")
-  const [scheduledTime, setScheduledTime] = useState("")
   
   // Signature state
   const [signatures, setSignatures] = useState<EmailSignature[]>([])
@@ -130,7 +136,38 @@ export function ComposeForm() {
   useEffect(() => {
     const loadDraft = () => {
       try {
-        // First check if there's a template from the templates page
+        // First check if we're editing a draft
+        const editMode = searchParams.get('edit')
+        if (editMode === 'scheduled') {
+          const scheduledData = sessionStorage.getItem('editScheduledEmail')
+          if (scheduledData) {
+            const scheduled = JSON.parse(scheduledData)
+            setEditingScheduledId(scheduled.id)
+            setSubject(scheduled.subject || "")
+            setContent(scheduled.content || "")
+            setRecipients(scheduled.recipients || [])
+            setIsScheduled(true) // Keep it as draft mode when editing
+            
+            // Handle attachments
+            if (scheduled.attachments && scheduled.attachments.length > 0) {
+              const parsedAttachments = scheduled.attachments.map((a: any) => ({
+                name: a.fileName,
+                type: 'application/octet-stream',
+                data: a.fileUrl,
+                appwriteUrl: a.fileUrl,
+                appwriteFileId: a.appwrite_file_id,
+                fileSize: a.fileSize,
+              }))
+              setAttachments(parsedAttachments)
+            }
+            
+            sessionStorage.removeItem('editScheduledEmail')
+            toast.success("Editing draft")
+            return
+          }
+        }
+        
+        // Check if there's a template from the templates page
         const templateData = sessionStorage.getItem('selectedTemplate')
         if (templateData) {
           const template = JSON.parse(templateData)
@@ -167,7 +204,7 @@ export function ComposeForm() {
     }
     
     loadDraft()
-  }, [])
+  }, [searchParams])
 
   // Auto-save draft when content changes
   useEffect(() => {
@@ -430,6 +467,57 @@ export function ComposeForm() {
     setRecipients(newRecipients)
   }
 
+  // Add manual email entry (email + name)
+  const addManualEntry = () => {
+    const email = manualEmail.trim().toLowerCase()
+    const name = manualName.trim()
+    
+    if (!email || !email.includes('@') || !email.includes('.')) {
+      toast.error("Please enter a valid email address")
+      return
+    }
+    
+    if (recipients.includes(email)) {
+      toast.error("This email is already added")
+      return
+    }
+    
+    // Add to recipients
+    setRecipients([...recipients, email])
+    
+    // Add to manual entries for display
+    setManualEntries([...manualEntries, { email, name }])
+    
+    // Add to CSV data for personalization
+    const data: Record<string, string> = { email }
+    if (name) data.name = name
+    setCsvData(prev => [...prev, data])
+    if (csvHeaders.length === 0) {
+      setCsvHeaders(['email', 'name'])
+    }
+    
+    // Clear inputs
+    setManualEmail("")
+    setManualName("")
+    toast.success("Recipient added")
+  }
+
+  // Remove a recipient
+  const removeRecipient = (email: string) => {
+    setRecipients(recipients.filter(r => r !== email))
+    // Also remove from manual entries
+    setManualEntries(prev => prev.filter(e => e.email !== email))
+    // Also remove from CSV data
+    setCsvData(prev => prev.filter(row => row.email !== email))
+    // Also update selected contacts if it was from contacts
+    const contact = contacts.find(c => c.email === email)
+    if (contact) {
+      const newSelected = new Set(selectedContacts)
+      newSelected.delete(contact.$id)
+      setSelectedContacts(newSelected)
+    }
+  }
+
   // Send emails
   const handleSend = async () => {
     if (!subject.trim()) {
@@ -447,19 +535,7 @@ export function ComposeForm() {
       return
     }
     
-    // Validate scheduling
-    if (isScheduled) {
-      if (!scheduledDate || !scheduledTime) {
-        toast.error("Please select a date and time for scheduling")
-        return
-      }
-      
-      const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`)
-      if (scheduledDateTime <= new Date()) {
-        toast.error("Scheduled time must be in the future")
-        return
-      }
-    }
+    // No date/time validation needed for drafts - saved immediately
     
     // Filter out unsubscribed emails
     let filteredRecipients = recipients
@@ -484,33 +560,42 @@ export function ComposeForm() {
       }
     }
     
-    // Handle scheduled sending
+    // Handle saving as draft
     if (isScheduled && session?.user?.email) {
-      const scheduledDateTime = new Date(`${scheduledDate}T${scheduledTime}`)
+      // Use current time since drafts don't have scheduled times
+      const savedAt = new Date().toISOString()
       
       try {
-        await scheduledEmailsService.create({
+        const scheduledEmailData = {
           subject,
           content: finalContent,
           recipients: filteredRecipients,
-          scheduled_at: scheduledDateTime.toISOString(),
-          status: 'pending',
-          user_email: session.user.email,
+          scheduled_at: savedAt,
           attachments: attachments.map(a => ({
             fileName: a.name,
             fileUrl: a.data || a.cloudinaryUrl || a.appwriteUrl,
             fileSize: a.fileSize || 0,
             appwrite_file_id: a.appwriteFileId,
           })),
-        })
+        }
         
-        clearDraft()
-        toast.success(`Email scheduled for ${scheduledDateTime.toLocaleString()}`)
-        router.push('/scheduled')
+        if (editingScheduledId) {
+          // Update existing draft
+          await scheduledEmailsService.update(editingScheduledId, scheduledEmailData)
+          clearDraft()
+          toast.success("Draft updated")
+        } else {
+          // Create new draft
+          await scheduledEmailsService.create(scheduledEmailData)
+          clearDraft()
+          toast.success("Draft saved — send it when you're ready!")
+        }
+        
+        router.push('/draft')
         return
       } catch (error) {
-        console.error("Error scheduling email:", error)
-        toast.error("Failed to schedule email")
+        console.error("Error saving draft:", error)
+        toast.error("Failed to save draft")
         return
       }
     }
@@ -536,7 +621,7 @@ export function ComposeForm() {
       const successCount = results.filter(r => r.status === "success").length
       const failCount = results.filter(r => r.status === "error").length
       
-      // Save campaign to Appwrite
+      // Save campaign to Appwrite (user_email is set server-side)
       if (session?.user?.email) {
         await campaignsService.create({
           subject,
@@ -545,7 +630,6 @@ export function ComposeForm() {
           sent: successCount,
           failed: failCount,
           status: failCount === 0 ? "completed" : "completed",
-          user_email: session.user.email,
           campaign_type: csvData.length > 0 ? "bulk" : "contact_list",
           attachments: attachments.map(a => ({
             fileName: a.name,
@@ -769,6 +853,7 @@ export function ComposeForm() {
             <Label className="flex items-center gap-2">
               <Paperclip className="h-4 w-4" />
               Attachments
+              <span className="text-xs text-muted-foreground font-normal">(max 50MB per file)</span>
             </Label>
             
             <div className="flex flex-wrap gap-2">
@@ -780,6 +865,11 @@ export function ComposeForm() {
                 >
                   <Paperclip className="h-3 w-3" />
                   {file.name}
+                  {file.fileSize && (
+                    <span className="text-xs text-muted-foreground">
+                      ({(file.fileSize / 1024 / 1024).toFixed(1)}MB)
+                    </span>
+                  )}
                   <button
                     onClick={() => removeAttachment(index)}
                     className="hover:text-destructive"
@@ -849,60 +939,120 @@ export function ComposeForm() {
             </div>
           </div>
 
-          {/* Schedule Email */}
-          <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="schedule-toggle"
-                checked={isScheduled}
-                onChange={(e) => setIsScheduled(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300"
-              />
+          {/* Save as Draft */}
+          <div className="flex items-center gap-3 p-4 border rounded-lg bg-muted/30">
+            <input
+              type="checkbox"
+              id="schedule-toggle"
+              checked={isScheduled}
+              onChange={(e) => setIsScheduled(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            <div>
               <Label htmlFor="schedule-toggle" className="flex items-center gap-2 cursor-pointer">
-                <Calendar className="h-4 w-4" />
-                Schedule for later
+                <Save className="h-4 w-4" />
+                Save as Draft
               </Label>
+              <p className="text-xs text-muted-foreground">
+                Save without sending. You can send it later from the Drafts page.
+              </p>
             </div>
-            
-            {isScheduled && (
-              <div className="flex flex-wrap gap-4 pt-2">
-                <div className="space-y-1">
-                  <Label htmlFor="schedule-date" className="text-sm">Date</Label>
-                  <Input
-                    type="date"
-                    id="schedule-date"
-                    value={scheduledDate}
-                    onChange={(e) => setScheduledDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="w-auto"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="schedule-time" className="text-sm">Time</Label>
-                  <Input
-                    type="time"
-                    id="schedule-time"
-                    value={scheduledTime}
-                    onChange={(e) => setScheduledTime(e.target.value)}
-                    className="w-auto"
-                  />
-                </div>
-              </div>
-            )}
           </div>
         </TabsContent>
 
         {/* Recipients Tab */}
         <TabsContent value="recipients" className="space-y-6">
+          {/* Manual Email Entry */}
           <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Mail className="h-4 w-4" />
+                Add Recipients Manually
+              </CardTitle>
+              <CardDescription>
+                Add recipients one by one with their name for personalization
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Input Row */}
+              <div className="flex gap-2 items-end">
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="manual-email" className="text-xs">Email *</Label>
+                  <Input
+                    id="manual-email"
+                    type="email"
+                    placeholder="john@example.com"
+                    value={manualEmail}
+                    onChange={(e) => setManualEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addManualEntry()
+                      }
+                    }}
+                  />
+                </div>
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="manual-name" className="text-xs">Name (optional)</Label>
+                  <Input
+                    id="manual-name"
+                    type="text"
+                    placeholder="John Doe"
+                    value={manualName}
+                    onChange={(e) => setManualName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        addManualEntry()
+                      }
+                    }}
+                  />
+                </div>
+                <Button 
+                  type="button"
+                  onClick={addManualEntry}
+                  disabled={!manualEmail.trim()}
+                >
+                  Add
+                </Button>
+              </div>
+
+              {/* Added entries preview */}
+              {manualEntries.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Added manually:</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {manualEntries.map((entry, index) => (
+                      <Badge 
+                        key={index} 
+                        variant="secondary"
+                        className="flex items-center gap-1 pr-1"
+                      >
+                        {entry.name ? `${entry.name} <${entry.email}>` : entry.email}
+                        <button
+                          onClick={() => removeRecipient(entry.email)}
+                          className="ml-1 hover:bg-destructive/20 rounded p-0.5"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* CSV Import with visual cue */}
+          <Card className="border-primary/30 bg-primary/5">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <FileSpreadsheet className="h-4 w-4" />
                 Import from CSV
+                <Badge variant="secondary" className="ml-2">Recommended for bulk</Badge>
               </CardTitle>
               <CardDescription>
-                Upload a CSV file with recipient emails
+                Need more fields like company, title, or custom data? Use a CSV file for full personalization with placeholders like {"{name}"}, {"{company}"}, etc.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1018,23 +1168,42 @@ export function ComposeForm() {
           {/* Selected Recipients Summary */}
           {recipients.length > 0 && (
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base">
                   {recipients.length} Recipients Selected
                 </CardTitle>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => {
+                    setRecipients([])
+                    setSelectedContacts(new Set())
+                    setSelectedGroups(new Set())
+                    toast.success("All recipients cleared")
+                  }}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Clear All
+                </Button>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {recipients.slice(0, 10).map((email, index) => (
-                    <Badge key={index} variant="secondary">
+                <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto">
+                  {recipients.map((email, index) => (
+                    <Badge 
+                      key={index} 
+                      variant="secondary"
+                      className="flex items-center gap-1 pr-1"
+                    >
                       {email}
+                      <button
+                        onClick={() => removeRecipient(email)}
+                        className="ml-1 hover:bg-destructive/20 rounded p-0.5"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
                     </Badge>
                   ))}
-                  {recipients.length > 10 && (
-                    <Badge variant="outline">
-                      +{recipients.length - 10} more
-                    </Badge>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1099,13 +1268,13 @@ export function ComposeForm() {
         
         <Button
           onClick={handleSend}
-          disabled={isSending || !subject || !content || recipients.length === 0 || (isScheduled && (!scheduledDate || !scheduledTime))}
+          disabled={isSending || !subject || !content || recipients.length === 0}
           size="lg"
         >
           {isScheduled ? (
             <>
-              <Calendar className="h-4 w-4 mr-2" />
-              Schedule to {recipients.length} {recipients.length === 1 ? "recipient" : "recipients"}
+              <Save className="h-4 w-4 mr-2" />
+              Save as Draft ({recipients.length} {recipients.length === 1 ? "recipient" : "recipients"})
             </>
           ) : (
             <>

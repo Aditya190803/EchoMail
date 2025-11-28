@@ -100,13 +100,7 @@ export default function SignaturesPage() {
         name: newSignature.name.trim(),
         content: newSignature.content,
         is_default: newSignature.is_default,
-        user_email: session.user.email,
       })
-      
-      // If this is set as default, update existing defaults
-      if (newSignature.is_default) {
-        await signaturesService.setAsDefault(session.user.email, 'will-be-set')
-      }
       
       setNewSignature({ name: "", content: "", is_default: false })
       setShowCreateDialog(false)
@@ -203,12 +197,13 @@ export default function SignaturesPage() {
               <DialogHeader>
                 <DialogTitle>Create Signature</DialogTitle>
                 <DialogDescription>
-                  Create a reusable email signature
+                  Create a reusable email signature. The name is for your reference only — only the content below will be added to your emails.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 pt-4">
                 <div className="space-y-2">
                   <Label htmlFor="name">Signature Name *</Label>
+                  <p className="text-xs text-muted-foreground">This name is just for identification and won't appear in your emails</p>
                   <Input
                     id="name"
                     placeholder="e.g., Professional, Casual"
@@ -370,13 +365,14 @@ export default function SignaturesPage() {
           <DialogHeader>
             <DialogTitle>Edit Signature</DialogTitle>
             <DialogDescription>
-              Update your email signature
+              Update your email signature. The name is for your reference only — only the content below will be added to your emails.
             </DialogDescription>
           </DialogHeader>
           {editingSignature && (
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
                 <Label>Signature Name *</Label>
+                <p className="text-xs text-muted-foreground">This name is just for identification and won't appear in your emails</p>
                 <Input
                   value={editingSignature.name}
                   onChange={(e) => setEditingSignature({ ...editingSignature, name: e.target.value })}

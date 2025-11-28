@@ -240,6 +240,15 @@ function createGmailPreviewWrapper(htmlContent: string): string {
       color: #222222;
       background: #ffffff;
       -webkit-font-smoothing: antialiased;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+    
+    /* Prevent horizontal overflow */
+    * {
+      max-width: 100%;
+      box-sizing: border-box;
     }
     
     /* Headings */
@@ -249,7 +258,7 @@ function createGmailPreviewWrapper(htmlContent: string): string {
     h4 { font-size: 1em; font-weight: bold; margin: 1em 0; }
     
     /* Paragraphs and divs */
-    p, div { margin: 0.5em 0; }
+    p, div { margin: 0.5em 0; word-wrap: break-word; overflow-wrap: break-word; }
     
     /* Lists */
     ul, ol { padding-left: 1.5em; margin: 0.5em 0; }
@@ -260,7 +269,7 @@ function createGmailPreviewWrapper(htmlContent: string): string {
     li { margin: 0.25em 0; }
     
     /* Links */
-    a { color: #2563eb; text-decoration: underline; }
+    a { color: #2563eb; text-decoration: underline; word-break: break-all; }
     
     /* Blockquotes */
     blockquote {
@@ -290,6 +299,7 @@ function createGmailPreviewWrapper(htmlContent: string): string {
       border-radius: 0.25em;
       font-family: 'Courier New', Courier, monospace;
       font-size: 0.9em;
+      word-break: break-all;
     }
     pre code {
       background: none;
@@ -309,11 +319,14 @@ function createGmailPreviewWrapper(htmlContent: string): string {
       border-collapse: collapse;
       margin: 1em 0;
       width: 100%;
+      table-layout: fixed;
     }
     th, td {
       border: 1px solid #d1d5db;
       padding: 8px;
       text-align: left;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
     th {
       background: #f3f4f6;

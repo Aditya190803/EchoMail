@@ -207,7 +207,7 @@ const bucketConfig = {
   id: 'attachments',
   name: 'Attachments',
   maximumFileSize: 25 * 1024 * 1024, // 25MB
-  allowedFileExtensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'jpg', 'jpeg', 'png', 'gif', 'zip', 'rar'],
+  allowedFileExtensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'jpg', 'jpeg', 'png', 'gif', 'zip', 'rar', 'zst', 'tar', 'gz', '7z'],
 }
 
 async function sleep(ms: number) {

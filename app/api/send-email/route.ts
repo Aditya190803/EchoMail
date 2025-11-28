@@ -3,14 +3,6 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { sendEmailViaAPI, replacePlaceholders } from "@/lib/gmail"
 
-/**
- * Simplified email sending endpoint with sequential processing.
- * 
- * This endpoint processes emails one at a time to ensure reliable delivery
- * and avoid payload size issues. For new implementations, use the dedicated
- * /api/send-single-email endpoint which is optimized for single email delivery.
- */
-
 interface EmailResult {
   email: string
   status: "success" | "error"
@@ -104,9 +96,6 @@ export async function POST(request: NextRequest) {
     // Always save campaign to Firebase, regardless of email success/failure
     const successCount = results.filter(r => r.status === "success").length
     const failedCount = results.filter(r => r.status === "error").length
-    
-    // Note: Campaign data is now saved by the frontend component to avoid duplicates
-    // This allows for more detailed campaign data including content, attachments, etc.
 
     return NextResponse.json({ 
       results,
