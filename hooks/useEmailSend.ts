@@ -500,6 +500,8 @@ export function useEmailSend(): UseEmailSendResult {
       "invalid address",
       "Email too large",
       "413",
+      "may have been sent", // Don't retry if email might have been sent (timeout with large attachment)
+      "check your Gmail Sent folder", // Same as above
     ]
     return !nonRetryableErrors.some(e => errorMessage.toLowerCase().includes(e.toLowerCase()))
   }
