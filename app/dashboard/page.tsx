@@ -17,7 +17,7 @@ import {
   XCircle,
   Clock,
   Plus,
-  BarChart3,
+  History,
   Activity,
   ArrowRight,
   Sparkles,
@@ -152,10 +152,10 @@ export default function DashboardPage() {
       href: "/contacts" 
     },
     { 
-      title: "View Analytics", 
-      description: "See detailed campaign statistics",
-      icon: BarChart3, 
-      href: "/analytics" 
+      title: "Email History", 
+      description: "View sent campaigns and delivery status",
+      icon: History, 
+      href: "/history" 
     },
   ]
 
@@ -319,7 +319,7 @@ export default function DashboardPage() {
                               </div>
                             ))}
                           {c.send_results.filter((r: any) => r.status !== "success" && r.error).length > 3 && (
-                            <Link href="/analytics" className="text-xs text-primary hover:underline">
+                            <Link href="/history" className="text-xs text-primary hover:underline">
                               View all {c.send_results.filter((r: any) => r.status !== "success").length} failures →
                             </Link>
                           )}
@@ -331,7 +331,7 @@ export default function DashboardPage() {
                 {emailHistory.length > 5 && (
                   <div className="text-center pt-4">
                     <Button asChild variant="outline">
-                      <Link href="/analytics" className="gap-2">
+                      <Link href="/history" className="gap-2">
                         View All Campaigns
                         <ArrowRight className="h-4 w-4" />
                       </Link>

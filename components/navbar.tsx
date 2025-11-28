@@ -18,7 +18,7 @@ import {
   Mail, 
   LayoutDashboard, 
   Users, 
-  BarChart3, 
+  History, 
   PenSquare,
   Menu,
   X,
@@ -39,7 +39,7 @@ const navigation = [
   { name: "Drafts", href: "/draft", icon: Clock },
   { name: "Templates", href: "/templates", icon: FileText },
   { name: "Contacts", href: "/contacts", icon: Users },
-  { name: "Analytics", href: "/analytics", icon: BarChart3 },
+  { name: "History", href: "/history", icon: History },
   { name: "A/B Tests", href: "/ab-testing", icon: Beaker },
 ]
 

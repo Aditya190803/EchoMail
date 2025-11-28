@@ -46,8 +46,8 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/analytics" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-                  Analytics
+                <Link href="/history" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  History
                 </Link>
               </li>
             </ul>
