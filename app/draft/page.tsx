@@ -66,6 +66,7 @@ export default function DraftPage() {
   const [previewEmail, setPreviewEmail] = useState<DraftEmail | null>(null)
   const [previewRecipientIndex, setPreviewRecipientIndex] = useState(0)
   const [sendingId, setSendingId] = useState<string | null>(null)
+  const [deleteConfirmEmail, setDeleteConfirmEmail] = useState<DraftEmail | null>(null)
 
   useEffect(() => {
     setIsMounted(true)
@@ -481,34 +482,13 @@ export default function DraftPage() {
                             <Pause className="h-4 w-4 mr-2" />
                             Cancel
                           </DropdownMenuItem>
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <DropdownMenuItem 
-                                onSelect={(e) => e.preventDefault()}
-                                className="text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete
-                              </DropdownMenuItem>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Draft Email</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Are you sure you want to delete this draft email? This action cannot be undone.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                  onClick={() => deleteDraftEmail(email.$id!)}
-                                  className="bg-destructive text-destructive-foreground"
-                                >
-                                  Delete
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                          <DropdownMenuItem 
+                            onClick={() => setDeleteConfirmEmail(email)}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -583,7 +563,8 @@ export default function DraftPage() {
       <Dialog open={!!previewEmail} onOpenChange={(open) => !open && setPreviewEmail(null)}>
         <DialogContent 
           className="max-w-2xl max-h-[80vh] overflow-y-auto"
-          onCloseAutoFocus={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
         >
           <DialogHeader>
             <DialogTitle>Email Preview</DialogTitle>
@@ -659,6 +640,32 @@ export default function DraftPage() {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmEmail} onOpenChange={(open) => !open && setDeleteConfirmEmail(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Draft Email</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deleteConfirmEmail?.subject}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteConfirmEmail(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteConfirmEmail?.$id) {
+                  deleteDraftEmail(deleteConfirmEmail.$id)
+                  setDeleteConfirmEmail(null)
+                }
+              }}
+              className="bg-destructive text-destructive-foreground"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
