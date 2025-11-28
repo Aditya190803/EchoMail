@@ -69,11 +69,11 @@ export async function GET(request: NextRequest) {
 
     // Get consent records if available
     let consentRecords: any[] = []
-    if (config.consentRecordsCollectionId) {
+    if (config.consentsCollectionId) {
       try {
         const result = await databases.listDocuments(
           config.databaseId,
-          config.consentRecordsCollectionId,
+          config.consentsCollectionId,
           [Query.equal('user_email', userEmail), Query.limit(100)]
         )
         consentRecords = result.documents
@@ -136,8 +136,8 @@ export async function GET(request: NextRequest) {
         })),
         consent_records: consentRecords.map((doc: any) => ({
           consent_type: doc.consent_type,
-          given: doc.given,
-          given_at: doc.given_at,
+          granted: doc.granted,
+          granted_at: doc.granted_at,
           revoked_at: doc.revoked_at,
         })),
       },

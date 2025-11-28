@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    if (!config.consentRecordsCollectionId) {
+    if (!config.consentsCollectionId) {
       // Return default consents if collection not configured
       return NextResponse.json({
         total: 0,
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     const response = await databases.listDocuments(
       config.databaseId,
-      config.consentRecordsCollectionId,
+      config.consentsCollectionId,
       [
         Query.equal('user_email', session.user.email),
         Query.orderDesc('$createdAt'),
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!config.consentRecordsCollectionId) {
+    if (!config.consentsCollectionId) {
       return NextResponse.json(
         { error: "Consent records collection not configured" },
         { status: 503 }
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     // Check if consent record exists
     const existingConsent = await databases.listDocuments(
       config.databaseId,
-      config.consentRecordsCollectionId,
+      config.consentsCollectionId,
       [
         Query.equal('user_email', session.user.email),
         Query.equal('consent_type', consent_type),
@@ -103,20 +103,20 @@ export async function POST(request: NextRequest) {
       // Update existing consent
       const existingDoc = existingConsent.documents[0]
       const updateData: any = {
-        given,
+        granted: given,
         ip_address: ipAddress,
-        user_agent: userAgent,
+        source: 'settings',
       }
       
       if (given) {
-        updateData.given_at = new Date().toISOString()
+        updateData.granted_at = new Date().toISOString()
       } else {
         updateData.revoked_at = new Date().toISOString()
       }
 
       result = await databases.updateDocument(
         config.databaseId,
-        config.consentRecordsCollectionId,
+        config.consentsCollectionId,
         existingDoc.$id,
         updateData
       )
@@ -124,16 +124,16 @@ export async function POST(request: NextRequest) {
       // Create new consent record
       result = await databases.createDocument(
         config.databaseId,
-        config.consentRecordsCollectionId,
+        config.consentsCollectionId,
         ID.unique(),
         {
           user_email: session.user.email,
           consent_type,
-          given,
-          given_at: given ? new Date().toISOString() : null,
+          granted: given,
+          granted_at: given ? new Date().toISOString() : null,
           revoked_at: given ? null : new Date().toISOString(),
           ip_address: ipAddress,
-          user_agent: userAgent,
+          source: 'settings',
         }
       )
     }

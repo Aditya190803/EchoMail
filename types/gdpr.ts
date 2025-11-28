@@ -38,11 +38,11 @@ export interface ConsentRecord {
   $id?: string
   user_email: string
   consent_type: 'marketing' | 'analytics' | 'data_processing' | 'third_party'
-  given: boolean
-  given_at?: string
+  granted: boolean
+  granted_at?: string
   revoked_at?: string
   ip_address?: string
-  user_agent?: string
+  source?: string
 }
 
 // Audit Log Entry
@@ -126,22 +126,10 @@ export interface TeamMember {
   team_id: string
   user_email: string
   role: 'owner' | 'admin' | 'member' | 'viewer'
-  invited_by: string
-  invited_at: string
-  accepted_at?: string
-  status: 'pending' | 'active' | 'suspended'
-}
-
-export interface TeamInvite {
-  $id?: string
-  team_id: string
-  email: string
-  role: 'admin' | 'member' | 'viewer'
-  invited_by: string
-  invited_at: string
-  expires_at: string
-  token: string
-  status: 'pending' | 'accepted' | 'expired' | 'revoked'
+  permissions?: string[]
+  invited_by?: string
+  joined_at?: string
+  status: 'pending' | 'active' | 'removed'
 }
 
 // GDPR Data Export format
@@ -188,8 +176,8 @@ export interface GDPRDataExport {
     }>
     consent_records: Array<{
       consent_type: string
-      given: boolean
-      given_at?: string
+      granted: boolean
+      granted_at?: string
       revoked_at?: string
     }>
   }

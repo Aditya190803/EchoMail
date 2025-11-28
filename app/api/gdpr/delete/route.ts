@@ -86,7 +86,7 @@ export async function DELETE(request: NextRequest) {
     // Third group - GDPR/compliance collections (optional)
     await Promise.all([
       config.auditLogsCollectionId && deleteUserDocuments(config.auditLogsCollectionId, 'audit_logs'),
-      config.consentRecordsCollectionId && deleteUserDocuments(config.consentRecordsCollectionId, 'consent_records'),
+      config.consentsCollectionId && deleteUserDocuments(config.consentsCollectionId, 'consent_records'),
     ])
 
     // Delete user's attachments from storage

@@ -38,8 +38,8 @@ import { toast } from "sonner"
 interface ConsentRecord {
   $id: string
   consent_type: string
-  given: boolean
-  given_at?: string
+  granted: boolean
+  granted_at?: string
   revoked_at?: string
 }
 
@@ -104,7 +104,7 @@ export default function GDPRPage() {
       if (data.documents) {
         const consentMap: Record<string, boolean> = { ...consents }
         data.documents.forEach((doc: ConsentRecord) => {
-          consentMap[doc.consent_type] = doc.given
+          consentMap[doc.consent_type] = doc.granted
         })
         setConsents(consentMap)
       } else if (data.defaults) {
