@@ -45,13 +45,13 @@ const navigation = [
 ]
 
 const settingsMenu = [
-  { name: "All Settings", href: "/settings", icon: Settings },
+  { name: "All Settings", href: "/settings", icon: Settings, separator: true },
   { name: "Signatures", href: "/settings/signatures", icon: PenSquare },
   { name: "Unsubscribes", href: "/settings/unsubscribes", icon: UserMinus },
-  { name: "Webhooks", href: "/settings/webhooks", icon: Link2 },
-  { name: "Teams", href: "/settings/teams", icon: Users },
+  { name: "Webhooks", href: "/settings/webhooks", icon: Link2, separator: true },
+  { name: "Teams", href: "/settings/teams", icon: Users, separator: true },
   { name: "Privacy & Data", href: "/settings/gdpr", icon: Shield },
-  { name: "Audit Logs", href: "/settings/audit-logs", icon: FileText },
+  { name: "Audit Logs", href: "/settings/audit-logs", icon: FileText, separator: true },
   { name: "Duplicates", href: "/contacts/duplicates", icon: Database },
 ]
 
@@ -116,16 +116,16 @@ export function Navbar() {
                     <ChevronDown className="h-3 w-3 ml-0.5" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  {settingsMenu.map((item, index) => (
+                <DropdownMenuContent align="end" className="w-52">
+                  {settingsMenu.map((item) => (
                     <div key={item.name}>
-                      {index === 1 && <DropdownMenuSeparator />}
                       <DropdownMenuItem asChild>
                         <Link href={item.href} className="flex items-center gap-2 cursor-pointer">
                           <item.icon className="h-4 w-4" />
                           {item.name}
                         </Link>
                       </DropdownMenuItem>
+                      {(item as any).separator && <DropdownMenuSeparator />}
                     </div>
                   ))}
                 </DropdownMenuContent>
