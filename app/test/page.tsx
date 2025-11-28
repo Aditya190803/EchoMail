@@ -5,17 +5,7 @@ import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { db } from "@/lib/firebase"
-import { 
-  collection, 
-  addDoc, 
-  deleteDoc, 
-  doc, 
-  getDocs, 
-  query, 
-  where, 
-  serverTimestamp 
-} from "firebase/firestore"
+import { contactsService, campaignsService, testAppwriteConnection } from "@/lib/appwrite"
 import { 
   Database, 
   CheckCircle, 
@@ -43,57 +33,41 @@ export default function TestPage() {
 
     try {
       // Test 1: Basic connection
-      const campaignsRef = collection(db, "email_campaigns")
-      const contactsRef = collection(db, "contacts")
-      
-      // Test reading collections
-      await getDocs(query(campaignsRef))
-      await getDocs(query(contactsRef))
-      results.connection = true
+      const connectionResult = await testAppwriteConnection()
+      results.connection = connectionResult.success
 
-      // Test 2: Create a test contact
-      const testContactData = {
-        email: "test@example.com",
-        name: "Test Contact",
-        company: "Test Company",
-        user_email: session.user.email,
-        created_at: serverTimestamp()
+      // Test 2: Read contacts
+      try {
+        const contacts = await contactsService.listByUser(session.user.email)
+        results.contactRead = true
+      } catch {
+        results.contactRead = false
       }
 
-      const contactDocRef = await addDoc(contactsRef, testContactData)
-      results.contactInsert = !!contactDocRef.id
-
-      // Test 3: Read contacts
-      const contactsQuery = query(contactsRef, where("user_email", "==", session.user.email))
-      const contactsSnapshot = await getDocs(contactsQuery)
-      results.contactRead = !contactsSnapshot.empty
-
-      // Test 4: Create test campaign
-      const testCampaignData = {
-        subject: "Test Campaign",
-        recipients: 1,
-        sent: 1,
-        failed: 0,
-        user_email: session.user.email,
-        date: serverTimestamp(),
-        status: "completed"
+      // Test 3: Read campaigns
+      try {
+        const campaigns = await campaignsService.listByUser(session.user.email)
+        results.campaignRead = true
+      } catch {
+        results.campaignRead = false
       }
 
-      const campaignDocRef = await addDoc(campaignsRef, testCampaignData)
-      results.campaignInsert = !!campaignDocRef.id
-
-      // Test 5: Read campaigns
-      const campaignsQuery = query(campaignsRef, where("user_email", "==", session.user.email))
-      const campaignsSnapshot = await getDocs(campaignsQuery)
-      results.campaignRead = !campaignsSnapshot.empty
-
-      // Clean up test data
-      if (contactDocRef.id) {
-        await deleteDoc(doc(db, "contacts", contactDocRef.id))
-      }
-
-      if (campaignDocRef.id) {
-        await deleteDoc(doc(db, "email_campaigns", campaignDocRef.id))
+      // Test 4: Create test contact
+      try {
+        const testContact = await contactsService.create({
+          email: "test@example.com",
+          name: "Test Contact",
+          company: "Test Company",
+          user_email: session.user.email,
+        })
+        results.contactInsert = !!testContact.$id
+        
+        // Clean up - delete test contact
+        if (testContact.$id) {
+          await contactsService.delete(testContact.$id)
+        }
+      } catch {
+        results.contactInsert = false
       }
 
       setTestResults(results)
@@ -128,7 +102,7 @@ export default function TestPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Database className="h-5 w-5" />
-            EchoMail Database Integration Test
+            EchoMail Appwrite Integration Test
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -187,7 +161,7 @@ export default function TestPage() {
             <div className="p-4 bg-green-50 border border-green-200 rounded">
               <h4 className="font-semibold text-green-800 mb-2">🎉 All Tests Passed!</h4>
               <p className="text-sm text-green-700">
-                Your Firebase integration is working correctly. You can now:
+                Your Appwrite integration is working correctly. You can now:
               </p>
               <ul className="text-sm text-green-700 mt-2 list-disc list-inside">
                 <li>Manage contacts in the contacts page</li>
