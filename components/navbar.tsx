@@ -74,7 +74,7 @@ export function Navbar() {
 
           {/* Desktop Navigation */}
           {session && (
-            <div className="hidden lg:flex items-center gap-1">
+            <div className="hidden lg:flex items-center gap-1 ml-8">
               {navigation.map((item) => {
                 const isActive = pathname === item.href
                 const Icon = item.icon
