@@ -1,12 +1,90 @@
 import { formatEmailHTML, sanitizeEmailHTML } from './email-formatter'
+import { serverStorageService } from './appwrite-server'
 
 export interface AttachmentData {
   name: string
   type: string
-  data: string // base64 encoded data, or URL to fetch from
-  cloudinaryUrl?: string // Legacy: If provided, attachment will be fetched from this URL
+  data: string // base64 encoded data, or 'appwrite' placeholder
   appwriteFileId?: string // If provided, attachment will be fetched from Appwrite storage
   appwriteUrl?: string // Full URL to fetch attachment from Appwrite
+}
+
+// Cache for resolved attachments (keyed by appwriteFileId)
+const attachmentCache = new Map<string, string>()
+
+/**
+ * Pre-resolve all Appwrite attachments to base64 ONCE before sending loop.
+ * This prevents downloading the same attachment multiple times for bulk sends.
+ * Call this once before sending emails, then pass the resolved attachments to sendEmailViaAPI.
+ */
+export async function preResolveAttachments(attachments: AttachmentData[]): Promise<AttachmentData[]> {
+  if (!attachments || attachments.length === 0) return []
+  
+  const resolvedAttachments: AttachmentData[] = []
+  
+  for (const attachment of attachments) {
+    // If already has base64 data (not a placeholder), use directly
+    if (attachment.data && attachment.data !== 'appwrite' && !attachment.data.startsWith('http')) {
+      resolvedAttachments.push(attachment)
+      continue
+    }
+    
+    // Determine the fileId to fetch
+    let fileId: string | null = null
+    
+    if (attachment.appwriteFileId) {
+      fileId = attachment.appwriteFileId
+    } else if (attachment.appwriteUrl) {
+      // Extract fileId from URL
+      const match = attachment.appwriteUrl.match(/files\/([^/]+)\//)
+      if (match && match[1]) {
+        fileId = match[1]
+      }
+    }
+    
+    if (!fileId) {
+      console.error(`❌ No valid source for attachment: ${attachment.name}`)
+      throw new Error(`No valid attachment source for ${attachment.name}. Please re-upload the file.`)
+    }
+    
+    // Check cache first
+    if (attachmentCache.has(fileId)) {
+      console.log(`📎 Using cached attachment: ${attachment.name}`)
+      resolvedAttachments.push({
+        ...attachment,
+        data: attachmentCache.get(fileId)!,
+      })
+      continue
+    }
+    
+    // Download from Appwrite and cache
+    console.log(`📦 Downloading attachment from Appwrite: ${attachment.name} (fileId: ${fileId})`)
+    try {
+      const buffer = await serverStorageService.getFileBuffer(fileId)
+      const base64Data = buffer.toString('base64')
+      
+      // Cache it for subsequent emails
+      attachmentCache.set(fileId, base64Data)
+      
+      resolvedAttachments.push({
+        ...attachment,
+        data: base64Data,
+      })
+      console.log(`✅ Cached attachment: ${attachment.name}`)
+    } catch (error) {
+      console.error(`❌ Failed to download attachment ${attachment.name}:`, error)
+      throw new Error(`Failed to download attachment ${attachment.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+  
+  return resolvedAttachments
+}
+
+/**
+ * Clear the attachment cache. Call this after a campaign completes.
+ */
+export function clearAttachmentCache(): void {
+  attachmentCache.clear()
 }
 
 function sanitizeText(text: string): string {
@@ -182,70 +260,16 @@ export async function sendEmailViaAPI(
     for (const attachment of attachments) {
       const encodedFilename = `=?UTF-8?B?${Buffer.from(attachment.name, 'utf8').toString('base64')}?=`
       
-      let attachmentData = attachment.data
+      // Attachments should be pre-resolved with base64 data before calling sendEmailViaAPI
+      // Use preResolveAttachments() once before the send loop for efficiency
+      const attachmentData = attachment.data
       
-      console.log(`📎 Processing attachment: ${attachment.name} (${attachment.type})`)
-      
-      // Handle Appwrite storage attachments
-      if (attachment.appwriteUrl || attachment.appwriteFileId) {
-        const fetchUrl = attachment.appwriteUrl || attachment.data
-        console.log(`📦 Fetching attachment from Appwrite: ${attachment.name}`)
-        try {
-          const attachmentResponse = await fetchWithTimeout(fetchUrl, {
-            method: 'GET'
-          })
-          
-          if (!attachmentResponse.ok) {
-            throw new Error(`Failed to download attachment: ${attachmentResponse.statusText}`)
-          }
-          
-          const arrayBuffer = await attachmentResponse.arrayBuffer()
-          attachmentData = Buffer.from(arrayBuffer).toString('base64')
-          console.log(`✅ Successfully downloaded attachment from Appwrite: ${attachment.name}`)
-        } catch (error) {
-          console.error(`❌ Failed to download attachment ${attachment.name} from Appwrite:`, error)
-          throw new Error(`Failed to download attachment ${attachment.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-        }
-      } else if (attachment.cloudinaryUrl) {
-        // Legacy Cloudinary support
-        console.log(`☁️ Fetching attachment from Cloudinary (legacy): ${attachment.name}`)
-        try {
-          const attachmentResponse = await fetchWithTimeout(attachment.cloudinaryUrl, {
-            method: 'GET'
-          })
-          
-          if (!attachmentResponse.ok) {
-            throw new Error(`Failed to download attachment: ${attachmentResponse.statusText}`)
-          }
-          
-          const arrayBuffer = await attachmentResponse.arrayBuffer()
-          attachmentData = Buffer.from(arrayBuffer).toString('base64')
-          console.log(`✅ Successfully downloaded attachment from Cloudinary: ${attachment.name}`)
-        } catch (error) {
-          console.error(`❌ Failed to download attachment ${attachment.name} from Cloudinary:`, error)
-          throw new Error(`Failed to download attachment ${attachment.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-        }
-      } else if (attachment.data.startsWith('http')) {
-        console.log(`📎 Fetching attachment from URL (legacy): ${attachment.data}`)
-        try {
-          const attachmentResponse = await fetchWithTimeout(attachment.data, {
-            method: 'GET'
-          })
-          
-          if (!attachmentResponse.ok) {
-            throw new Error(`Failed to download attachment: ${attachmentResponse.statusText}`)
-          }
-          
-          const arrayBuffer = await attachmentResponse.arrayBuffer()
-          attachmentData = Buffer.from(arrayBuffer).toString('base64')
-          console.log(`✅ Successfully downloaded and converted attachment: ${attachment.name}`)
-        } catch (error) {
-          console.error(`❌ Failed to download attachment ${attachment.name}:`, error)
-          throw new Error(`Failed to download attachment ${attachment.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-        }
-      } else {
-        console.log(`✅ Using base64 attachment data directly: ${attachment.name}`)
+      if (!attachmentData || attachmentData === 'appwrite' || attachmentData.startsWith('http')) {
+        console.error(`❌ Attachment not pre-resolved: ${attachment.name}. Call preResolveAttachments() first.`)
+        throw new Error(`Attachment ${attachment.name} was not pre-resolved. Please ensure attachments are resolved before sending.`)
       }
+      
+      console.log(`📎 Using attachment: ${attachment.name} (${attachment.type})`)
         
       email.push(`--${mixedBoundary}`)
       email.push(`Content-Type: ${attachment.type}; name="${encodedFilename}"`)
