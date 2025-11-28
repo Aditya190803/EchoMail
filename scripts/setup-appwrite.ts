@@ -1,4 +1,9 @@
 import { Client, Databases, Storage, ID, Permission, Role } from 'node-appwrite'
+import { config as dotenvConfig } from 'dotenv'
+import { resolve } from 'path'
+
+// Load environment variables from .env.local
+dotenvConfig({ path: resolve(process.cwd(), '.env.local') })
 
 // Configuration from environment - NO HARDCODED VALUES
 const config = {
@@ -6,6 +11,17 @@ const config = {
   projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!,
   apiKey: process.env.APPWRITE_API_KEY!,
   databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+}
+
+// Validate required config
+if (!config.endpoint || !config.projectId || !config.apiKey || !config.databaseId) {
+  console.error('❌ Missing required environment variables!')
+  console.error('Please ensure .env.local contains:')
+  console.error('  - NEXT_PUBLIC_APPWRITE_ENDPOINT')
+  console.error('  - NEXT_PUBLIC_APPWRITE_PROJECT_ID')
+  console.error('  - APPWRITE_API_KEY')
+  console.error('  - NEXT_PUBLIC_APPWRITE_DATABASE_ID')
+  process.exit(1)
 }
 
 // Initialize Appwrite client
