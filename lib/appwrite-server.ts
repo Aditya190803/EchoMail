@@ -18,6 +18,14 @@ const getAppwriteConfig = () => ({
   webhooksCollectionId: process.env.NEXT_PUBLIC_APPWRITE_WEBHOOKS_COLLECTION_ID!,
   trackingEventsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_TRACKING_EVENTS_COLLECTION_ID!,
   abTestsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_AB_TESTS_COLLECTION_ID!,
+  // GDPR & Compliance collections
+  auditLogsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_AUDIT_LOGS_COLLECTION_ID || '',
+  dataExportRequestsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_DATA_EXPORT_REQUESTS_COLLECTION_ID || '',
+  consentRecordsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_CONSENT_RECORDS_COLLECTION_ID || '',
+  // Team/Organization collections
+  teamsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_TEAMS_COLLECTION_ID || '',
+  teamMembersCollectionId: process.env.NEXT_PUBLIC_APPWRITE_TEAM_MEMBERS_COLLECTION_ID || '',
+  teamInvitesCollectionId: process.env.NEXT_PUBLIC_APPWRITE_TEAM_INVITES_COLLECTION_ID || '',
 })
 
 // Lazy initialization for client and services
