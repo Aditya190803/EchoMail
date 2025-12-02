@@ -1,58 +1,67 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { databases, config, ID, Query, testAppwriteConnection } from "@/lib/appwrite"
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { testAppwriteConnection } from "@/lib/appwrite";
+import { componentLogger } from "@/lib/client-logger";
 
 export default function AppwriteTestPage() {
-  const [testData, setTestData] = useState<any[]>([])
-  const [testMessage, setTestMessage] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
+  const [testData, _setTestData] = useState<any[]>([]);
+  const [testMessage, setTestMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const testAppwriteConnectionHandler = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      console.log("Testing Appwrite connection...")
-      
-      const result = await testAppwriteConnection()
-      console.log("Appwrite connection result:", result)
-      
+      componentLogger.debug("Testing Appwrite connection...");
+
+      const result = await testAppwriteConnection();
+      componentLogger.debug("Appwrite connection result", result);
+
       if (result.success) {
-        alert(`Appwrite connection successful! Project: ${result.projectId}`)
+        alert(`Appwrite connection successful! Project: ${result.projectId}`);
       } else {
-        alert("Appwrite connection failed: " + result.error)
+        alert("Appwrite connection failed: " + result.error);
       }
-      
     } catch (error) {
-      console.error("Appwrite connection error:", error)
-      alert("Appwrite connection error: " + (error as Error).message)
+      componentLogger.error(
+        "Appwrite connection error",
+        error instanceof Error ? error : undefined,
+      );
+      alert("Appwrite connection error: " + (error as Error).message);
     }
-    setIsLoading(false)
-  }
+    setIsLoading(false);
+  };
 
   const addTestDocument = async () => {
-    if (!testMessage.trim()) return
-    
-    setIsLoading(true)
+    if (!testMessage.trim()) return;
+
+    setIsLoading(true);
     try {
-      console.log("Testing Appwrite - message saved:", testMessage)
-      
+      componentLogger.debug("Testing Appwrite - message saved", {
+        testMessage,
+      });
+
       // For testing, we just log the message since we don't have a test collection
-      alert(`Would save message: ${testMessage}\n\nNote: This is a test page. Use the Contacts or Compose pages for actual data operations.`)
-      setTestMessage("")
-      
+      alert(
+        `Would save message: ${testMessage}\n\nNote: This is a test page. Use the Contacts or Compose pages for actual data operations.`,
+      );
+      setTestMessage("");
     } catch (error) {
-      console.error("Error:", error)
-      alert("Error: " + (error as Error).message)
+      componentLogger.error(
+        "Error",
+        error instanceof Error ? error : undefined,
+      );
+      alert("Error: " + (error as Error).message);
     }
-    setIsLoading(false)
-  }
+    setIsLoading(false);
+  };
 
   useEffect(() => {
-    testAppwriteConnectionHandler()
-  }, [])
+    testAppwriteConnectionHandler();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -69,16 +78,16 @@ export default function AppwriteTestPage() {
                 onChange={(e) => setTestMessage(e.target.value)}
                 className="flex-1"
               />
-              <Button 
-                onClick={addTestDocument} 
+              <Button
+                onClick={addTestDocument}
                 disabled={isLoading || !testMessage.trim()}
               >
                 {isLoading ? "Adding..." : "Add Test Document"}
               </Button>
             </div>
-            
-            <Button 
-              onClick={testAppwriteConnectionHandler} 
+
+            <Button
+              onClick={testAppwriteConnectionHandler}
               disabled={isLoading}
               variant="outline"
             >
@@ -96,9 +105,15 @@ export default function AppwriteTestPage() {
               {testData.length > 0 ? (
                 testData.map((item) => (
                   <div key={item.id} className="p-3 bg-gray-100 rounded">
-                    <div><strong>ID:</strong> {item.id}</div>
-                    <div><strong>Message:</strong> {item.message}</div>
-                    <div><strong>Created:</strong> {item.created_at}</div>
+                    <div>
+                      <strong>ID:</strong> {item.id}
+                    </div>
+                    <div>
+                      <strong>Message:</strong> {item.message}
+                    </div>
+                    <div>
+                      <strong>Created:</strong> {item.created_at}
+                    </div>
                   </div>
                 ))
               ) : (
@@ -109,5 +124,5 @@ export default function AppwriteTestPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

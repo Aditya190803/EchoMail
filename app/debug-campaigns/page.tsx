@@ -1,42 +1,48 @@
-"use client"
+"use client";
 
-import { useSession } from "next-auth/react"
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { campaignsService } from "@/lib/appwrite"
+import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { campaignsService } from "@/lib/appwrite";
+import { componentLogger } from "@/lib/client-logger";
 
 export default function DebugCampaignsPage() {
-  const { data: session } = useSession()
-  const [campaigns, setCampaigns] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data: session } = useSession();
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchAllCampaigns = async () => {
       if (!session?.user?.email) {
-        setLoading(false)
-        return
+        setLoading(false);
+        return;
       }
-      
-      try {
-        const response = await campaignsService.listByUser(session.user.email)
-        const allCampaigns = response.documents.map(doc => ({
-          id: doc.$id,
-          ...doc
-        }))
-        setCampaigns(allCampaigns)
-        console.log("All campaigns:", allCampaigns)
-      } catch (error) {
-        console.error("Error fetching campaigns:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
 
-    fetchAllCampaigns()
-  }, [session?.user?.email])
+      try {
+        const response = await campaignsService.listByUser(session.user.email);
+        const allCampaigns = response.documents.map((doc) => ({
+          id: doc.$id,
+          ...doc,
+        }));
+        setCampaigns(allCampaigns);
+        componentLogger.debug("All campaigns loaded", {
+          count: allCampaigns.length,
+        });
+      } catch (error) {
+        componentLogger.error(
+          "Error fetching campaigns",
+          error instanceof Error ? error : undefined,
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAllCampaigns();
+  }, [session?.user?.email]);
 
   if (loading) {
-    return <div className="p-4">Loading campaigns...</div>
+    return <div className="p-4">Loading campaigns...</div>;
   }
 
   return (
@@ -69,5 +75,5 @@ export default function DebugCampaignsPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

@@ -1,55 +1,62 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { contactsService, campaignsService, testAppwriteConnection } from "@/lib/appwrite"
-import { 
-  Database, 
-  CheckCircle, 
-  XCircle, 
-  RefreshCw, 
-  Users, 
+import { useState } from "react";
+import { useSession } from "next-auth/react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  contactsService,
+  campaignsService,
+  testAppwriteConnection,
+} from "@/lib/appwrite";
+import {
+  Database,
+  CheckCircle,
+  XCircle,
+  RefreshCw,
+  Users,
   Mail,
-  Plus
-} from "lucide-react"
+} from "lucide-react";
 
 export default function TestPage() {
-  const { data: session } = useSession()
-  const [connectionStatus, setConnectionStatus] = useState<'loading' | 'success' | 'error' | 'untested'>('untested')
-  const [error, setError] = useState<string | null>(null)
-  const [testResults, setTestResults] = useState<any>({})
+  const { data: session } = useSession();
+  const [connectionStatus, setConnectionStatus] = useState<
+    "loading" | "success" | "error" | "untested"
+  >("untested");
+  const [error, setError] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<any>({});
   const runFullTest = async () => {
     if (!session?.user?.email) {
-      setError("Please sign in first")
-      return
+      setError("Please sign in first");
+      return;
     }
 
-    setConnectionStatus('loading')
-    setError(null)
-    const results: any = {}
+    setConnectionStatus("loading");
+    setError(null);
+    const results: any = {};
 
     try {
       // Test 1: Basic connection
-      const connectionResult = await testAppwriteConnection()
-      results.connection = connectionResult.success
+      const connectionResult = await testAppwriteConnection();
+      results.connection = connectionResult.success;
 
       // Test 2: Read contacts
       try {
-        const contacts = await contactsService.listByUser(session.user.email)
-        results.contactRead = true
+        const _contacts = await contactsService.listByUser(session.user.email);
+        results.contactRead = true;
       } catch {
-        results.contactRead = false
+        results.contactRead = false;
       }
 
       // Test 3: Read campaigns
       try {
-        const campaigns = await campaignsService.listByUser(session.user.email)
-        results.campaignRead = true
+        const _campaigns = await campaignsService.listByUser(
+          session.user.email,
+        );
+        results.campaignRead = true;
       } catch {
-        results.campaignRead = false
+        results.campaignRead = false;
       }
 
       // Test 4: Create test contact
@@ -59,41 +66,44 @@ export default function TestPage() {
           name: "Test Contact",
           company: "Test Company",
           user_email: session.user.email,
-        })
-        results.contactInsert = !!testContact.$id
-        
+        });
+        results.contactInsert = !!testContact.$id;
+
         // Clean up - delete test contact
         if (testContact.$id) {
-          await contactsService.delete(testContact.$id)
+          await contactsService.delete(testContact.$id);
         }
       } catch {
-        results.contactInsert = false
+        results.contactInsert = false;
       }
 
-      setTestResults(results)
-      setConnectionStatus('success')
-
+      setTestResults(results);
+      setConnectionStatus("success");
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-      setConnectionStatus('error')
-      setTestResults(results)
+      setError(err instanceof Error ? err.message : "Unknown error");
+      setConnectionStatus("error");
+      setTestResults(results);
     }
-  }
+  };
 
   if (!session) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center">
-            <h2 className="text-lg font-semibold mb-2">Authentication Required</h2>
-            <p className="text-gray-600 mb-4">Please sign in to test the database integration.</p>
+            <h2 className="text-lg font-semibold mb-2">
+              Authentication Required
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Please sign in to test the database integration.
+            </p>
             <Button asChild>
               <a href="/auth/signin">Sign In</a>
             </Button>
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -107,12 +117,12 @@ export default function TestPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="text-center">
-            <Button 
-              onClick={runFullTest} 
-              disabled={connectionStatus === 'loading'}
+            <Button
+              onClick={runFullTest}
+              disabled={connectionStatus === "loading"}
               className="mb-4"
             >
-              {connectionStatus === 'loading' ? (
+              {connectionStatus === "loading" ? (
                 <RefreshCw className="h-4 w-4 animate-spin mr-2" />
               ) : (
                 <Database className="h-4 w-4 mr-2" />
@@ -122,18 +132,23 @@ export default function TestPage() {
           </div>
 
           {/* Test Results */}
-          {connectionStatus !== 'untested' && (
+          {connectionStatus !== "untested" && (
             <div className="space-y-3">
               <h3 className="font-semibold">Test Results:</h3>
-              
+
               {Object.entries(testResults).map(([test, success]) => (
-                <div key={test} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                <div
+                  key={test}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded"
+                >
                   <span className="font-medium">{formatTestName(test)}</span>
                   <div className="flex items-center gap-2">
                     {success ? (
                       <>
                         <CheckCircle className="h-4 w-4 text-green-600" />
-                        <Badge className="bg-green-100 text-green-800">Pass</Badge>
+                        <Badge className="bg-green-100 text-green-800">
+                          Pass
+                        </Badge>
                       </>
                     ) : (
                       <>
@@ -157,9 +172,11 @@ export default function TestPage() {
           )}
 
           {/* Success Message */}
-          {connectionStatus === 'success' && !error && (
+          {connectionStatus === "success" && !error && (
             <div className="p-4 bg-green-50 border border-green-200 rounded">
-              <h4 className="font-semibold text-green-800 mb-2">🎉 All Tests Passed!</h4>
+              <h4 className="font-semibold text-green-800 mb-2">
+                🎉 All Tests Passed!
+              </h4>
               <p className="text-sm text-green-700">
                 Your Appwrite integration is working correctly. You can now:
               </p>
@@ -205,7 +222,7 @@ export default function TestPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 
 function formatTestName(test: string): string {
@@ -213,8 +230,8 @@ function formatTestName(test: string): string {
     connection: "Database Connection",
     contactInsert: "Contact Creation",
     contactRead: "Contact Reading",
-    campaignInsert: "Campaign Creation", 
-    campaignRead: "Campaign Reading"
-  }
-  return names[test] || test
+    campaignInsert: "Campaign Creation",
+    campaignRead: "Campaign Reading",
+  };
+  return names[test] || test;
 }

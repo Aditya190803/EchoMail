@@ -1,20 +1,26 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { Navbar } from "@/components/navbar"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { toast } from "sonner"
-import { 
-  Send, 
-  Eye, 
-  Mail, 
-  CheckCircle2, 
+import { useState } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { Navbar } from "@/components/navbar";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import {
+  Send,
+  Eye,
+  Mail,
+  CheckCircle2,
   Loader2,
   FileText,
   Palette,
@@ -23,27 +29,27 @@ import {
   Quote,
   Image,
   Type,
-  List
-} from "lucide-react"
+  List,
+} from "lucide-react";
 
 /**
  * Comprehensive Email Formatting Test Page
- * 
+ *
  * This page allows you to send a test email that includes ALL formatting features
  * to verify that emails render correctly in Gmail and other email clients.
  */
 export default function TestFormattingPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
-  const [recipientEmail, setRecipientEmail] = useState("")
-  const [isSending, setIsSending] = useState(false)
-  const [isPreviewing, setIsPreviewing] = useState(false)
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null)
+  const { data: _session, status } = useSession();
+  const router = useRouter();
+  const [recipientEmail, setRecipientEmail] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
   // Redirect if not authenticated
   if (status === "unauthenticated") {
-    router.push("/auth/signin")
-    return null
+    router.push("/auth/signin");
+    return null;
   }
 
   // Comprehensive test email HTML content
@@ -198,68 +204,78 @@ Let me know if you need more edge cases.</p>
 <p>— <strong>End of Test Email</strong> —</p>
 
 <p><em>Sent via EchoMail Formatting Test</em></p>
-`
+`;
 
   const handlePreview = async () => {
-    setIsPreviewing(true)
+    setIsPreviewing(true);
     try {
-      const response = await fetch('/api/format-email-preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/format-email-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ htmlContent: testEmailHtml }),
-      })
-      
+      });
+
       if (response.ok) {
-        const result = await response.json()
-        setPreviewHtml(result.formattedHTML)
+        const result = await response.json();
+        setPreviewHtml(result.formattedHTML);
       } else {
-        toast.error("Failed to generate preview")
+        toast.error("Failed to generate preview");
       }
-    } catch (error) {
-      toast.error("Error generating preview")
+    } catch (_error) {
+      toast.error("Error generating preview");
     } finally {
-      setIsPreviewing(false)
+      setIsPreviewing(false);
     }
-  }
+  };
 
   const handleSendTest = async () => {
     if (!recipientEmail) {
-      toast.error("Please enter a recipient email address")
-      return
+      toast.error("Please enter a recipient email address");
+      return;
     }
 
-    setIsSending(true)
+    setIsSending(true);
     try {
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          personalizedEmails: [{
-            to: recipientEmail,
-            subject: "🧪 EchoMail Formatting Test – Please Ignore",
-            message: testEmailHtml,
-            originalRowData: {},
-            attachments: []
-          }]
+          personalizedEmails: [
+            {
+              to: recipientEmail,
+              subject: "🧪 EchoMail Formatting Test – Please Ignore",
+              message: testEmailHtml,
+              originalRowData: {},
+              attachments: [],
+            },
+          ],
         }),
-      })
+      });
 
-      const result = await response.json()
+      const result = await response.json();
 
       if (response.ok && result.results?.[0]?.status === "success") {
-        toast.success(`Test email sent to ${recipientEmail}!`)
+        toast.success(`Test email sent to ${recipientEmail}!`);
       } else {
-        toast.error(result.error || result.results?.[0]?.error || "Failed to send test email")
+        toast.error(
+          result.error ||
+            result.results?.[0]?.error ||
+            "Failed to send test email",
+        );
       }
-    } catch (error) {
-      toast.error("Error sending test email")
+    } catch (_error) {
+      toast.error("Error sending test email");
     } finally {
-      setIsSending(false)
+      setIsSending(false);
     }
-  }
+  };
 
   const features = [
-    { icon: Type, label: "Text Styles", desc: "Bold, italic, underline, strikethrough" },
+    {
+      icon: Type,
+      label: "Text Styles",
+      desc: "Bold, italic, underline, strikethrough",
+    },
     { icon: Palette, label: "Colors", desc: "Text colors and highlights" },
     { icon: List, label: "Lists", desc: "Ordered, unordered, nested" },
     { icon: Table2, label: "Tables", desc: "Full table support with headers" },
@@ -267,17 +283,20 @@ Let me know if you need more edge cases.</p>
     { icon: Quote, label: "Quotes", desc: "Blockquotes with styling" },
     { icon: Image, label: "Images", desc: "Remote image embedding" },
     { icon: FileText, label: "Special", desc: "Emojis, RTL, special chars" },
-  ]
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       <Navbar />
-      
+
       <main className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Email Formatting Test</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Email Formatting Test
+          </h1>
           <p className="text-gray-600 mt-2">
-            Send a comprehensive test email to verify all formatting features work correctly.
+            Send a comprehensive test email to verify all formatting features
+            work correctly.
           </p>
         </div>
 
@@ -306,9 +325,9 @@ Let me know if you need more edge cases.</p>
                     className="mt-1"
                   />
                 </div>
-                
-                <Button 
-                  onClick={handleSendTest} 
+
+                <Button
+                  onClick={handleSendTest}
                   disabled={isSending || !recipientEmail}
                   className="w-full"
                 >
@@ -324,10 +343,10 @@ Let me know if you need more edge cases.</p>
                     </>
                   )}
                 </Button>
-                
-                <Button 
+
+                <Button
                   variant="outline"
-                  onClick={handlePreview} 
+                  onClick={handlePreview}
                   disabled={isPreviewing}
                   className="w-full"
                 >
@@ -353,11 +372,16 @@ Let me know if you need more edge cases.</p>
               <CardContent>
                 <div className="grid grid-cols-2 gap-2">
                   {features.map((feature, i) => (
-                    <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-gray-50">
+                    <div
+                      key={i}
+                      className="flex items-center gap-2 p-2 rounded-lg bg-gray-50"
+                    >
                       <feature.icon className="h-4 w-4 text-blue-600" />
                       <div>
                         <p className="text-xs font-medium">{feature.label}</p>
-                        <p className="text-[10px] text-gray-500">{feature.desc}</p>
+                        <p className="text-[10px] text-gray-500">
+                          {feature.desc}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -405,7 +429,7 @@ Let me know if you need more edge cases.</p>
         </div>
       </main>
     </div>
-  )
+  );
 }
 
 function createGmailPreviewWrapper(htmlContent: string): string {
@@ -474,5 +498,5 @@ function createGmailPreviewWrapper(htmlContent: string): string {
 <body>
   ${htmlContent}
 </body>
-</html>`
+</html>`;
 }

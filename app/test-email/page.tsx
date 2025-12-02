@@ -1,84 +1,98 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useSession, signIn } from "next-auth/react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { databases, contactsService, campaignsService, config, testAppwriteConnection } from "@/lib/appwrite"
-import { getInstantEmailPreview, convertEmojiImagesToText } from "@/lib/email-formatter-client"
-import Link from "next/link"
+import { useState } from "react";
+import { useSession, signIn } from "next-auth/react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  campaignsService,
+  config,
+  testAppwriteConnection,
+} from "@/lib/appwrite";
+import { convertEmojiImagesToText } from "@/lib/email-formatter-client";
+import Link from "next/link";
 
 export default function TestEmailPage() {
-  const { data: session } = useSession()
-  const [testResult, setTestResult] = useState<string>("")
-  const [isLoading, setIsLoading] = useState(false)
+  const { data: session } = useSession();
+  const [testResult, setTestResult] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
   const testDatabaseTables = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const connectionResult = await testAppwriteConnection()
-      
-      let result = "🧪 Appwrite Collection Tests:\n\n"
-      result += `✅ Connection: ${connectionResult.success ? 'SUCCESS' : 'FAILED'}\n`
-      result += `✅ Project ID: ${connectionResult.projectId}\n`
-      result += `✅ Database ID: ${config.databaseId}\n`
-      
-      setTestResult(result)
+      const connectionResult = await testAppwriteConnection();
+
+      let result = "🧪 Appwrite Collection Tests:\n\n";
+      result += `✅ Connection: ${connectionResult.success ? "SUCCESS" : "FAILED"}\n`;
+      result += `✅ Project ID: ${connectionResult.projectId}\n`;
+      result += `✅ Database ID: ${config.databaseId}\n`;
+
+      setTestResult(result);
     } catch (error) {
-      setTestResult(`❌ Appwrite test error: ${error}`)
+      setTestResult(`❌ Appwrite test error: ${error}`);
     }
-    setIsLoading(false)
-  }
+    setIsLoading(false);
+  };
 
   const testAppwriteConnectionHandler = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const result = await testAppwriteConnection()
-      
+      const result = await testAppwriteConnection();
+
       if (result.success) {
-        setTestResult(`✅ Appwrite connection successful!\nProject: ${result.projectId}\nMessage: ${result.message}`)
+        setTestResult(
+          `✅ Appwrite connection successful!\nProject: ${result.projectId}\nMessage: ${result.message}`,
+        );
       } else {
-        setTestResult(`❌ Appwrite connection failed: ${result.error}`)
+        setTestResult(`❌ Appwrite connection failed: ${result.error}`);
       }
     } catch (error) {
-      setTestResult(`❌ Appwrite test error: ${error}`)
+      setTestResult(`❌ Appwrite test error: ${error}`);
     }
-    setIsLoading(false)
-  }
+    setIsLoading(false);
+  };
   const testEmailSending = async () => {
     if (!session?.accessToken) {
-      setTestResult("❌ Please sign in first - No access token available")
-      return
+      setTestResult("❌ Please sign in first - No access token available");
+      return;
     }
 
     if (!session?.user?.email) {
-      setTestResult("❌ No user email available")
-      return
+      setTestResult("❌ No user email available");
+      return;
     }
 
-    setIsLoading(true)
-    setTestResult("🔄 Sending test email...")
+    setIsLoading(true);
+    setTestResult("🔄 Sending test email...");
 
     try {
       // First test Gmail API access
-      const gmailTest = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
-        headers: {
-          Authorization: `Bearer ${session.accessToken}`,
+      const gmailTest = await fetch(
+        "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+        {
+          headers: {
+            Authorization: `Bearer ${session.accessToken}`,
+          },
         },
-      })
+      );
 
       if (!gmailTest.ok) {
-        const gmailError = await gmailTest.text()
-        setTestResult(`❌ Gmail API access failed. Please refresh your authentication.\n\nError: ${gmailError}`)
-        return
+        const gmailError = await gmailTest.text();
+        setTestResult(
+          `❌ Gmail API access failed. Please refresh your authentication.\n\nError: ${gmailError}`,
+        );
+        return;
       }
 
       const testEmail = {
         to: session.user.email,
-        subject: "Test Email from EchoMail - " + new Date().toLocaleTimeString(),
-        message: "This is a test email to verify Appwrite integration is working correctly. Sent at: " + new Date().toLocaleString(),
+        subject:
+          "Test Email from EchoMail - " + new Date().toLocaleTimeString(),
+        message:
+          "This is a test email to verify Appwrite integration is working correctly. Sent at: " +
+          new Date().toLocaleString(),
         originalRowData: {},
-        attachments: []
-      }
+        attachments: [],
+      };
 
       const response = await fetch("/api/send-email", {
         method: "POST",
@@ -86,39 +100,56 @@ export default function TestEmailPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          personalizedEmails: [testEmail]
+          personalizedEmails: [testEmail],
         }),
-      })
+      });
 
-      const result = await response.json()
-        if (response.ok) {
-        setTestResult(`✅ Email API call completed!\n\nResponse: ${JSON.stringify(result, null, 2)}`)
-        
+      const result = await response.json();
+      if (response.ok) {
+        setTestResult(
+          `✅ Email API call completed!\n\nResponse: ${JSON.stringify(result, null, 2)}`,
+        );
+
         // Check if campaign was saved to Appwrite
         setTimeout(async () => {
           try {
-            const campaigns = await campaignsService.listByUser(session.user?.email || "")
-            
+            const campaigns = await campaignsService.listByUser(
+              session.user?.email || "",
+            );
+
             if (campaigns.documents.length > 0) {
-              const latestCampaign = campaigns.documents[0]
-              setTestResult(prev => prev + `\n\n✅ Campaign saved to Appwrite:\n${JSON.stringify(latestCampaign, null, 2)}`)
+              const latestCampaign = campaigns.documents[0];
+              setTestResult(
+                (prev) =>
+                  prev +
+                  `\n\n✅ Campaign saved to Appwrite:\n${JSON.stringify(latestCampaign, null, 2)}`,
+              );
             } else {
-              setTestResult(prev => prev + `\n\n❌ Campaign not found in Appwrite.\nNo campaigns found`)
+              setTestResult(
+                (prev) =>
+                  prev +
+                  `\n\n❌ Campaign not found in Appwrite.\nNo campaigns found`,
+              );
             }
           } catch (error) {
-            setTestResult(prev => prev + `\n\n❌ Error checking Appwrite: ${error}`)
+            setTestResult(
+              (prev) => prev + `\n\n❌ Error checking Appwrite: ${error}`,
+            );
           }
-        }, 3000)
+        }, 3000);
       } else {
-        setTestResult(`❌ Failed to send email:\n${JSON.stringify(result, null, 2)}`)
+        setTestResult(
+          `❌ Failed to send email:\n${JSON.stringify(result, null, 2)}`,
+        );
       }
     } catch (error) {
-      setTestResult(`❌ Error: ${error}`)
+      setTestResult(`❌ Error: ${error}`);
     }
 
-    setIsLoading(false)
-  }
-  const testEmailFormatting = async () => {    const sampleHTML = `
+    setIsLoading(false);
+  };
+  const testEmailFormatting = async () => {
+    const sampleHTML = `
       <h1>Email Spacing Test</h1>
       <p>This paragraph tests normal spacing with proper margins. Notice how there's consistent spacing between elements.</p>
       
@@ -189,30 +220,31 @@ export default function TestEmailPage() {
       
       <p>Final paragraph to test proper spacing. Notice how the last paragraph doesn't have extra bottom margin.</p>
     `;
-    
+
     setIsLoading(true);
-    
+
     try {
       // Test server-side MJML formatting via API
-      const response = await fetch('/api/format-email', {
-        method: 'POST',
+      const response = await fetch("/api/format-email", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ htmlContent: sampleHTML }),
       });
-      
+
       if (!response.ok) {
         throw new Error(`API error: ${response.status}`);
       }
-      
+
       const result = await response.json();
-      
-      if (result.success) {        setTestResult(`📧 MJML Email Formatting Test Results:
+
+      if (result.success) {
+        setTestResult(`📧 MJML Email Formatting Test Results:
 
 ✅ Email formatted successfully via API!
-${result.analysis.isMjmlCompiled ? '✅ MJML compilation: SUCCESS (Server-side)' : '⚠️ MJML compilation: Using fallback HTML'}
-${result.analysis.hasEmojiImages ? (result.analysis.emojiImagesRemoved ? '✅ Emoji conversion: IMG tags converted to Unicode text' : '❌ Emoji conversion: IMG tags still present') : '✅ Emoji conversion: No IMG tags to convert'}
+${result.analysis.isMjmlCompiled ? "✅ MJML compilation: SUCCESS (Server-side)" : "⚠️ MJML compilation: Using fallback HTML"}
+${result.analysis.hasEmojiImages ? (result.analysis.emojiImagesRemoved ? "✅ Emoji conversion: IMG tags converted to Unicode text" : "❌ Emoji conversion: IMG tags still present") : "✅ Emoji conversion: No IMG tags to convert"}
 
 📊 Output details:
 - Original HTML length: ${result.analysis.originalLength} characters
@@ -220,8 +252,8 @@ ${result.analysis.hasEmojiImages ? (result.analysis.emojiImagesRemoved ? '✅ Em
 - Formatted HTML length: ${result.analysis.formattedLength} characters
 
 🔍 Test Results:
-• Server-side MJML processing: ${result.analysis.isMjmlCompiled ? 'WORKING' : 'FALLBACK'}
-• Emoji image to text conversion: ${result.analysis.emojiImagesRemoved ? 'WORKING' : 'FAILED'}
+• Server-side MJML processing: ${result.analysis.isMjmlCompiled ? "WORKING" : "FALLBACK"}
+• Emoji image to text conversion: ${result.analysis.emojiImagesRemoved ? "WORKING" : "FAILED"}
 • List styling with proper indentation: APPLIED
 • Cross-email-client compatibility: ENABLED
 • Improved spacing and typography: OPTIMIZED
@@ -250,15 +282,20 @@ The email will now render with proper spacing and consistent typography across a
 
 🚀 SOLUTION: Both emoji conversion and spacing issues are now fixed!`);
       } else {
-        setTestResult(`❌ API Error: ${result.error}\n\nDetails: ${result.details || 'Unknown error'}`);
+        setTestResult(
+          `❌ API Error: ${result.error}\n\nDetails: ${result.details || "Unknown error"}`,
+        );
       }
     } catch (error) {
       // Fallback to client-side testing
       const originalWithEmojis = sampleHTML;
       const convertedEmojis = convertEmojiImagesToText(sampleHTML);
-      const hasEmojiImages = originalWithEmojis.includes('<img') && originalWithEmojis.includes('emoji');
-      const emojiImagesRemoved = !convertedEmojis.includes('<img') || !convertedEmojis.includes('emoji');
-      
+      const hasEmojiImages =
+        originalWithEmojis.includes("<img") &&
+        originalWithEmojis.includes("emoji");
+      const emojiImagesRemoved =
+        !convertedEmojis.includes("<img") || !convertedEmojis.includes("emoji");
+
       setTestResult(`⚠️ Server-side test failed, using client-side fallback:
 
 Error: ${error}
@@ -266,17 +303,17 @@ Error: ${error}
 📊 Client-side emoji conversion test:
 - Original HTML length: ${originalWithEmojis.length} characters
 - After emoji conversion: ${convertedEmojis.length} characters
-- Had emoji images: ${hasEmojiImages ? 'YES' : 'NO'}
-- Emoji images removed: ${emojiImagesRemoved ? 'YES' : 'NO'}
+- Had emoji images: ${hasEmojiImages ? "YES" : "NO"}
+- Emoji images removed: ${emojiImagesRemoved ? "YES" : "NO"}
 
 ✅ Emoji conversion is working on the client side.
 ⚠️ MJML processing requires server-side execution.
 
 🔧 To test full MJML functionality, the API route should be working.`);
     }
-    
+
     setIsLoading(false);
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -287,23 +324,23 @@ Error: ${error}
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Button 
+              <Button
                 onClick={testDatabaseTables}
                 disabled={isLoading}
                 className="w-full"
               >
                 Test Database Tables
               </Button>
-              
-              <Button 
+
+              <Button
                 onClick={testAppwriteConnectionHandler}
                 disabled={isLoading}
                 className="w-full"
               >
                 Test Appwrite Connection
               </Button>
-              
-              <Button 
+
+              <Button
                 onClick={testEmailSending}
                 disabled={isLoading || !session}
                 className="w-full"
@@ -311,7 +348,7 @@ Error: ${error}
                 Test Email Sending + Database Save
               </Button>
 
-              <Button 
+              <Button
                 onClick={testEmailFormatting}
                 disabled={isLoading}
                 className="w-full"
@@ -319,19 +356,19 @@ Error: ${error}
                 Test Email Formatting
               </Button>
             </div>
-            
+
             {testResult && (
               <div className="mt-4 p-4 bg-gray-100 rounded-lg">
                 <pre className="whitespace-pre-wrap text-sm">{testResult}</pre>
               </div>
             )}
-            
+
             {!session && (
               <div className="text-center space-y-4">
                 <div className="text-gray-600">
                   Please sign in to test email functionality
                 </div>
-                <Button onClick={() => signIn('google')} className="w-full">
+                <Button onClick={() => signIn("google")} className="w-full">
                   Sign in with Google
                 </Button>
                 <Link href="/auth/signin" className="block">
@@ -351,5 +388,5 @@ Error: ${error}
         </Card>
       </div>
     </div>
-  )
+  );
 }
