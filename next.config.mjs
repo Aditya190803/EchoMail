@@ -6,9 +6,6 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: false,
-  },
   typescript: {
     ignoreBuildErrors: false,
   },
@@ -84,9 +81,6 @@ const nextConfig = {
   serverExternalPackages: ['mjml'],
 
   // Increase body parser size limit for API routes
-  serverRuntimeConfig: {
-    bodySizeLimit: '10mb',
-  },
 
   // Add headers for CORS and content-type handling
   // SECURITY: Restrict CORS to specific origins in production
@@ -152,6 +146,7 @@ const nextConfig = {
       },
     ]
   },
+  turbopack: {},
 }
 
 export default withBundleAnalyzer(nextConfig)
