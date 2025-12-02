@@ -1,42 +1,48 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { type NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getServerSession(authOptions);
 
     if (!session) {
-      return NextResponse.json({ 
-        authenticated: false,
-        message: "No session found" 
-      }, { status: 401 })
+      return NextResponse.json(
+        {
+          authenticated: false,
+          message: "No session found",
+        },
+        { status: 401 },
+      );
     }
 
     // Test Gmail API access
-    let gmailStatus = "unknown"
-    let gmailError = null
+    let gmailStatus = "unknown";
+    let gmailError = null;
 
     if (session.accessToken) {
       try {
-        const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
-          headers: {
-            Authorization: `Bearer ${session.accessToken}`,
+        const response = await fetch(
+          "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+          {
+            headers: {
+              Authorization: `Bearer ${session.accessToken}`,
+            },
           },
-        })
+        );
 
         if (response.ok) {
-          gmailStatus = "working"
+          gmailStatus = "working";
         } else {
-          gmailStatus = "failed"
-          gmailError = await response.text()
+          gmailStatus = "failed";
+          gmailError = await response.text();
         }
       } catch (error) {
-        gmailStatus = "error"
-        gmailError = error instanceof Error ? error.message : "Unknown error"
+        gmailStatus = "error";
+        gmailError = error instanceof Error ? error.message : "Unknown error";
       }
     } else {
-      gmailStatus = "no_token"
+      gmailStatus = "no_token";
     }
 
     return NextResponse.json({
@@ -46,13 +52,16 @@ export async function GET(request: NextRequest) {
       tokenError: session.error,
       gmail: {
         status: gmailStatus,
-        error: gmailError
-      }
-    })
+        error: gmailError,
+      },
+    });
   } catch (error) {
-    return NextResponse.json({ 
-      error: "Failed to check auth status",
-      details: error instanceof Error ? error.message : "Unknown error"
-    }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: "Failed to check auth status",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    );
   }
 }
