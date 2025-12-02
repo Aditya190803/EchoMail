@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiLogger } from "./lib/logger";
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   // Only apply to API routes that handle email sending
   if (request.nextUrl.pathname.startsWith("/api/send-email")) {
     // For large email campaigns, we need to handle larger payloads
@@ -29,3 +29,4 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: "/api/send-email/:path*",
 };
+
