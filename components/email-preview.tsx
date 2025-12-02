@@ -1,106 +1,121 @@
-"use client"
+"use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Eye, Send, X, Paperclip, Mail, Loader2, CheckCircle2 } from "lucide-react"
-import type { PersonalizedEmail } from "@/types/email"
-import { useState, useEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Eye, Send, X, Paperclip, Loader2, CheckCircle2 } from "lucide-react";
+import type { PersonalizedEmail } from "@/types/email";
+import { useState, useEffect } from "react";
+import { componentLogger } from "@/lib/client-logger";
 
 interface EmailPreviewProps {
-  emails: PersonalizedEmail[]
-  onSend: () => void
-  onClose: () => void
-  isLoading: boolean
+  emails: PersonalizedEmail[];
+  onSend: () => void;
+  onClose: () => void;
+  isLoading: boolean;
 }
 
 /**
  * Email Preview Component
- * 
+ *
  * This component shows emails EXACTLY as they will appear when sent.
  * It uses the same email formatter that the send API uses to ensure
  * perfect consistency between preview and sent email.
  */
-export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPreviewProps) {
-  const [iframeErrors, setIframeErrors] = useState<Set<number>>(new Set())
-  const [previewHtml, setPreviewHtml] = useState<{ [key: number]: string }>({})
-  const [loadingPreviews, setLoadingPreviews] = useState(true)
-  const [loadingProgress, setLoadingProgress] = useState(0)
-  const [currentlyLoading, setCurrentlyLoading] = useState(0)
+export function EmailPreview({
+  emails,
+  onSend,
+  onClose,
+  isLoading,
+}: EmailPreviewProps) {
+  const [iframeErrors, setIframeErrors] = useState<Set<number>>(new Set());
+  const [previewHtml, setPreviewHtml] = useState<{ [key: number]: string }>({});
+  const [loadingPreviews, setLoadingPreviews] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [currentlyLoading, setCurrentlyLoading] = useState(0);
 
   // Load formatted HTML for each email using the SAME formatter as send API
   useEffect(() => {
     const loadPreviews = async () => {
-      setLoadingPreviews(true)
-      setLoadingProgress(0)
-      setCurrentlyLoading(0)
-      const newPreviews: { [key: number]: string } = {}
-      
+      setLoadingPreviews(true);
+      setLoadingProgress(0);
+      setCurrentlyLoading(0);
+      const newPreviews: { [key: number]: string } = {};
+
       for (let i = 0; i < emails.length; i++) {
-        setCurrentlyLoading(i + 1)
-        setLoadingProgress(((i) / emails.length) * 100)
-        
+        setCurrentlyLoading(i + 1);
+        setLoadingProgress((i / emails.length) * 100);
+
         try {
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 10000)
-          
-          const response = await fetch('/api/format-email-preview', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+          const response = await fetch("/api/format-email-preview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ htmlContent: emails[i].message }),
-            signal: controller.signal
-          })
-          
-          clearTimeout(timeoutId)
-          
+            signal: controller.signal,
+          });
+
+          clearTimeout(timeoutId);
+
           if (response.ok) {
-            const result = await response.json()
+            const result = await response.json();
             // Wrap in Gmail-like preview container for accurate representation
-            newPreviews[i] = createGmailPreviewWrapper(result.formattedHTML)
+            newPreviews[i] = createGmailPreviewWrapper(result.formattedHTML);
           } else {
-            console.warn(`Preview API failed for email ${i + 1}`)
-            newPreviews[i] = createGmailPreviewWrapper(emails[i].message)
+            componentLogger.warn(`Preview API failed for email ${i + 1}`);
+            newPreviews[i] = createGmailPreviewWrapper(emails[i].message);
           }
         } catch (error) {
-          console.error(`Preview loading error for email ${i + 1}:`, error)
-          newPreviews[i] = createGmailPreviewWrapper(emails[i].message)
+          componentLogger.error(
+            `Preview loading error for email ${i + 1}`,
+            error instanceof Error ? error : undefined,
+          );
+          newPreviews[i] = createGmailPreviewWrapper(emails[i].message);
         }
-        
-        setLoadingProgress(((i + 1) / emails.length) * 100)
+
+        setLoadingProgress(((i + 1) / emails.length) * 100);
       }
-      
-      setPreviewHtml(newPreviews)
-      setLoadingPreviews(false)
-      setLoadingProgress(100)
-    }
-    
-    loadPreviews()
-  }, [emails])
+
+      setPreviewHtml(newPreviews);
+      setLoadingPreviews(false);
+      setLoadingProgress(100);
+    };
+
+    loadPreviews();
+  }, [emails]);
 
   const handleIframeError = (index: number) => {
-    setIframeErrors(prev => new Set(prev).add(index))
-  }
+    setIframeErrors((prev) => new Set(prev).add(index));
+  };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 z-50">
       <Card className="w-full max-w-4xl max-h-[95vh] overflow-hidden shadow-2xl">
-        <CardHeader className="flex flex-col space-y-3 p-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50 sticky top-0 z-10">
+        <CardHeader className="flex flex-col space-y-3 p-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 sticky top-0 z-10">
           <div className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Eye className="h-5 w-5 text-blue-600" />
-              Email Preview ({emails.length} {emails.length === 1 ? 'email' : 'emails'})
+              <Eye className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              Email Preview ({emails.length}{" "}
+              {emails.length === 1 ? "email" : "emails"})
             </CardTitle>
-            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 hover:bg-white/50">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              className="h-8 w-8 p-0 hover:bg-white/50 dark:hover:bg-white/10"
+            >
               <X className="h-4 w-4" />
             </Button>
           </div>
-          
+
           {/* Action Buttons */}
           <div className="flex flex-col gap-2">
-            <Button 
-              onClick={onSend} 
-              disabled={isLoading || loadingPreviews} 
+            <Button
+              onClick={onSend}
+              disabled={isLoading || loadingPreviews}
               className="w-full h-11 shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
             >
               {isLoading ? (
@@ -111,7 +126,8 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
               ) : (
                 <>
                   <Send className="h-4 w-4 mr-2" />
-                  Send {emails.length} {emails.length === 1 ? 'Email' : 'Emails'}
+                  Send {emails.length}{" "}
+                  {emails.length === 1 ? "Email" : "Emails"}
                 </>
               )}
             </Button>
@@ -120,17 +136,18 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
             </Button>
           </div>
         </CardHeader>
-        
+
         <CardContent className="space-y-3 p-4">
           {loadingPreviews && (
-            <div className="bg-blue-50 p-4 rounded-xl mb-4 border border-blue-100">
+            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl mb-4 border border-blue-100 dark:border-blue-800">
               <div className="flex items-center gap-3 mb-3">
-                <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                <Loader2 className="h-5 w-5 animate-spin text-blue-600 dark:text-blue-400" />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-blue-800">
-                    Generating email previews... ({currentlyLoading}/{emails.length})
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                    Generating email previews... ({currentlyLoading}/
+                    {emails.length})
                   </p>
-                  <p className="text-xs text-blue-600 mt-1">
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                     Formatting exactly as emails will appear in Gmail
                   </p>
                 </div>
@@ -138,52 +155,74 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
               <Progress value={loadingProgress} className="w-full h-2" />
             </div>
           )}
-          
+
           {!loadingPreviews && (
-            <div className="bg-green-50 p-3 rounded-xl mb-3 border border-green-100 flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <p className="text-xs text-green-800">
-                <strong>Preview matches sent email:</strong> What you see below is exactly how your emails will appear in Gmail.
+            <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-xl mb-3 border border-green-100 dark:border-green-800 flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+              <p className="text-xs text-green-800 dark:text-green-300">
+                <strong>Preview matches sent email:</strong> What you see below
+                is exactly how your emails will appear in Gmail.
               </p>
             </div>
           )}
-          
+
           <div className="max-h-[60vh] overflow-y-auto space-y-4 pr-1">
             {emails.map((email, index) => (
-              <div key={index} className="border rounded-xl p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
+              <div
+                key={index}
+                className="border rounded-xl p-4 bg-white dark:bg-zinc-900 shadow-sm hover:shadow-md transition-shadow"
+              >
                 <div className="flex flex-wrap items-center gap-2 mb-3">
-                  <Badge variant="outline" className="text-xs font-medium">{email.to}</Badge>
-                  <Badge className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-100">Email #{index + 1}</Badge>
+                  <Badge variant="outline" className="text-xs font-medium">
+                    {email.to}
+                  </Badge>
+                  <Badge className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900">
+                    Email #{index + 1}
+                  </Badge>
                   {email.attachments && email.attachments.length > 0 && (
-                    <Badge variant="secondary" className="flex items-center gap-1 text-xs">
+                    <Badge
+                      variant="secondary"
+                      className="flex items-center gap-1 text-xs"
+                    >
                       <Paperclip className="h-3 w-3" />
-                      {email.attachments.length} attachment{email.attachments.length > 1 ? 's' : ''}
+                      {email.attachments.length} attachment
+                      {email.attachments.length > 1 ? "s" : ""}
                     </Badge>
                   )}
                 </div>
-                
+
                 <div className="space-y-3">
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Subject</span>
-                    <p className="text-sm font-semibold mt-1 break-words">{email.subject}</p>
+                  <div className="bg-gray-50 dark:bg-zinc-800 rounded-lg p-3">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Subject
+                    </span>
+                    <p className="text-sm font-semibold mt-1 break-words">
+                      {email.subject}
+                    </p>
                   </div>
-                  
+
                   <div>
-                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">Message Body</span>
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
+                      Message Body
+                    </span>
                     <div className="rounded-lg border overflow-hidden">
                       {loadingPreviews ? (
-                        <div className="w-full h-80 bg-white flex flex-col items-center justify-center">
-                          <Loader2 className="h-8 w-8 animate-spin text-blue-500 mb-3" />
-                          <p className="text-gray-600 text-sm">Formatting preview...</p>
+                        <div className="w-full h-80 bg-white dark:bg-zinc-900 flex flex-col items-center justify-center">
+                          <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+                          <p className="text-muted-foreground text-sm">
+                            Formatting preview...
+                          </p>
                         </div>
                       ) : iframeErrors.has(index) ? (
-                        <div 
-                          className="w-full p-4 bg-white prose prose-sm max-w-none max-h-80 overflow-y-auto"
-                          dangerouslySetInnerHTML={{ __html: previewHtml[index] || '' }}
+                        <div
+                          className="w-full p-4 bg-white dark:bg-zinc-900 prose prose-sm dark:prose-invert max-w-none max-h-80 overflow-y-auto"
+                          dangerouslySetInnerHTML={{
+                            __html: previewHtml[index] || "",
+                          }}
                         />
                       ) : (
                         <iframe
-                          srcDoc={previewHtml[index] || ''}
+                          srcDoc={previewHtml[index] || ""}
                           className="w-full h-80 border-0 bg-white"
                           title={`Email preview for ${email.to}`}
                           onError={() => handleIframeError(index)}
@@ -192,18 +231,22 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
                       )}
                     </div>
                   </div>
-                  
+
                   {email.attachments && email.attachments.length > 0 && (
                     <div>
-                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2 block">Attachments</span>
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2 block">
+                        Attachments
+                      </span>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {email.attachments.map((attachment, attachIndex) => (
                           <div
                             key={attachIndex}
-                            className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 p-2.5 rounded-lg border"
+                            className="flex items-center gap-2 text-sm text-muted-foreground bg-muted p-2.5 rounded-lg border"
                           >
-                            <Paperclip className="h-4 w-4 text-gray-400" />
-                            <span className="truncate flex-1">{attachment.name}</span>
+                            <Paperclip className="h-4 w-4 text-muted-foreground" />
+                            <span className="truncate flex-1">
+                              {attachment.name}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -216,7 +259,7 @@ export function EmailPreview({ emails, onSend, onClose, isLoading }: EmailPrevie
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 
 /**
@@ -360,5 +403,5 @@ function createGmailPreviewWrapper(htmlContent: string): string {
 <body>
   ${htmlContent}
 </body>
-</html>`
+</html>`;
 }
