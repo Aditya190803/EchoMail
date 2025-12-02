@@ -80,7 +80,7 @@ export const sendSingleEmailSchema = z.object({
   to: emailSchema,
   subject: subjectSchema,
   message: messageSchema,
-  originalRowData: z.record(z.string()).optional(),
+  originalRowData: z.record(z.string(), z.string()).optional(),
   attachments: z.array(attachmentSchema).optional(),
   personalizedAttachment: personalizedAttachmentSchema.optional(),
 });
@@ -95,7 +95,7 @@ export const sendBulkEmailSchema = z.object({
         to: emailSchema,
         subject: subjectSchema,
         message: messageSchema,
-        originalRowData: z.record(z.string()).optional(),
+        originalRowData: z.record(z.string(), z.string()).optional(),
         attachments: z.array(attachmentSchema).optional(),
       }),
     )
@@ -113,7 +113,7 @@ export const contactSchema = z.object({
   phone: z.string().max(50).optional(),
   notes: z.string().max(5000).optional(),
   tags: z.array(z.string().max(50)).max(20).optional(),
-  customFields: z.record(z.string().max(1000)).optional(),
+  customFields: z.record(z.string(), z.string().max(1000)).optional(),
 });
 
 /**
@@ -145,7 +145,7 @@ export const trackingEventSchema = z.object({
   email: emailSchema.optional(),
   url: z.string().url().optional(),
   timestamp: z.string().datetime().optional(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 // ============================================
@@ -213,7 +213,8 @@ export function safeJSONParse<T>(json: string, fallback: T): T {
 export interface ValidationResult<T> {
   success: boolean;
   data?: T;
-  errors?: z.ZodError["errors"];
+  // Zod v4 uses `issues` on ZodError instead of `errors`.
+  errors?: z.ZodIssue[];
   message?: string;
 }
 
@@ -235,8 +236,9 @@ export function validate<T>(
 
   return {
     success: false,
-    errors: result.error.errors,
-    message: result.error.errors.map((e) => e.message).join(", "),
+    // In Zod v4 the error issues are on result.error.issues
+    errors: result.error.issues,
+    message: result.error.issues.map((e) => e.message).join(", "),
   };
 }
 
