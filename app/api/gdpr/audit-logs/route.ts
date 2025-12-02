@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import { databases, config, Query, ID } from "@/lib/appwrite-server"
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { databases, config, Query, ID } from "@/lib/appwrite-server";
+import { apiLogger } from "@/lib/logger";
 
 // Helper to log audit events
 async function logAuditEvent(
@@ -10,19 +11,20 @@ async function logAuditEvent(
   resourceType: string,
   resourceId?: string,
   details?: Record<string, any>,
-  request?: NextRequest
+  request?: NextRequest,
 ) {
   try {
     // Check if audit logs collection exists
     if (!config.auditLogsCollectionId) {
-      console.warn('Audit logs collection not configured')
-      return
+      apiLogger.warn("Audit logs collection not configured");
+      return;
     }
 
-    const ipAddress = request?.headers.get('x-forwarded-for') || 
-                      request?.headers.get('x-real-ip') || 
-                      'unknown'
-    const userAgent = request?.headers.get('user-agent') || 'unknown'
+    const ipAddress =
+      request?.headers.get("x-forwarded-for") ||
+      request?.headers.get("x-real-ip") ||
+      "unknown";
+    const userAgent = request?.headers.get("user-agent") || "unknown";
 
     await databases.createDocument(
       config.databaseId,
@@ -37,102 +39,109 @@ async function logAuditEvent(
         ip_address: ipAddress,
         user_agent: userAgent,
         created_at: new Date().toISOString(),
-      }
-    )
+      },
+    );
   } catch (error) {
     // Don't fail the main operation if audit logging fails
-    console.error('Failed to log audit event:', error)
+    apiLogger.error(
+      "Failed to log audit event",
+      error instanceof Error ? error : undefined,
+    );
   }
 }
 
 // GET /api/gdpr/audit-logs - Get audit logs for the user
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    
+    const session = await getServerSession(authOptions);
+
     if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url)
-    const limit = parseInt(searchParams.get('limit') || '100')
-    const offset = parseInt(searchParams.get('offset') || '0')
-    const action = searchParams.get('action')
-    const resourceType = searchParams.get('resource_type')
-    const startDate = searchParams.get('start_date')
-    const endDate = searchParams.get('end_date')
+    const { searchParams } = new URL(request.url);
+    const limit = parseInt(searchParams.get("limit") || "100");
+    const offset = parseInt(searchParams.get("offset") || "0");
+    const action = searchParams.get("action");
+    const resourceType = searchParams.get("resource_type");
+    const startDate = searchParams.get("start_date");
+    const endDate = searchParams.get("end_date");
 
     // Check if collection is configured
     if (!config.auditLogsCollectionId) {
-      return NextResponse.json({ 
-        total: 0, 
+      return NextResponse.json({
+        total: 0,
         documents: [],
-        message: 'Audit logs collection not configured. Please set up the collection.'
-      })
+        message:
+          "Audit logs collection not configured. Please set up the collection.",
+      });
     }
 
     const queries = [
-      Query.equal('user_email', session.user.email),
-      Query.orderDesc('created_at'),
+      Query.equal("user_email", session.user.email),
+      Query.orderDesc("created_at"),
       Query.limit(limit),
       Query.offset(offset),
-    ]
+    ];
 
     if (action) {
-      queries.push(Query.equal('action', action))
+      queries.push(Query.equal("action", action));
     }
     if (resourceType) {
-      queries.push(Query.equal('resource_type', resourceType))
+      queries.push(Query.equal("resource_type", resourceType));
     }
     if (startDate) {
-      queries.push(Query.greaterThanEqual('created_at', startDate))
+      queries.push(Query.greaterThanEqual("created_at", startDate));
     }
     if (endDate) {
-      queries.push(Query.lessThanEqual('created_at', endDate))
+      queries.push(Query.lessThanEqual("created_at", endDate));
     }
 
     const response = await databases.listDocuments(
       config.databaseId,
       config.auditLogsCollectionId,
-      queries
-    )
+      queries,
+    );
 
     // Parse details JSON for each log
     const documents = response.documents.map((doc: any) => ({
       ...doc,
       details: doc.details ? JSON.parse(doc.details) : null,
-    }))
+    }));
 
-    return NextResponse.json({ 
-      total: response.total, 
+    return NextResponse.json({
+      total: response.total,
       documents,
-    })
+    });
   } catch (error: any) {
-    console.error("Error fetching audit logs:", error)
+    apiLogger.error(
+      "Error fetching audit logs",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
       { error: error.message || "Failed to fetch audit logs" },
-      { status: 500 }
-    )
+      { status: 500 },
+    );
   }
 }
 
 // POST /api/gdpr/audit-logs - Create an audit log entry (for client-side logging)
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    
+    const session = await getServerSession(authOptions);
+
     if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json()
-    const { action, resource_type, resource_id, details } = body
+    const body = await request.json();
+    const { action, resource_type, resource_id, details } = body;
 
     if (!action || !resource_type) {
       return NextResponse.json(
         { error: "Action and resource_type are required" },
-        { status: 400 }
-      )
+        { status: 400 },
+      );
     }
 
     await logAuditEvent(
@@ -141,15 +150,18 @@ export async function POST(request: NextRequest) {
       resource_type,
       resource_id,
       details,
-      request
-    )
+      request,
+    );
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("Error creating audit log:", error)
+    apiLogger.error(
+      "Error creating audit log",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
       { error: error.message || "Failed to create audit log" },
-      { status: 500 }
-    )
+      { status: 500 },
+    );
   }
 }
