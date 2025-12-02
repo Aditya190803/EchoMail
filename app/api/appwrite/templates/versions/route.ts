@@ -1,0 +1,203 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { databases, config, Query, ID } from "@/lib/appwrite-server";
+import { apiLogger } from "@/lib/logger";
+
+// GET /api/appwrite/templates/versions - List versions for a template
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const templateId = searchParams.get("templateId");
+
+    if (!templateId) {
+      return NextResponse.json(
+        { error: "Template ID required" },
+        { status: 400 },
+      );
+    }
+
+    // First verify the template belongs to this user
+    const template = await databases.getDocument(
+      config.databaseId,
+      config.templatesCollectionId,
+      templateId,
+    );
+
+    if ((template as any).user_email !== session.user.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    // Get all versions for this template
+    try {
+      const response = await databases.listDocuments(
+        config.databaseId,
+        config.templateVersionsCollectionId,
+        [
+          Query.equal("template_id", templateId),
+          Query.equal("user_email", session.user.email),
+          Query.orderDesc("version"),
+          Query.limit(50),
+        ],
+      );
+
+      const documents = response.documents.map((doc) => ({
+        $id: doc.$id,
+        template_id: (doc as any).template_id,
+        version: (doc as any).version,
+        name: (doc as any).name,
+        subject: (doc as any).subject,
+        content: (doc as any).content,
+        category: (doc as any).category,
+        user_email: (doc as any).user_email,
+        created_at: (doc as any).created_at,
+        change_note: (doc as any).change_note,
+      }));
+
+      return NextResponse.json({ total: response.total, documents });
+    } catch (error: any) {
+      // If collection doesn't exist yet, return empty
+      if (error.code === 404 || error.message?.includes("Collection")) {
+        return NextResponse.json({ total: 0, documents: [] });
+      }
+      throw error;
+    }
+  } catch (error: any) {
+    apiLogger.error("Error fetching template versions", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to fetch template versions" },
+      { status: 500 },
+    );
+  }
+}
+
+// POST /api/appwrite/templates/versions - Create a version or restore from version
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { templateId, versionId, action, changeNote } = body;
+
+    if (!templateId) {
+      return NextResponse.json(
+        { error: "Template ID required" },
+        { status: 400 },
+      );
+    }
+
+    // Verify the template belongs to this user
+    const template = await databases.getDocument(
+      config.databaseId,
+      config.templatesCollectionId,
+      templateId,
+    );
+
+    if ((template as any).user_email !== session.user.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    // Handle restore action
+    if (action === "restore" && versionId) {
+      // Get the version to restore
+      const version = await databases.getDocument(
+        config.databaseId,
+        config.templateVersionsCollectionId,
+        versionId,
+      );
+
+      if ((version as any).template_id !== templateId) {
+        return NextResponse.json(
+          { error: "Version does not belong to this template" },
+          { status: 400 },
+        );
+      }
+
+      // Save current state as a new version before restoring
+      const currentVersion = (template as any).version || 1;
+      await databases.createDocument(
+        config.databaseId,
+        config.templateVersionsCollectionId,
+        ID.unique(),
+        {
+          template_id: templateId,
+          version: currentVersion,
+          name: (template as any).name,
+          subject: (template as any).subject,
+          content: (template as any).content,
+          category: (template as any).category,
+          user_email: session.user.email,
+          created_at: new Date().toISOString(),
+          change_note: `Auto-saved before restoring to version ${(version as any).version}`,
+        },
+      );
+
+      // Update template with restored version data
+      const result = await databases.updateDocument(
+        config.databaseId,
+        config.templatesCollectionId,
+        templateId,
+        {
+          name: (version as any).name,
+          subject: (version as any).subject,
+          content: (version as any).content,
+          category: (version as any).category,
+          version: currentVersion + 1,
+          updated_at: new Date().toISOString(),
+        },
+      );
+
+      return NextResponse.json(result);
+    }
+
+    // Handle creating a new version (saving current state)
+    const currentVersion = (template as any).version || 0;
+    const newVersion = currentVersion + 1;
+
+    // Create version record
+    await databases.createDocument(
+      config.databaseId,
+      config.templateVersionsCollectionId,
+      ID.unique(),
+      {
+        template_id: templateId,
+        version: currentVersion,
+        name: (template as any).name,
+        subject: (template as any).subject,
+        content: (template as any).content,
+        category: (template as any).category,
+        user_email: session.user.email,
+        created_at: new Date().toISOString(),
+        change_note: changeNote || null,
+      },
+    );
+
+    // Update template version number
+    await databases.updateDocument(
+      config.databaseId,
+      config.templatesCollectionId,
+      templateId,
+      {
+        version: newVersion,
+      },
+    );
+
+    return NextResponse.json({ success: true, version: newVersion });
+  } catch (error: any) {
+    apiLogger.error("Error managing template version", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to manage template version" },
+      { status: 500 },
+    );
+  }
+}
