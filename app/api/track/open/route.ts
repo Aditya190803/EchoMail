@@ -1,5 +1,6 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { databases, config, ID } from "@/lib/appwrite-server"
+import { type NextRequest, NextResponse } from "next/server";
+import { databases, config, ID } from "@/lib/appwrite-server";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * Tracking pixel endpoint for email open tracking
@@ -8,16 +9,16 @@ import { databases, config, ID } from "@/lib/appwrite-server"
 
 // 1x1 transparent GIF
 const TRACKING_PIXEL = Buffer.from(
-  'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-  'base64'
-)
+  "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
+  "base64",
+);
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const campaignId = searchParams.get('c')
-    const email = searchParams.get('e')
-    const userEmail = searchParams.get('u')
+    const { searchParams } = new URL(request.url);
+    const campaignId = searchParams.get("c");
+    const email = searchParams.get("e");
+    const userEmail = searchParams.get("u");
 
     // Record the open event if we have the required parameters
     if (campaignId && email && userEmail) {
@@ -29,16 +30,22 @@ export async function GET(request: NextRequest) {
           {
             campaign_id: campaignId,
             email: decodeURIComponent(email),
-            event_type: 'open',
-            user_agent: request.headers.get('user-agent') || undefined,
-            ip_address: request.headers.get('x-forwarded-for')?.split(',')[0] || request.headers.get('x-real-ip') || undefined,
+            event_type: "open",
+            user_agent: request.headers.get("user-agent") || undefined,
+            ip_address:
+              request.headers.get("x-forwarded-for")?.split(",")[0] ||
+              request.headers.get("x-real-ip") ||
+              undefined,
             user_email: decodeURIComponent(userEmail),
             created_at: new Date().toISOString(),
-          }
-        )
-        console.log(`📧 Email open tracked: ${email} for campaign ${campaignId}`)
+          },
+        );
+        apiLogger.debug("Email open tracked", { email, campaignId });
       } catch (error) {
-        console.error("Error recording open event:", error)
+        apiLogger.error(
+          "Error recording open event",
+          error instanceof Error ? error : undefined,
+        );
         // Don't fail the request, still return the pixel
       }
     }
@@ -47,20 +54,24 @@ export async function GET(request: NextRequest) {
     return new NextResponse(TRACKING_PIXEL, {
       status: 200,
       headers: {
-        'Content-Type': 'image/gif',
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
+        "Content-Type": "image/gif",
+        "Cache-Control":
+          "no-store, no-cache, must-revalidate, proxy-revalidate",
+        Pragma: "no-cache",
+        Expires: "0",
       },
-    })
+    });
   } catch (error) {
-    console.error("Tracking pixel error:", error)
+    apiLogger.error(
+      "Tracking pixel error",
+      error instanceof Error ? error : undefined,
+    );
     // Still return the pixel even on error
     return new NextResponse(TRACKING_PIXEL, {
       status: 200,
       headers: {
-        'Content-Type': 'image/gif',
+        "Content-Type": "image/gif",
       },
-    })
+    });
   }
 }

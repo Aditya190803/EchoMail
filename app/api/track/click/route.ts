@@ -1,5 +1,6 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { databases, config, ID } from "@/lib/appwrite-server"
+import { type NextRequest, NextResponse } from "next/server";
+import { databases, config, ID } from "@/lib/appwrite-server";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * Link click tracking endpoint
@@ -8,14 +9,14 @@ import { databases, config, ID } from "@/lib/appwrite-server"
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const campaignId = searchParams.get('c')
-    const email = searchParams.get('e')
-    const userEmail = searchParams.get('u')
-    const targetUrl = searchParams.get('url')
+    const { searchParams } = new URL(request.url);
+    const campaignId = searchParams.get("c");
+    const email = searchParams.get("e");
+    const userEmail = searchParams.get("u");
+    const targetUrl = searchParams.get("url");
 
     if (!targetUrl) {
-      return NextResponse.redirect(new URL('/', request.url))
+      return NextResponse.redirect(new URL("/", request.url));
     }
 
     // Record the click event if we have the required parameters
@@ -28,26 +29,39 @@ export async function GET(request: NextRequest) {
           {
             campaign_id: campaignId,
             email: decodeURIComponent(email),
-            event_type: 'click',
+            event_type: "click",
             link_url: decodeURIComponent(targetUrl),
-            user_agent: request.headers.get('user-agent') || undefined,
-            ip_address: request.headers.get('x-forwarded-for')?.split(',')[0] || request.headers.get('x-real-ip') || undefined,
+            user_agent: request.headers.get("user-agent") || undefined,
+            ip_address:
+              request.headers.get("x-forwarded-for")?.split(",")[0] ||
+              request.headers.get("x-real-ip") ||
+              undefined,
             user_email: decodeURIComponent(userEmail),
             created_at: new Date().toISOString(),
-          }
-        )
-        console.log(`🔗 Link click tracked: ${email} clicked ${targetUrl} in campaign ${campaignId}`)
+          },
+        );
+        apiLogger.debug("Link click tracked", {
+          email,
+          targetUrl: decodeURIComponent(targetUrl),
+          campaignId,
+        });
       } catch (error) {
-        console.error("Error recording click event:", error)
+        apiLogger.error(
+          "Error recording click event",
+          error instanceof Error ? error : undefined,
+        );
         // Don't fail the redirect
       }
     }
 
     // Redirect to the target URL
-    return NextResponse.redirect(decodeURIComponent(targetUrl))
+    return NextResponse.redirect(decodeURIComponent(targetUrl));
   } catch (error) {
-    console.error("Link tracking error:", error)
+    apiLogger.error(
+      "Link tracking error",
+      error instanceof Error ? error : undefined,
+    );
     // Redirect to home on error
-    return NextResponse.redirect(new URL('/', request.url))
+    return NextResponse.redirect(new URL("/", request.url));
   }
 }
