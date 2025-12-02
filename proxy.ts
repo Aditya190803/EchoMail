@@ -26,7 +26,5 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-export const config = {
-  matcher: "/api/send-email/:path*",
-};
-
+// Export matcher directly to avoid deprecated `config` usage
+export const matcher = "/api/send-email/:path*";

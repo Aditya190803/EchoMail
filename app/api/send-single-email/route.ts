@@ -13,15 +13,6 @@ import { apiLogger } from "@/lib/logger";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Increase body size limit to 10MB for emails with attachments
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: "10mb",
-    },
-  },
-};
-
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
