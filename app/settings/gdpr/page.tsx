@@ -1,15 +1,21 @@
-"use client"
+"use client";
 
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
-import { Skeleton } from "@/components/ui/skeleton"
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,7 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
 import {
   Shield,
   Download,
@@ -31,170 +37,182 @@ import {
   Loader2,
   ExternalLink,
   Eye,
-} from "lucide-react"
-import Link from "next/link"
-import { toast } from "sonner"
+} from "lucide-react";
+import Link from "next/link";
+import { toast } from "sonner";
+import { componentLogger } from "@/lib/client-logger";
 
 interface ConsentRecord {
-  $id: string
-  consent_type: string
-  granted: boolean
-  granted_at?: string
-  revoked_at?: string
+  $id: string;
+  consent_type: string;
+  granted: boolean;
+  granted_at?: string;
+  revoked_at?: string;
 }
 
 const consentTypes = [
   {
-    type: 'data_processing',
-    title: 'Data Processing',
-    description: 'Required for the core functionality of EchoMail. This allows us to store and process your email campaigns, contacts, and templates.',
+    type: "data_processing",
+    title: "Data Processing",
+    description:
+      "Required for the core functionality of EchoMail. This allows us to store and process your email campaigns, contacts, and templates.",
     required: true,
   },
   {
-    type: 'analytics',
-    title: 'Analytics & Tracking',
-    description: 'Help us improve EchoMail by allowing anonymous usage analytics. This includes feature usage statistics and performance metrics.',
+    type: "analytics",
+    title: "Analytics & Tracking",
+    description:
+      "Help us improve EchoMail by allowing anonymous usage analytics. This includes feature usage statistics and performance metrics.",
     required: false,
   },
   {
-    type: 'marketing',
-    title: 'Marketing Communications',
-    description: 'Receive updates about new features, tips, and promotional offers from EchoMail.',
+    type: "marketing",
+    title: "Marketing Communications",
+    description:
+      "Receive updates about new features, tips, and promotional offers from EchoMail.",
     required: false,
   },
   {
-    type: 'third_party',
-    title: 'Third-Party Integrations',
-    description: 'Allow data sharing with integrated third-party services you connect to EchoMail.',
+    type: "third_party",
+    title: "Third-Party Integrations",
+    description:
+      "Allow data sharing with integrated third-party services you connect to EchoMail.",
     required: false,
   },
-]
+];
 
 export default function GDPRPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [consents, setConsents] = useState<Record<string, boolean>>({
     data_processing: true,
     analytics: true,
     marketing: false,
     third_party: false,
-  })
-  const [isLoading, setIsLoading] = useState(true)
-  const [isExporting, setIsExporting] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-  const [updatingConsent, setUpdatingConsent] = useState<string | null>(null)
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [updatingConsent, setUpdatingConsent] = useState<string | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/")
+      router.push("/");
     }
-  }, [status, router])
+  }, [status, router]);
 
   useEffect(() => {
     if (session?.user?.email) {
-      fetchConsents()
+      fetchConsents();
     }
-  }, [session?.user?.email])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.email]);
 
   const fetchConsents = async () => {
     try {
-      const response = await fetch('/api/gdpr/consent')
-      const data = await response.json()
-      
+      const response = await fetch("/api/gdpr/consent");
+      const data = await response.json();
+
       if (data.documents) {
-        const consentMap: Record<string, boolean> = { ...consents }
+        const consentMap: Record<string, boolean> = { ...consents };
         data.documents.forEach((doc: ConsentRecord) => {
-          consentMap[doc.consent_type] = doc.granted
-        })
-        setConsents(consentMap)
+          consentMap[doc.consent_type] = doc.granted;
+        });
+        setConsents(consentMap);
       } else if (data.defaults) {
         setConsents({
           ...consents,
           ...Object.fromEntries(
-            Object.entries(data.defaults).map(([k, v]: [string, any]) => [k, v.given])
+            Object.entries(data.defaults).map(([k, v]: [string, any]) => [
+              k,
+              v.given,
+            ]),
           ),
-        })
+        });
       }
     } catch (error) {
-      console.error('Failed to fetch consents:', error)
+      componentLogger.error(
+        "Failed to fetch consents",
+        error instanceof Error ? error : undefined,
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleConsentChange = async (consentType: string, given: boolean) => {
-    setUpdatingConsent(consentType)
+    setUpdatingConsent(consentType);
     try {
-      const response = await fetch('/api/gdpr/consent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/gdpr/consent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ consent_type: consentType, given }),
-      })
+      });
 
       if (!response.ok) {
-        throw new Error('Failed to update consent')
+        throw new Error("Failed to update consent");
       }
 
-      setConsents(prev => ({ ...prev, [consentType]: given }))
-      toast.success(`Consent ${given ? 'granted' : 'revoked'} successfully`)
-    } catch (error) {
-      toast.error('Failed to update consent. Please try again.')
+      setConsents((prev) => ({ ...prev, [consentType]: given }));
+      toast.success(`Consent ${given ? "granted" : "revoked"} successfully`);
+    } catch (_error) {
+      toast.error("Failed to update consent. Please try again.");
     } finally {
-      setUpdatingConsent(null)
+      setUpdatingConsent(null);
     }
-  }
+  };
 
   const handleExportData = async () => {
-    setIsExporting(true)
+    setIsExporting(true);
     try {
-      const response = await fetch('/api/gdpr/export')
-      
+      const response = await fetch("/api/gdpr/export");
+
       if (!response.ok) {
-        throw new Error('Export failed')
+        throw new Error("Export failed");
       }
 
       // Get the blob and create download link
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `echomail-data-export-${new Date().toISOString().split('T')[0]}.json`
-      document.body.appendChild(a)
-      a.click()
-      window.URL.revokeObjectURL(url)
-      document.body.removeChild(a)
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `echomail-data-export-${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
 
-      toast.success('Your data has been exported successfully!')
-    } catch (error) {
-      toast.error('Failed to export data. Please try again.')
+      toast.success("Your data has been exported successfully!");
+    } catch (_error) {
+      toast.error("Failed to export data. Please try again.");
     } finally {
-      setIsExporting(false)
+      setIsExporting(false);
     }
-  }
+  };
 
   const handleDeleteData = async () => {
-    setIsDeleting(true)
+    setIsDeleting(true);
     try {
-      const response = await fetch('/api/gdpr/delete', {
-        method: 'DELETE',
-      })
+      const response = await fetch("/api/gdpr/delete", {
+        method: "DELETE",
+      });
 
       if (!response.ok) {
-        throw new Error('Deletion failed')
+        throw new Error("Deletion failed");
       }
 
-      const result = await response.json()
-      toast.success(result.message || 'Your data has been deleted.')
-      
+      const result = await response.json();
+      toast.success(result.message || "Your data has been deleted.");
+
       // Redirect to home after deletion
       setTimeout(() => {
-        router.push('/')
-      }, 2000)
-    } catch (error) {
-      toast.error('Failed to delete data. Please try again.')
-      setIsDeleting(false)
+        router.push("/");
+      }, 2000);
+    } catch (_error) {
+      toast.error("Failed to delete data. Please try again.");
+      setIsDeleting(false);
     }
-  }
+  };
 
   if (status === "loading" || isLoading) {
     return (
@@ -219,7 +237,7 @@ export default function GDPRPage() {
         </main>
         <Footer />
       </div>
-    )
+    );
   }
 
   return (
@@ -254,11 +272,12 @@ export default function GDPRPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Your export will include contacts, email campaigns, templates, drafts, 
-                signatures, and all other data associated with your account in JSON format.
+                Your export will include contacts, email campaigns, templates,
+                drafts, signatures, and all other data associated with your
+                account in JSON format.
               </p>
-              <Button 
-                onClick={handleExportData} 
+              <Button
+                onClick={handleExportData}
                 disabled={isExporting}
                 className="gap-2"
               >
@@ -284,13 +303,11 @@ export default function GDPRPage() {
                 <CheckCircle className="h-5 w-5 text-success" />
                 Consent Preferences
               </CardTitle>
-              <CardDescription>
-                Control how your data is used
-              </CardDescription>
+              <CardDescription>Control how your data is used</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {consentTypes.map((consent) => (
-                <div 
+                <div
                   key={consent.type}
                   className="flex items-start justify-between gap-4 p-4 rounded-lg border bg-muted/30"
                 >
@@ -312,8 +329,12 @@ export default function GDPRPage() {
                   <Switch
                     id={consent.type}
                     checked={consents[consent.type] ?? false}
-                    onCheckedChange={(checked: boolean) => handleConsentChange(consent.type, checked)}
-                    disabled={consent.required || updatingConsent === consent.type}
+                    onCheckedChange={(checked: boolean) =>
+                      handleConsentChange(consent.type, checked)
+                    }
+                    disabled={
+                      consent.required || updatingConsent === consent.type
+                    }
                   />
                 </div>
               ))}
@@ -333,8 +354,8 @@ export default function GDPRPage() {
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Access a detailed audit trail of all activities including logins, 
-                data modifications, exports, and more.
+                Access a detailed audit trail of all activities including
+                logins, data modifications, exports, and more.
               </p>
               <Button variant="outline" asChild>
                 <Link href="/settings/audit-logs" className="gap-2">
@@ -361,10 +382,13 @@ export default function GDPRPage() {
                 <div className="flex gap-3">
                   <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-destructive mb-1">Warning: This action cannot be undone</p>
+                    <p className="font-semibold text-destructive mb-1">
+                      Warning: This action cannot be undone
+                    </p>
                     <p className="text-sm text-muted-foreground">
-                      All your contacts, campaigns, templates, drafts, and other data will be 
-                      permanently deleted. You will not be able to recover this data.
+                      All your contacts, campaigns, templates, drafts, and other
+                      data will be permanently deleted. You will not be able to
+                      recover this data.
                     </p>
                   </div>
                 </div>
@@ -379,7 +403,9 @@ export default function GDPRPage() {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      Are you absolutely sure?
+                    </AlertDialogTitle>
                     <AlertDialogDescription className="space-y-2">
                       <p>
                         This will permanently delete all your data including:
@@ -409,7 +435,7 @@ export default function GDPRPage() {
                           Deleting...
                         </>
                       ) : (
-                        'Yes, Delete Everything'
+                        "Yes, Delete Everything"
                       )}
                     </AlertDialogAction>
                   </AlertDialogFooter>
@@ -448,5 +474,5 @@ export default function GDPRPage() {
 
       <Footer />
     </div>
-  )
+  );
 }

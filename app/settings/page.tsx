@@ -1,27 +1,24 @@
-"use client"
+"use client";
 
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
 import {
   PenSquare,
   Link2,
   UserMinus,
-  Bell,
   Settings,
   ChevronRight,
-  Palette,
   ShieldCheck,
   Database,
   Shield,
   Users,
   FileText,
-} from "lucide-react"
-import Link from "next/link"
+} from "lucide-react";
+import Link from "next/link";
 
 const settingsCategories = [
   {
@@ -105,17 +102,17 @@ const settingsCategories = [
       },
     ],
   },
-]
+];
 
 export default function SettingsPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
+  const { data: session, status } = useSession();
+  const router = useRouter();
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/")
+      router.push("/");
     }
-  }, [status, router])
+  }, [status, router]);
 
   if (status === "loading") {
     return (
@@ -125,7 +122,7 @@ export default function SettingsPage() {
           <p className="text-muted-foreground">Loading settings...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -193,7 +190,9 @@ export default function SettingsPage() {
               </div>
               <div className="flex items-center justify-between py-2 border-b">
                 <span className="text-muted-foreground">Name</span>
-                <span className="font-medium">{session?.user?.name || 'Not set'}</span>
+                <span className="font-medium">
+                  {session?.user?.name || "Not set"}
+                </span>
               </div>
               <div className="flex items-center justify-between py-2">
                 <span className="text-muted-foreground">Authentication</span>
@@ -206,5 +205,5 @@ export default function SettingsPage() {
 
       <Footer />
     </div>
-  )
+  );
 }

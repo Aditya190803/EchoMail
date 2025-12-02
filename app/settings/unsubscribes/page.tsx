@@ -1,14 +1,13 @@
-"use client"
+"use client";
 
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { useEffect, useState, useCallback } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Navbar } from "@/components/navbar"
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Navbar } from "@/components/navbar";
 import {
   Dialog,
   DialogContent,
@@ -16,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogDescription,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,171 +26,191 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
 import {
   UserX,
   Plus,
   Search,
-  Trash2,
   Mail,
   Calendar,
   Download,
   Upload,
   ArrowLeft,
   UserCheck,
-} from "lucide-react"
-import { unsubscribesService, type Unsubscribe } from "@/lib/appwrite"
-import { toast } from "sonner"
-import { format } from "date-fns"
+} from "lucide-react";
+import { unsubscribesService, type Unsubscribe } from "@/lib/appwrite";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { componentLogger } from "@/lib/client-logger";
 
 export default function UnsubscribesPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
-  const [unsubscribes, setUnsubscribes] = useState<Unsubscribe[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [showAddDialog, setShowAddDialog] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isMounted, setIsMounted] = useState(false)
-  const [newEmail, setNewEmail] = useState("")
-  const [newReason, setNewReason] = useState("")
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [unsubscribes, setUnsubscribes] = useState<Unsubscribe[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [newReason, setNewReason] = useState("");
 
   useEffect(() => {
-    setIsMounted(true)
-  }, [])
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/")
+      router.push("/");
     }
-  }, [status, router])
+  }, [status, router]);
 
   const fetchUnsubscribes = useCallback(async () => {
-    if (!session?.user?.email) return
-    
-    setIsLoading(true)
+    if (!session?.user?.email) return;
+
+    setIsLoading(true);
     try {
-      const response = await unsubscribesService.listByUser(session.user.email)
-      setUnsubscribes(response.documents)
+      const response = await unsubscribesService.listByUser(session.user.email);
+      setUnsubscribes(response.documents);
     } catch (error) {
-      console.error("Error fetching unsubscribes:", error)
-      toast.error("Failed to load unsubscribe list")
+      componentLogger.error(
+        "Error fetching unsubscribes",
+        error instanceof Error ? error : undefined,
+      );
+      toast.error("Failed to load unsubscribe list");
     }
-    setIsLoading(false)
-  }, [session?.user?.email])
+    setIsLoading(false);
+  }, [session?.user?.email]);
 
   useEffect(() => {
-    if (!session?.user?.email) return
-    fetchUnsubscribes()
-  }, [session?.user?.email, fetchUnsubscribes])
+    if (!session?.user?.email) return;
+    fetchUnsubscribes();
+  }, [session?.user?.email, fetchUnsubscribes]);
 
   const addUnsubscribe = async () => {
-    if (!session?.user?.email || !newEmail.trim()) return
-    
+    if (!session?.user?.email || !newEmail.trim()) return;
+
     // Validate email
-    if (!newEmail.includes('@')) {
-      toast.error("Please enter a valid email address")
-      return
+    if (!newEmail.includes("@")) {
+      toast.error("Please enter a valid email address");
+      return;
     }
-    
-    setIsLoading(true)
+
+    setIsLoading(true);
     try {
       await unsubscribesService.create({
         email: newEmail.trim().toLowerCase(),
         user_email: session.user.email,
         reason: newReason.trim() || undefined,
-      })
-      
-      setNewEmail("")
-      setNewReason("")
-      setShowAddDialog(false)
-      toast.success("Email added to unsubscribe list")
-      fetchUnsubscribes()
+      });
+
+      setNewEmail("");
+      setNewReason("");
+      setShowAddDialog(false);
+      toast.success("Email added to unsubscribe list");
+      fetchUnsubscribes();
     } catch (error) {
-      console.error("Error adding unsubscribe:", error)
-      toast.error("Failed to add email")
+      componentLogger.error(
+        "Error adding unsubscribe",
+        error instanceof Error ? error : undefined,
+      );
+      toast.error("Failed to add email");
     }
-    setIsLoading(false)
-  }
+    setIsLoading(false);
+  };
 
   const resubscribe = async (unsubscribeId: string, email: string) => {
     try {
-      await unsubscribesService.delete(unsubscribeId)
-      toast.success(`${email} has been resubscribed`)
-      fetchUnsubscribes()
+      await unsubscribesService.delete(unsubscribeId);
+      toast.success(`${email} has been resubscribed`);
+      fetchUnsubscribes();
     } catch (error) {
-      console.error("Error resubscribing:", error)
-      toast.error("Failed to resubscribe email")
+      componentLogger.error(
+        "Error resubscribing",
+        error instanceof Error ? error : undefined,
+      );
+      toast.error("Failed to resubscribe email");
     }
-  }
+  };
 
   const exportUnsubscribes = () => {
     if (unsubscribes.length === 0) {
-      toast.error("No emails to export")
-      return
+      toast.error("No emails to export");
+      return;
     }
 
     const csvContent = [
       ["Email", "Reason", "Date"],
-      ...unsubscribes.map(u => [
+      ...unsubscribes.map((u) => [
         u.email,
         u.reason || "",
-        u.unsubscribed_at || ""
-      ])
-    ].map(row => row.map(field => `"${field}"`).join(",")).join("\n")
+        u.unsubscribed_at || "",
+      ]),
+    ]
+      .map((row) => row.map((field) => `"${field}"`).join(","))
+      .join("\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" })
-    const link = document.createElement("a")
-    link.href = URL.createObjectURL(blob)
-    link.download = `unsubscribes_${new Date().toISOString().split('T')[0]}.csv`
-    link.click()
-    toast.success("Unsubscribe list exported!")
-  }
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `unsubscribes_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    toast.success("Unsubscribe list exported!");
+  };
 
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file || !session?.user?.email) return
+    const file = event.target.files?.[0];
+    if (!file || !session?.user?.email) return;
 
-    const reader = new FileReader()
+    const reader = new FileReader();
     reader.onload = async (e) => {
       try {
-        const text = e.target?.result as string
-        const lines = text.split('\n').filter(line => line.trim())
-        const dataLines = lines.slice(1) // Skip header
-        
+        const text = e.target?.result as string;
+        const lines = text.split("\n").filter((line) => line.trim());
+        const dataLines = lines.slice(1); // Skip header
+
         const emails = dataLines
-          .map(line => line.split(',')[0].replace(/"/g, '').trim().toLowerCase())
-          .filter(email => email && email.includes('@'))
+          .map((line) =>
+            line.split(",")[0].replace(/"/g, "").trim().toLowerCase(),
+          )
+          .filter((email) => email && email.includes("@"));
 
         if (emails.length > 0) {
-          let successCount = 0
-          
+          let successCount = 0;
+
           for (const email of emails) {
             try {
               await unsubscribesService.create({
                 email,
                 user_email: session.user.email!,
                 reason: "Imported from CSV",
-              })
-              successCount++
+              });
+              successCount++;
             } catch (error) {
-              console.error("Error importing:", email, error)
+              componentLogger.error(
+                "Error importing",
+                error instanceof Error ? error : undefined,
+                { email },
+              );
             }
           }
 
-          toast.success(`Imported ${successCount} emails`)
-          fetchUnsubscribes()
+          toast.success(`Imported ${successCount} emails`);
+          fetchUnsubscribes();
         } else {
-          toast.error("No valid emails found in file")
+          toast.error("No valid emails found in file");
         }
       } catch (error) {
-        console.error("Import error:", error)
-        toast.error("Error processing file")
+        componentLogger.error(
+          "Import error",
+          error instanceof Error ? error : undefined,
+        );
+        toast.error("Error processing file");
       }
-    }
-    
-    reader.readAsText(file)
-    event.target.value = ""
-  }
+    };
+
+    reader.readAsText(file);
+    event.target.value = "";
+  };
 
   if (status === "loading" || !isMounted) {
     return (
@@ -201,14 +220,14 @@ export default function UnsubscribesPage() {
           <p className="text-muted-foreground">Loading unsubscribe list...</p>
         </div>
       </div>
-    )
+    );
   }
 
-  if (status === "unauthenticated") return null
+  if (status === "unauthenticated") return null;
 
-  const filteredUnsubscribes = unsubscribes.filter(u =>
-    u.email.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredUnsubscribes = unsubscribes.filter((u) =>
+    u.email.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -221,8 +240,12 @@ export default function UnsubscribesPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-1">Unsubscribe Management</h1>
-            <p className="text-muted-foreground">Manage emails that have opted out of receiving your campaigns</p>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-1">
+              Unsubscribe Management
+            </h1>
+            <p className="text-muted-foreground">
+              Manage emails that have opted out of receiving your campaigns
+            </p>
           </div>
         </div>
 
@@ -235,7 +258,9 @@ export default function UnsubscribesPage() {
               </div>
               <div>
                 <p className="text-2xl font-bold">{unsubscribes.length}</p>
-                <p className="text-sm text-muted-foreground">Unsubscribed emails</p>
+                <p className="text-sm text-muted-foreground">
+                  Unsubscribed emails
+                </p>
               </div>
             </div>
           </CardContent>
@@ -286,26 +311,33 @@ export default function UnsubscribesPage() {
                     />
                   </div>
                   <div className="flex gap-2 pt-4">
-                    <Button 
-                      onClick={addUnsubscribe} 
+                    <Button
+                      onClick={addUnsubscribe}
                       disabled={isLoading || !newEmail.trim()}
                       className="flex-1"
                     >
                       Add to List
                     </Button>
-                    <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowAddDialog(false)}
+                    >
                       Cancel
                     </Button>
                   </div>
                 </div>
               </DialogContent>
             </Dialog>
-            
-            <Button variant="outline" onClick={exportUnsubscribes} disabled={unsubscribes.length === 0}>
+
+            <Button
+              variant="outline"
+              onClick={exportUnsubscribes}
+              disabled={unsubscribes.length === 0}
+            >
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
-            
+
             <div className="relative">
               <Button variant="outline">
                 <Upload className="h-4 w-4 mr-2" />
@@ -335,19 +367,22 @@ export default function UnsubscribesPage() {
                       <div className="min-w-0">
                         <p className="font-medium truncate">{unsub.email}</p>
                         <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                          {unsub.reason && (
-                            <span>{unsub.reason}</span>
-                          )}
+                          {unsub.reason && <span>{unsub.reason}</span>}
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            {unsub.unsubscribed_at && format(new Date(unsub.unsubscribed_at), 'PP')}
+                            {unsub.unsubscribed_at &&
+                              format(new Date(unsub.unsubscribed_at), "PP")}
                           </span>
                         </div>
                       </div>
                     </div>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="opacity-0 group-hover:opacity-100"
+                        >
                           <UserCheck className="h-4 w-4 mr-2" />
                           Resubscribe
                         </Button>
@@ -356,12 +391,15 @@ export default function UnsubscribesPage() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Resubscribe Email</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Are you sure you want to resubscribe {unsub.email}? They will start receiving your campaigns again.
+                            Are you sure you want to resubscribe {unsub.email}?
+                            They will start receiving your campaigns again.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => resubscribe(unsub.$id!, unsub.email)}>
+                          <AlertDialogAction
+                            onClick={() => resubscribe(unsub.$id!, unsub.email)}
+                          >
                             Resubscribe
                           </AlertDialogAction>
                         </AlertDialogFooter>
@@ -383,8 +421,8 @@ export default function UnsubscribesPage() {
                   {searchTerm ? "No matches found" : "No unsubscribes yet"}
                 </h3>
                 <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-                  {searchTerm 
-                    ? "Try adjusting your search" 
+                  {searchTerm
+                    ? "Try adjusting your search"
                     : "Emails added here won't receive your campaigns"}
                 </p>
                 {!searchTerm && (
@@ -403,8 +441,13 @@ export default function UnsubscribesPage() {
           <CardContent className="p-6">
             <h3 className="font-semibold mb-2">📧 How Unsubscribe Works</h3>
             <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• Emails in this list are automatically skipped when sending campaigns</li>
-              <li>• You'll see a notification showing how many emails were skipped</li>
+              <li>
+                • Emails in this list are automatically skipped when sending
+                campaigns
+              </li>
+              <li>
+                • You'll see a notification showing how many emails were skipped
+              </li>
               <li>• Resubscribe an email to start sending to them again</li>
               <li>• Import/export your list as CSV for easy management</li>
             </ul>
@@ -412,5 +455,5 @@ export default function UnsubscribesPage() {
         </Card>
       </main>
     </div>
-  )
+  );
 }

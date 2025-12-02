@@ -1,6 +1,6 @@
-import { Navbar } from "@/components/navbar"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Navbar } from "@/components/navbar";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function SettingsLoading() {
   return (
@@ -60,5 +60,5 @@ export default function SettingsLoading() {
         </div>
       </main>
     </div>
-  )
+  );
 }

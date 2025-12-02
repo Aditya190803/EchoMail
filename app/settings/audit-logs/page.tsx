@@ -1,28 +1,27 @@
-"use client"
+"use client";
 
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { useEffect, useState, useCallback } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
-import { Skeleton } from "@/components/ui/skeleton"
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Navbar } from "@/components/navbar";
+import { Footer } from "@/components/footer";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/components/ui/select";
 import {
   FileText,
   Search,
   Filter,
   Calendar,
-  User,
   Activity,
   ChevronLeft,
   ChevronRight,
@@ -38,19 +37,20 @@ import {
   Plus,
   Send,
   Eye,
-} from "lucide-react"
-import { format } from "date-fns"
+} from "lucide-react";
+import { format } from "date-fns";
+import { componentLogger } from "@/lib/client-logger";
 
 interface AuditLogEntry {
-  $id: string
-  user_email: string
-  action: string
-  resource_type: string
-  resource_id?: string
-  details?: Record<string, any>
-  ip_address?: string
-  user_agent?: string
-  created_at: string
+  $id: string;
+  user_email: string;
+  action: string;
+  resource_type: string;
+  resource_id?: string;
+  details?: Record<string, any>;
+  ip_address?: string;
+  user_agent?: string;
+  created_at: string;
 }
 
 const resourceTypeIcons: Record<string, any> = {
@@ -64,109 +64,113 @@ const resourceTypeIcons: Record<string, any> = {
   auth: LogIn,
   export: Download,
   team: Users,
-}
+};
 
 const actionColors: Record<string, string> = {
-  create: 'success',
-  update: 'info',
-  delete: 'destructive',
-  send: 'secondary',
-  login: 'default',
-  export: 'warning',
-}
+  create: "success",
+  update: "info",
+  delete: "destructive",
+  send: "secondary",
+  login: "default",
+  export: "warning",
+};
 
 function getActionColor(action: string): string {
   for (const [key, color] of Object.entries(actionColors)) {
-    if (action.includes(key)) return color
+    if (action.includes(key)) return color;
   }
-  return 'default'
+  return "default";
 }
 
 function getActionIcon(action: string) {
-  if (action.includes('create') || action.includes('invite')) return Plus
-  if (action.includes('update') || action.includes('change')) return Edit
-  if (action.includes('delete') || action.includes('remove')) return Trash2
-  if (action.includes('send')) return Send
-  if (action.includes('login') || action.includes('logout')) return LogIn
-  if (action.includes('export')) return Download
-  if (action.includes('consent')) return Shield
-  return Activity
+  if (action.includes("create") || action.includes("invite")) return Plus;
+  if (action.includes("update") || action.includes("change")) return Edit;
+  if (action.includes("delete") || action.includes("remove")) return Trash2;
+  if (action.includes("send")) return Send;
+  if (action.includes("login") || action.includes("logout")) return LogIn;
+  if (action.includes("export")) return Download;
+  if (action.includes("consent")) return Shield;
+  return Activity;
 }
 
 function formatAction(action: string): string {
   return action
-    .split('.')
-    .map(part => part.replace(/_/g, ' '))
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' → ')
+    .split(".")
+    .map((part) => part.replace(/_/g, " "))
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" → ");
 }
 
 export default function AuditLogsPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
-  const [logs, setLogs] = useState<AuditLogEntry[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(0)
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [logs, setLogs] = useState<AuditLogEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [filters, setFilters] = useState({
-    action: '',
-    resource_type: '',
-    search: '',
-  })
-  const limit = 20
+    action: "",
+    resource_type: "",
+    search: "",
+  });
+  const limit = 20;
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/")
+      router.push("/");
     }
-  }, [status, router])
+  }, [status, router]);
 
   const fetchLogs = useCallback(async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
       const params = new URLSearchParams({
         limit: limit.toString(),
         offset: (page * limit).toString(),
-      })
+      });
 
-      if (filters.action) params.append('action', filters.action)
-      if (filters.resource_type) params.append('resource_type', filters.resource_type)
+      if (filters.action) params.append("action", filters.action);
+      if (filters.resource_type)
+        params.append("resource_type", filters.resource_type);
 
-      const response = await fetch(`/api/gdpr/audit-logs?${params}`)
-      const data = await response.json()
+      const response = await fetch(`/api/gdpr/audit-logs?${params}`);
+      const data = await response.json();
 
       if (data.documents) {
-        setLogs(data.documents)
-        setTotal(data.total)
+        setLogs(data.documents);
+        setTotal(data.total);
       } else {
-        setLogs([])
-        setTotal(0)
+        setLogs([]);
+        setTotal(0);
       }
     } catch (error) {
-      console.error('Failed to fetch audit logs:', error)
-      setLogs([])
+      componentLogger.error(
+        "Failed to fetch audit logs",
+        error instanceof Error ? error : undefined,
+      );
+      setLogs([]);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [page, filters])
+  }, [page, filters]);
 
   useEffect(() => {
     if (session?.user?.email) {
-      fetchLogs()
+      fetchLogs();
     }
-  }, [session?.user?.email, fetchLogs])
+  }, [session?.user?.email, fetchLogs]);
 
-  const totalPages = Math.ceil(total / limit)
+  const totalPages = Math.ceil(total / limit);
 
   const handleFilterChange = (key: string, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }))
-    setPage(0) // Reset to first page when filtering
-  }
+    setFilters((prev) => ({ ...prev, [key]: value }));
+    setPage(0); // Reset to first page when filtering
+  };
 
   const clearFilters = () => {
-    setFilters({ action: '', resource_type: '', search: '' })
-    setPage(0)
-  }
+    setFilters({ action: "", resource_type: "", search: "" });
+    setPage(0);
+  };
 
   if (status === "loading") {
     return (
@@ -182,7 +186,7 @@ export default function AuditLogsPage() {
         </main>
         <Footer />
       </div>
-    )
+    );
   }
 
   return (
@@ -213,15 +217,22 @@ export default function AuditLogsPage() {
                   <Input
                     placeholder="Search logs..."
                     value={filters.search}
-                    onChange={(e) => handleFilterChange('search', e.target.value)}
+                    onChange={(e) =>
+                      handleFilterChange("search", e.target.value)
+                    }
                     className="pl-9"
                   />
                 </div>
               </div>
 
               <Select
-                value={filters.resource_type || 'all'}
-                onValueChange={(value: string) => handleFilterChange('resource_type', value === 'all' ? '' : value)}
+                value={filters.resource_type || "all"}
+                onValueChange={(value: string) =>
+                  handleFilterChange(
+                    "resource_type",
+                    value === "all" ? "" : value,
+                  )
+                }
               >
                 <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="Resource" />
@@ -274,7 +285,10 @@ export default function AuditLogsPage() {
             {isLoading ? (
               <div className="space-y-4">
                 {[...Array(5)].map((_, i) => (
-                  <div key={i} className="flex items-center gap-4 p-4 border rounded-lg">
+                  <div
+                    key={i}
+                    className="flex items-center gap-4 p-4 border rounded-lg"
+                  >
                     <Skeleton className="h-10 w-10 rounded-full" />
                     <div className="flex-1 space-y-2">
                       <Skeleton className="h-4 w-48" />
@@ -295,9 +309,10 @@ export default function AuditLogsPage() {
             ) : (
               <div className="space-y-3">
                 {logs.map((log) => {
-                  const ResourceIcon = resourceTypeIcons[log.resource_type] || Activity
-                  const ActionIcon = getActionIcon(log.action)
-                  const actionColor = getActionColor(log.action)
+                  const ResourceIcon =
+                    resourceTypeIcons[log.resource_type] || Activity;
+                  const ActionIcon = getActionIcon(log.action);
+                  const actionColor = getActionColor(log.action);
 
                   return (
                     <div
@@ -311,8 +326,13 @@ export default function AuditLogsPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <ActionIcon className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{formatAction(log.action)}</span>
-                          <Badge variant={actionColor as any} className="text-xs">
+                          <span className="font-medium">
+                            {formatAction(log.action)}
+                          </span>
+                          <Badge
+                            variant={actionColor as any}
+                            className="text-xs"
+                          >
                             {log.resource_type}
                           </Badge>
                         </div>
@@ -326,9 +346,12 @@ export default function AuditLogsPage() {
                         <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3 w-3" />
-                            {format(new Date(log.created_at), 'MMM d, yyyy HH:mm')}
+                            {format(
+                              new Date(log.created_at),
+                              "MMM d, yyyy HH:mm",
+                            )}
                           </span>
-                          {log.ip_address && log.ip_address !== 'unknown' && (
+                          {log.ip_address && log.ip_address !== "unknown" && (
                             <span className="flex items-center gap-1">
                               <Activity className="h-3 w-3" />
                               {log.ip_address}
@@ -344,7 +367,7 @@ export default function AuditLogsPage() {
                         </Button>
                       )}
                     </div>
-                  )
+                  );
                 })}
               </div>
             )}
@@ -353,13 +376,14 @@ export default function AuditLogsPage() {
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-6 pt-4 border-t">
                 <p className="text-sm text-muted-foreground">
-                  Showing {page * limit + 1}-{Math.min((page + 1) * limit, total)} of {total}
+                  Showing {page * limit + 1}-
+                  {Math.min((page + 1) * limit, total)} of {total}
                 </p>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setPage(p => Math.max(0, p - 1))}
+                    onClick={() => setPage((p) => Math.max(0, p - 1))}
                     disabled={page === 0}
                   >
                     <ChevronLeft className="h-4 w-4" />
@@ -371,7 +395,9 @@ export default function AuditLogsPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                    onClick={() =>
+                      setPage((p) => Math.min(totalPages - 1, p + 1))
+                    }
                     disabled={page >= totalPages - 1}
                   >
                     Next
@@ -386,5 +412,5 @@ export default function AuditLogsPage() {
 
       <Footer />
     </div>
-  )
+  );
 }
