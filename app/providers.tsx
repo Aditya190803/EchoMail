@@ -1,9 +1,10 @@
-"use client"
+"use client";
 
-import { SessionProvider } from "next-auth/react"
-import type { ReactNode } from "react"
-import { ThemeProvider } from "@/components/theme-provider"
-import { Toaster } from "sonner"
+import { SessionProvider } from "next-auth/react";
+import type { ReactNode } from "react";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "sonner";
+import { QueryProvider } from "@/lib/query-client";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
@@ -13,18 +14,21 @@ export function Providers({ children }: { children: ReactNode }) {
       enableSystem={false}
       disableTransitionOnChange
     >
-      <SessionProvider refetchInterval={0} refetchOnWindowFocus={false}>
-        {children}
-        <Toaster 
-          position="top-right"
-          toastOptions={{
-            className: 'border border-border bg-card text-card-foreground shadow-lg',
-            duration: 4000,
-          }}
-          richColors
-          closeButton
-        />
-      </SessionProvider>
+      <QueryProvider>
+        <SessionProvider refetchInterval={0} refetchOnWindowFocus={false}>
+          {children}
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              className:
+                "border border-border bg-card text-card-foreground shadow-lg",
+              duration: 4000,
+            }}
+            richColors
+            closeButton
+          />
+        </SessionProvider>
+      </QueryProvider>
     </ThemeProvider>
-  )
+  );
 }
