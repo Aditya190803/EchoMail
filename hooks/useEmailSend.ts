@@ -555,14 +555,15 @@ export function useEmailSend(): UseEmailSendResult {
         // Refresh lock periodically
         refreshLock()
 
-        console.log(`📧 Sending email to ${email.to} (attempt ${attempt}/${MAX_RETRIES})`)
+        console.log(`📧 Sending email to ${email.to} (attempt ${attempt}/${MAX_RETRIES})${email.personalizedAttachment?.url ? ' with personalized attachment' : ''}`)
         
         const payload = {
           to: email.to,
           subject: email.subject,
           message: email.message,
           originalRowData: email.originalRowData || {},
-          attachments: email.attachments || []
+          attachments: email.attachments || [],
+          personalizedAttachment: email.personalizedAttachment || undefined
         }
         
         const response = await fetch('/api/send-single-email', {

@@ -14,6 +14,15 @@ export interface AttachmentData {
   fileSize?: number
 }
 
+/**
+ * Personalized attachment from external URL (Google Drive, OneDrive, etc.)
+ * Each recipient can have their own unique attachment fetched from a URL
+ */
+export interface PersonalizedAttachment {
+  url: string // URL to fetch the file from (Google Drive, OneDrive, Dropbox, direct link)
+  fileName?: string // Optional custom filename, otherwise derived from URL or recipient name
+}
+
 export interface CSVRow {
   email: string
   [key: string]: string
@@ -25,6 +34,7 @@ export interface PersonalizedEmail {
   message: string
   originalRowData: CSVRow
   attachments?: AttachmentData[]
+  personalizedAttachment?: PersonalizedAttachment // Per-recipient attachment from URL
 }
 
 export interface SendStatus {
