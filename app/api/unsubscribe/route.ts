@@ -1,5 +1,6 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { databases, config, ID, Query } from "@/lib/appwrite-server"
+import { type NextRequest, NextResponse } from "next/server";
+import { databases, config, ID, Query } from "@/lib/appwrite-server";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * Public unsubscribe endpoint
@@ -7,38 +8,46 @@ import { databases, config, ID, Query } from "@/lib/appwrite-server"
  */
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const email = searchParams.get('e')
-  const userEmail = searchParams.get('u')
+  const { searchParams } = new URL(request.url);
+  const email = searchParams.get("e");
+  const userEmail = searchParams.get("u");
 
   if (!email || !userEmail) {
-    return new NextResponse(generateHtmlPage('Invalid Request', 'Missing required parameters'), {
-      status: 400,
-      headers: { 'Content-Type': 'text/html' },
-    })
+    return new NextResponse(
+      generateHtmlPage("Invalid Request", "Missing required parameters"),
+      {
+        status: 400,
+        headers: { "Content-Type": "text/html" },
+      },
+    );
   }
 
   try {
-    const decodedEmail = decodeURIComponent(email).toLowerCase()
-    const decodedUserEmail = decodeURIComponent(userEmail)
+    const decodedEmail = decodeURIComponent(email).toLowerCase();
+    const decodedUserEmail = decodeURIComponent(userEmail);
 
     // Check if already unsubscribed
     const existing = await databases.listDocuments(
       config.databaseId,
       config.unsubscribesCollectionId,
       [
-        Query.equal('user_email', decodedUserEmail),
-        Query.equal('email', decodedEmail),
+        Query.equal("user_email", decodedUserEmail),
+        Query.equal("email", decodedEmail),
         Query.limit(1),
-      ]
-    )
+      ],
+    );
 
     if (existing.documents.length > 0) {
-      return new NextResponse(generateHtmlPage('Already Unsubscribed', 
-        `${decodedEmail} is already unsubscribed from this mailing list.`), {
-        status: 200,
-        headers: { 'Content-Type': 'text/html' },
-      })
+      return new NextResponse(
+        generateHtmlPage(
+          "Already Unsubscribed",
+          `${decodedEmail} is already unsubscribed from this mailing list.`,
+        ),
+        {
+          status: 200,
+          headers: { "Content-Type": "text/html" },
+        },
+      );
     }
 
     // Add to unsubscribe list
@@ -49,25 +58,41 @@ export async function GET(request: NextRequest) {
       {
         email: decodedEmail,
         user_email: decodedUserEmail,
-        reason: 'Clicked unsubscribe link',
+        reason: "Clicked unsubscribe link",
         unsubscribed_at: new Date().toISOString(),
-      }
-    )
+      },
+    );
 
-    console.log(`📧 Unsubscribe: ${decodedEmail} unsubscribed from ${decodedUserEmail}`)
+    apiLogger.info("Unsubscribe processed", {
+      email: decodedEmail,
+      senderEmail: decodedUserEmail,
+    });
 
-    return new NextResponse(generateHtmlPage('Successfully Unsubscribed', 
-      `${decodedEmail} has been unsubscribed from this mailing list. You will no longer receive emails from this sender.`), {
-      status: 200,
-      headers: { 'Content-Type': 'text/html' },
-    })
+    return new NextResponse(
+      generateHtmlPage(
+        "Successfully Unsubscribed",
+        `${decodedEmail} has been unsubscribed from this mailing list. You will no longer receive emails from this sender.`,
+      ),
+      {
+        status: 200,
+        headers: { "Content-Type": "text/html" },
+      },
+    );
   } catch (error) {
-    console.error("Unsubscribe error:", error)
-    return new NextResponse(generateHtmlPage('Error', 
-      'An error occurred while processing your request. Please try again later.'), {
-      status: 500,
-      headers: { 'Content-Type': 'text/html' },
-    })
+    apiLogger.error(
+      "Unsubscribe error",
+      error instanceof Error ? error : undefined,
+    );
+    return new NextResponse(
+      generateHtmlPage(
+        "Error",
+        "An error occurred while processing your request. Please try again later.",
+      ),
+      {
+        status: 500,
+        headers: { "Content-Type": "text/html" },
+      },
+    );
   }
 }
 
@@ -106,7 +131,7 @@ function generateHtmlPage(title: string, message: string): string {
     .icon {
       width: 80px;
       height: 80px;
-      background: ${title.includes('Success') ? '#10b981' : title.includes('Error') ? '#ef4444' : '#6366f1'};
+      background: ${title.includes("Success") ? "#10b981" : title.includes("Error") ? "#ef4444" : "#6366f1"};
       border-radius: 50%;
       display: flex;
       align-items: center;
@@ -140,11 +165,12 @@ function generateHtmlPage(title: string, message: string): string {
 <body>
   <div class="container">
     <div class="icon">
-      ${title.includes('Success') 
-        ? '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>'
-        : title.includes('Error')
-        ? '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>'
-        : '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>'
+      ${
+        title.includes("Success")
+          ? '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>'
+          : title.includes("Error")
+            ? '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>'
+            : '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>'
       }
     </div>
     <h1>${title}</h1>
@@ -155,5 +181,5 @@ function generateHtmlPage(title: string, message: string): string {
   </div>
 </body>
 </html>
-  `
+  `;
 }
