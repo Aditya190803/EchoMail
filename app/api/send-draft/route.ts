@@ -1,8 +1,16 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import { sendEmailViaAPI, replacePlaceholders, preResolveAttachments, clearAttachmentCache, preBuildEmailTemplate, sendEmailWithTemplate } from "@/lib/gmail"
-import { databases, config } from "@/lib/appwrite-server"
+import { type NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import {
+  sendEmailViaAPI,
+  replacePlaceholders,
+  preResolveAttachments,
+  clearAttachmentCache,
+  preBuildEmailTemplate,
+  sendEmailWithTemplate,
+} from "@/lib/gmail";
+import { databases, config } from "@/lib/appwrite-server";
+import { apiLogger } from "@/lib/logger";
 
 /**
  * API endpoint to send a draft email immediately
@@ -10,202 +18,254 @@ import { databases, config } from "@/lib/appwrite-server"
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getServerSession(authOptions);
 
     if (!session?.accessToken || !session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { draftId } = await request.json()
+    const { draftId } = await request.json();
 
     if (!draftId) {
-      return NextResponse.json({ error: "Missing draftId" }, { status: 400 })
+      return NextResponse.json({ error: "Missing draftId" }, { status: 400 });
     }
 
     // Get the draft
     const doc = await databases.getDocument(
       config.databaseId,
       config.draftEmailsCollectionId,
-      draftId
-    )
+      draftId,
+    );
 
     // Verify ownership
     if ((doc as any).user_email !== session.user.email) {
-      return NextResponse.json({ error: "Not authorized to send this draft" }, { status: 403 })
+      return NextResponse.json(
+        { error: "Not authorized to send this draft" },
+        { status: 403 },
+      );
     }
 
     // Check if already sent or cancelled
-    if ((doc as any).status !== 'pending') {
-      return NextResponse.json({ error: `Draft is already ${(doc as any).status}` }, { status: 400 })
+    if ((doc as any).status !== "pending") {
+      return NextResponse.json(
+        { error: `Draft is already ${(doc as any).status}` },
+        { status: 400 },
+      );
     }
 
     // Parse recipients, attachments, and csv_data
-    const recipients = typeof (doc as any).recipients === 'string'
-      ? JSON.parse((doc as any).recipients)
-      : (doc as any).recipients || []
+    const recipients =
+      typeof (doc as any).recipients === "string"
+        ? JSON.parse((doc as any).recipients)
+        : (doc as any).recipients || [];
 
     const attachments = (doc as any).attachments
-      ? (typeof (doc as any).attachments === 'string'
+      ? typeof (doc as any).attachments === "string"
         ? JSON.parse((doc as any).attachments)
-        : (doc as any).attachments)
-      : []
+        : (doc as any).attachments
+      : [];
 
     // Parse csv_data for personalization
-    let csvData: Record<string, string>[] = []
+    let csvData: Record<string, string>[] = [];
     if ((doc as any).csv_data) {
       try {
-        csvData = typeof (doc as any).csv_data === 'string'
-          ? JSON.parse((doc as any).csv_data)
-          : (doc as any).csv_data
+        csvData =
+          typeof (doc as any).csv_data === "string"
+            ? JSON.parse((doc as any).csv_data)
+            : (doc as any).csv_data;
       } catch (e) {
-        console.error("Error parsing csv_data:", e)
+        apiLogger.error(
+          "Error parsing csv_data",
+          e instanceof Error ? e : undefined,
+        );
       }
     }
 
     // Check if we have personalization (placeholders in subject or content)
-    const hasPlaceholders = /\{\{\w+\}\}/.test((doc as any).subject) || /\{\{\w+\}\}/.test((doc as any).content)
+    const hasPlaceholders =
+      /\{\{\w+\}\}/.test((doc as any).subject) ||
+      /\{\{\w+\}\}/.test((doc as any).content);
 
     // Update status to sending
     await databases.updateDocument(
       config.databaseId,
       config.draftEmailsCollectionId,
       draftId,
-      { status: 'sending' }
-    )
+      { status: "sending" },
+    );
 
-    const results: { email: string; status: string; error?: string }[] = []
-    let successCount = 0
-    let failedCount = 0
+    const results: { email: string; status: string; error?: string }[] = [];
+    let successCount = 0;
+    let failedCount = 0;
 
     // Pre-resolve attachments ONCE before the send loop
-    let resolvedAttachments: any[] = []
+    let resolvedAttachments: any[] = [];
     if (attachments && attachments.length > 0) {
-      console.log(`📦 Pre-resolving ${attachments.length} attachments before sending draft...`)
+      apiLogger.debug(`Pre-resolving attachments before sending draft`, {
+        count: attachments.length,
+      });
       try {
         const attachmentData = attachments.map((a: any) => ({
           name: a.fileName,
-          type: 'application/octet-stream',
-          data: 'appwrite',
+          type: "application/octet-stream",
+          data: "appwrite",
           appwriteUrl: a.fileUrl,
           appwriteFileId: a.appwrite_file_id,
-        }))
-        resolvedAttachments = await preResolveAttachments(attachmentData)
-        console.log(`✅ Draft attachments pre-resolved successfully`)
+        }));
+        resolvedAttachments = await preResolveAttachments(attachmentData);
+        apiLogger.debug(`Draft attachments pre-resolved successfully`);
       } catch (error) {
-        console.error('❌ Failed to pre-resolve draft attachments:', error)
+        apiLogger.error(
+          "Failed to pre-resolve draft attachments",
+          error instanceof Error ? error : undefined,
+        );
         // Update status back to pending so user can retry
         await databases.updateDocument(
           config.databaseId,
           config.draftEmailsCollectionId,
           draftId,
-          { status: 'pending', error: 'Failed to process attachments' }
-        )
-        return NextResponse.json({ 
-          error: "Failed to process attachments",
-          details: error instanceof Error ? error.message : "Unknown error"
-        }, { status: 500 })
+          { status: "pending", error: "Failed to process attachments" },
+        );
+        return NextResponse.json(
+          {
+            error: "Failed to process attachments",
+            details: error instanceof Error ? error.message : "Unknown error",
+          },
+          { status: 500 },
+        );
       }
     }
 
     // Use optimized template-based sending if no personalization needed
     if (!hasPlaceholders && recipients.length > 1) {
-      console.log(`🚀 Using optimized template-based bulk sending (${recipients.length} recipients)`)
-      
+      apiLogger.info(`Using optimized template-based bulk sending`, {
+        recipientCount: recipients.length,
+      });
+
       try {
         // Pre-build the email template ONCE
         await preBuildEmailTemplate(
           session.accessToken,
           (doc as any).subject,
           (doc as any).content,
-          resolvedAttachments
-        )
-        
+          resolvedAttachments,
+        );
+
         // Send to each recipient using the cached template (FAST)
         for (let i = 0; i < recipients.length; i++) {
-          const recipientEmail = recipients[i]
-          
+          const recipientEmail = recipients[i];
+
           try {
-            await sendEmailWithTemplate(session.accessToken, recipientEmail)
-            results.push({ email: recipientEmail, status: 'success' })
-            successCount++
-            console.log(`✅ Sent ${i + 1}/${recipients.length} to ${recipientEmail}`)
+            await sendEmailWithTemplate(session.accessToken, recipientEmail);
+            results.push({ email: recipientEmail, status: "success" });
+            successCount++;
+            apiLogger.debug(`Sent email`, {
+              index: i + 1,
+              total: recipients.length,
+              to: recipientEmail,
+            });
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Unknown error"
-            results.push({ email: recipientEmail, status: 'error', error: errorMessage })
-            failedCount++
+            const errorMessage =
+              error instanceof Error ? error.message : "Unknown error";
+            results.push({
+              email: recipientEmail,
+              status: "error",
+              error: errorMessage,
+            });
+            failedCount++;
           }
-          
+
           // Wait between emails to avoid rate limiting
           if (i < recipients.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 1000))
+            await new Promise((resolve) => setTimeout(resolve, 1000));
           }
         }
       } catch (error) {
-        console.error('❌ Failed to build email template:', error)
+        apiLogger.error(
+          "Failed to build email template",
+          error instanceof Error ? error : undefined,
+        );
         await databases.updateDocument(
           config.databaseId,
           config.draftEmailsCollectionId,
           draftId,
-          { status: 'pending', error: 'Failed to build email template' }
-        )
-        return NextResponse.json({ 
-          error: "Failed to build email template",
-          details: error instanceof Error ? error.message : "Unknown error"
-        }, { status: 500 })
+          { status: "pending", error: "Failed to build email template" },
+        );
+        return NextResponse.json(
+          {
+            error: "Failed to build email template",
+            details: error instanceof Error ? error.message : "Unknown error",
+          },
+          { status: 500 },
+        );
       }
     } else {
       // Personalized sending mode (slower but necessary for placeholders)
-      console.log(`📧 Using personalized sending mode${hasPlaceholders ? ' (placeholders detected)' : ''}`)
-      
+      apiLogger.info(`Using personalized sending mode`, { hasPlaceholders });
+
       // Send emails with personalization
       for (let i = 0; i < recipients.length; i++) {
-        const recipientEmail = recipients[i]
-        
+        const recipientEmail = recipients[i];
+
         // Get personalization data for this recipient (case-insensitive matching)
-        let recipientData: Record<string, string> = { email: recipientEmail }
+        let recipientData: Record<string, string> = { email: recipientEmail };
         const csvRow = csvData.find((row: Record<string, string>) => {
-          const rowEmail = row.email || row.Email || row.EMAIL || ''
-          return rowEmail.toLowerCase() === recipientEmail.toLowerCase()
-        })
+          const rowEmail = row.email || row.Email || row.EMAIL || "";
+          return rowEmail.toLowerCase() === recipientEmail.toLowerCase();
+        });
         if (csvRow) {
           // Normalize keys to lowercase for consistent placeholder matching
-          recipientData = Object.entries(csvRow).reduce((acc, [key, value]) => {
-            acc[key.toLowerCase()] = String(value)
-            acc[key] = String(value) // Keep original case too
-            return acc
-          }, {} as Record<string, string>)
+          recipientData = Object.entries(csvRow).reduce(
+            (acc, [key, value]) => {
+              acc[key.toLowerCase()] = String(value);
+              acc[key] = String(value); // Keep original case too
+              return acc;
+            },
+            {} as Record<string, string>,
+          );
         }
 
         // Personalize subject and content
-        const personalizedSubject = replacePlaceholders((doc as any).subject, recipientData)
-        const personalizedContent = replacePlaceholders((doc as any).content, recipientData)
-        
+        const personalizedSubject = replacePlaceholders(
+          (doc as any).subject,
+          recipientData,
+        );
+        const personalizedContent = replacePlaceholders(
+          (doc as any).content,
+          recipientData,
+        );
+
         try {
           await sendEmailViaAPI(
             session.accessToken,
             recipientEmail,
             personalizedSubject,
             personalizedContent,
-            resolvedAttachments // Use pre-resolved attachments
-          )
+            resolvedAttachments, // Use pre-resolved attachments
+          );
 
-          results.push({ email: recipientEmail, status: 'success' })
-          successCount++
+          results.push({ email: recipientEmail, status: "success" });
+          successCount++;
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : "Unknown error"
-          results.push({ email: recipientEmail, status: 'error', error: errorMessage })
-          failedCount++
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
+          results.push({
+            email: recipientEmail,
+            status: "error",
+            error: errorMessage,
+          });
+          failedCount++;
         }
 
         // Wait between emails to avoid rate limiting
         if (i < recipients.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 1000))
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
       }
     }
 
     // Update final status
-    const finalStatus = failedCount === recipients.length ? 'failed' : 'sent'
+    const finalStatus = failedCount === recipients.length ? "failed" : "sent";
     await databases.updateDocument(
       config.databaseId,
       config.draftEmailsCollectionId,
@@ -213,12 +273,15 @@ export async function POST(request: NextRequest) {
       {
         status: finalStatus,
         sent_at: new Date().toISOString(),
-        error: failedCount > 0 ? `${failedCount} of ${recipients.length} emails failed` : null,
-      }
-    )
+        error:
+          failedCount > 0
+            ? `${failedCount} of ${recipients.length} emails failed`
+            : null,
+      },
+    );
 
     // Clear attachment cache after sending
-    clearAttachmentCache()
+    clearAttachmentCache();
 
     // Also save to campaigns collection for history
     await databases.createDocument(
@@ -231,14 +294,14 @@ export async function POST(request: NextRequest) {
         recipients: JSON.stringify(recipients),
         sent: successCount,
         failed: failedCount,
-        status: 'completed',
+        status: "completed",
         user_email: session.user.email,
-        campaign_type: 'draft',
+        campaign_type: "draft",
         attachments: (doc as any).attachments,
         send_results: JSON.stringify(results),
         created_at: new Date().toISOString(),
-      }
-    )
+      },
+    );
 
     return NextResponse.json({
       success: true,
@@ -247,10 +310,16 @@ export async function POST(request: NextRequest) {
         total: recipients.length,
         sent: successCount,
         failed: failedCount,
-      }
-    })
+      },
+    });
   } catch (error) {
-    console.error("Send draft error:", error)
-    return NextResponse.json({ error: "Failed to send draft" }, { status: 500 })
+    apiLogger.error(
+      "Send draft error",
+      error instanceof Error ? error : undefined,
+    );
+    return NextResponse.json(
+      { error: "Failed to send draft" },
+      { status: 500 },
+    );
   }
 }
