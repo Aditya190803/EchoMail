@@ -1,10 +1,16 @@
+import bundleAnalyzer from '@next/bundle-analyzer'
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+})
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   images: {
     unoptimized: true,
@@ -74,10 +80,6 @@ const nextConfig = {
     }
     return config
   },
-  // Fix hot reloading issues
-  experimental: {
-    esmExternals: true,
-  },
   // Server-side configuration for larger payloads
   serverExternalPackages: ['mjml'],
 
@@ -87,14 +89,25 @@ const nextConfig = {
   },
 
   // Add headers for CORS and content-type handling
+  // SECURITY: Restrict CORS to specific origins in production
   async headers() {
+    // Get allowed origins from environment or use defaults
+    const allowedOrigins = process.env.ALLOWED_ORIGINS 
+      ? process.env.ALLOWED_ORIGINS.split(',')
+      : ['http://localhost:3000', 'http://localhost:3001']
+    
+    // In production, use the actual domain
+    const origin = process.env.NODE_ENV === 'production' 
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'https://echomail.app')
+      : allowedOrigins[0]
+
     return [
       {
         source: '/api/:path*',
         headers: [
           {
             key: 'Access-Control-Allow-Origin',
-            value: '*',
+            value: origin,
           },
           {
             key: 'Access-Control-Allow-Methods',
@@ -102,7 +115,38 @@ const nextConfig = {
           },
           {
             key: 'Access-Control-Allow-Headers',
-            value: 'Content-Type, Authorization',
+            value: 'Content-Type, Authorization, X-CSRF-Token',
+          },
+          {
+            key: 'Access-Control-Allow-Credentials',
+            value: 'true',
+          },
+          // Security headers
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY',
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block',
+          },
+        ],
+      },
+      // Additional security headers for all routes
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff',
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin',
           },
         ],
       },
@@ -110,4 +154,4 @@ const nextConfig = {
   },
 }
 
-export default nextConfig
+export default withBundleAnalyzer(nextConfig)
