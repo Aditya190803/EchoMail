@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { sendEmailViaAPI, replacePlaceholders, preResolveAttachments } from "@/lib/gmail"
+import { fetchFileFromUrl } from "@/lib/attachment-fetcher"
 
 // App Router configuration for single email sending
 export const dynamic = 'force-dynamic'
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
     
-    const { to, subject, message, originalRowData, attachments } = data
+    const { to, subject, message, originalRowData, attachments, personalizedAttachment } = data
 
     if (!to || !subject || !message) {
       return NextResponse.json({ 
@@ -69,12 +70,46 @@ export async function POST(request: NextRequest) {
       const personalizedSubject = replacePlaceholders(subject, originalRowData || {})
       const personalizedMessage = replacePlaceholders(message, originalRowData || {})
 
-      console.log(`📧 Sending email to ${to} with ${(attachments || []).length} attachments`)
+      console.log(`📧 Sending email to ${to} with ${(attachments || []).length} attachments${personalizedAttachment?.url ? ' + 1 personalized attachment' : ''}`)
       
       // Pre-resolve any Appwrite attachments to base64
       // This is done once per email request - for bulk sending, the client should
       // call a batch resolve endpoint or the attachments should already be base64
-      const resolvedAttachments = await preResolveAttachments(attachments || [])
+      let resolvedAttachments = await preResolveAttachments(attachments || [])
+      
+      // Fetch personalized attachment (file from Google Drive/OneDrive) if present
+      if (personalizedAttachment?.url) {
+        console.log(`📥 Fetching personalized file for ${to}: ${personalizedAttachment.url}`)
+        try {
+          const recipientName = originalRowData?.name || originalRowData?.Name || to.split('@')[0]
+          const file = await fetchFileFromUrl(
+            personalizedAttachment.url,
+            recipientName,
+            personalizedAttachment.fileName
+          )
+          
+          resolvedAttachments = [
+            ...resolvedAttachments,
+            {
+              name: file.fileName,
+              type: file.mimeType,
+              data: file.base64,
+            }
+          ]
+          
+          console.log(`✅ Fetched personalized file: ${file.fileName} (${(file.buffer.length / 1024).toFixed(1)} KB)`)
+        } catch (fileError) {
+          console.error(`❌ Failed to fetch personalized file for ${to}:`, fileError)
+          return NextResponse.json({
+            success: false,
+            email: to,
+            status: "failed",
+            error: `Failed to fetch personalized attachment: ${fileError instanceof Error ? fileError.message : 'Unknown error'}`,
+            userMessage: `Could not download the personalized attachment for this recipient. Please check the file URL is accessible.`,
+            timestamp: new Date().toISOString()
+          }, { status: 500 })
+        }
+      }
       
       await sendEmailViaAPI(
         session.accessToken,

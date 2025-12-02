@@ -2,11 +2,17 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { sendEmailViaAPI, replacePlaceholders, preResolveAttachments, clearAttachmentCache, preBuildEmailTemplate, sendEmailWithTemplate } from "@/lib/gmail"
+import { fetchFileFromUrl } from "@/lib/attachment-fetcher"
 
 interface EmailResult {
   email: string
   status: "success" | "error"
   error?: string
+}
+
+interface PersonalizedAttachment {
+  url: string
+  fileName?: string
 }
 
 interface PersonalizedEmail {
@@ -15,6 +21,7 @@ interface PersonalizedEmail {
   message: string
   originalRowData: Record<string, string>
   attachments?: any[]
+  personalizedAttachment?: PersonalizedAttachment // Per-recipient file from URL
 }
 
 export async function POST(request: NextRequest) {
@@ -48,15 +55,18 @@ export async function POST(request: NextRequest) {
 
     console.log(`Processing ${personalizedEmails.length} emails sequentially...`)
 
-    // Pre-resolve all attachments ONCE before the send loop
+    // Check if any emails have personalized attachments (per-recipient PDFs)
+    const hasPersonalizedAttachments = personalizedEmails.some(e => e.personalizedAttachment?.url)
+    
+    // Pre-resolve shared attachments ONCE before the send loop
     // This prevents downloading the same attachment for each email
     let resolvedAttachments: any[] = []
     const firstEmailWithAttachments = personalizedEmails.find(e => e.attachments && e.attachments.length > 0)
     if (firstEmailWithAttachments?.attachments) {
-      console.log(`📦 Pre-resolving ${firstEmailWithAttachments.attachments.length} attachments before sending...`)
+      console.log(`📦 Pre-resolving ${firstEmailWithAttachments.attachments.length} shared attachments before sending...`)
       try {
         resolvedAttachments = await preResolveAttachments(firstEmailWithAttachments.attachments)
-        console.log(`✅ Attachments pre-resolved successfully`)
+        console.log(`✅ Shared attachments pre-resolved successfully`)
       } catch (error) {
         console.error('❌ Failed to pre-resolve attachments:', error)
         return NextResponse.json({ 
@@ -67,6 +77,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if all emails have the same subject/message (bulk mode - can use template optimization)
+    // BUT if there are personalized attachments, we can't use template optimization
     const firstEmail = personalizedEmails[0]
     const allSameContent = personalizedEmails.every(e => 
       e.subject === firstEmail.subject && 
@@ -74,8 +85,8 @@ export async function POST(request: NextRequest) {
       Object.keys(e.originalRowData).length === 0 // No placeholders
     )
     
-    // Use optimized template-based sending for bulk emails with same content
-    if (allSameContent && personalizedEmails.length > 1) {
+    // Use optimized template-based sending ONLY if no personalized attachments
+    if (allSameContent && personalizedEmails.length > 1 && !hasPersonalizedAttachments) {
       console.log(`🚀 Using optimized template-based bulk sending (${personalizedEmails.length} recipients)`)
       
       try {
@@ -114,27 +125,62 @@ export async function POST(request: NextRequest) {
         }, { status: 500 })
       }
     } else {
-      // Personalized emails - need to build each one (slower but necessary for placeholders)
-      console.log(`📧 Using personalized sending mode (placeholders detected)`)
+      // Personalized emails - need to build each one individually
+      // This handles: placeholders, personalized attachments, or both
+      console.log(`📧 Using personalized sending mode ${hasPersonalizedAttachments ? '(with per-recipient PDFs)' : '(placeholders detected)'}`)
       
       for (let i = 0; i < personalizedEmails.length; i++) {
         const email = personalizedEmails[i]
         
         console.log(`Processing email ${i + 1}/${personalizedEmails.length}:`, {
           to: email.to,
-          hasAttachments: resolvedAttachments.length > 0
+          hasSharedAttachments: resolvedAttachments.length > 0,
+          hasPersonalizedAttachment: !!email.personalizedAttachment?.url
         })
 
         try {
           const personalizedSubject = replacePlaceholders(email.subject, email.originalRowData)
           const personalizedMessage = replacePlaceholders(email.message, email.originalRowData)
 
+          // Build attachment list for this recipient
+          let recipientAttachments = [...resolvedAttachments]
+          
+          // Fetch personalized attachment (file from Google Drive/OneDrive) if present
+          if (email.personalizedAttachment?.url) {
+            console.log(`📥 Fetching personalized file for ${email.to}: ${email.personalizedAttachment.url}`)
+            try {
+              const recipientName = email.originalRowData.name || email.originalRowData.Name || email.to.split('@')[0]
+              const file = await fetchFileFromUrl(
+                email.personalizedAttachment.url,
+                recipientName,
+                email.personalizedAttachment.fileName
+              )
+              
+              recipientAttachments.push({
+                name: file.fileName,
+                type: file.mimeType,
+                data: file.base64,
+              })
+              
+              console.log(`✅ Fetched personalized file: ${file.fileName} (${(file.buffer.length / 1024).toFixed(1)} KB)`)
+            } catch (fileError) {
+              console.error(`❌ Failed to fetch personalized file for ${email.to}:`, fileError)
+              // Continue sending without the personalized attachment, but log the error
+              results.push({
+                email: email.to,
+                status: "error",
+                error: `Failed to fetch personalized file: ${fileError instanceof Error ? fileError.message : 'Unknown error'}`,
+              })
+              continue // Skip to next recipient
+            }
+          }
+
           await sendEmailViaAPI(
             session!.accessToken!,
             email.to,
             personalizedSubject,
             personalizedMessage,
-            resolvedAttachments, // Use pre-resolved attachments for all emails
+            recipientAttachments,
           )
 
           results.push({
