@@ -1,8 +1,8 @@
-"use client"
+"use client";
 
-import { useSession, signIn, signOut } from "next-auth/react"
-import { Button } from "@/components/ui/button"
-import { LogOut, LogIn, User, ChevronDown } from "lucide-react"
+import { useSession, signIn, signOut } from "next-auth/react";
+import { Button } from "@/components/ui/button";
+import { LogOut, ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,11 +10,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export function AuthButton() {
-  const { data: session, status } = useSession()
+  const { data: session, status } = useSession();
 
   if (status === "loading") {
     return (
@@ -22,23 +22,27 @@ export function AuthButton() {
         <div className="h-4 w-4 rounded-full bg-muted animate-pulse" />
         <span className="hidden sm:inline">Loading...</span>
       </Button>
-    )
+    );
   }
 
   if (session) {
-    const initials = session.user?.name
-      ?.split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2) || "U"
+    const initials =
+      session.user?.name
+        ?.split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2) || "U";
 
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className="gap-2 px-2">
             <Avatar className="h-7 w-7">
-              <AvatarImage src={session.user?.image || ""} alt={session.user?.name || "User"} />
+              <AvatarImage
+                src={session.user?.image || ""}
+                alt={session.user?.name || "User"}
+              />
               <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
                 {initials}
               </AvatarFallback>
@@ -52,14 +56,16 @@ export function AuthButton() {
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium leading-none">{session.user?.name}</p>
+              <p className="text-sm font-medium leading-none">
+                {session.user?.name}
+              </p>
               <p className="text-xs leading-none text-muted-foreground">
                 {session.user?.email}
               </p>
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem 
+          <DropdownMenuItem
             onClick={() => signOut()}
             className="text-destructive focus:text-destructive cursor-pointer"
           >
@@ -68,12 +74,12 @@ export function AuthButton() {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    )
+    );
   }
 
   return (
-    <Button 
-      onClick={() => signIn("google")} 
+    <Button
+      onClick={() => signIn("google")}
       variant="default"
       size="sm"
       className="gap-2"
@@ -98,5 +104,5 @@ export function AuthButton() {
       </svg>
       <span>Sign in with Google</span>
     </Button>
-  )
+  );
 }
