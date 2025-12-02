@@ -1,0 +1,979 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "EchoMail API",
+    "description": "RESTful API for EchoMail - Professional Email Campaign Management Platform. This API provides endpoints for managing contacts, campaigns, templates, and email sending through Gmail API integration.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "EchoMail Support",
+      "url": "https://github.com/Aditya190803/echomail"
+    },
+    "license": {
+      "name": "MIT",
+      "url": "https://opensource.org/licenses/MIT"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Development server"
+    },
+    {
+      "url": "https://your-domain.com",
+      "description": "Production server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Contacts",
+      "description": "Contact management endpoints"
+    },
+    {
+      "name": "Campaigns",
+      "description": "Email campaign operations"
+    },
+    {
+      "name": "Templates",
+      "description": "Email template management"
+    },
+    {
+      "name": "Contact Groups",
+      "description": "Contact group organization"
+    },
+    {
+      "name": "Drafts",
+      "description": "Draft email management"
+    },
+    {
+      "name": "Signatures",
+      "description": "Email signature management"
+    },
+    {
+      "name": "Unsubscribes",
+      "description": "Unsubscribe list management"
+    },
+    {
+      "name": "Webhooks",
+      "description": "Webhook configuration"
+    },
+    {
+      "name": "A/B Tests",
+      "description": "A/B testing functionality"
+    },
+    {
+      "name": "Teams",
+      "description": "Team and collaboration management"
+    },
+    {
+      "name": "GDPR",
+      "description": "GDPR compliance endpoints"
+    },
+    {
+      "name": "Email",
+      "description": "Email sending operations"
+    },
+    {
+      "name": "Files",
+      "description": "File upload and management"
+    }
+  ],
+  "paths": {
+    "/api/appwrite/contacts": {
+      "get": {
+        "tags": ["Contacts"],
+        "summary": "List all contacts",
+        "description": "Retrieve all contacts for the authenticated user",
+        "operationId": "listContacts",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Contacts"],
+        "summary": "Create a new contact",
+        "description": "Add a new contact to the user's contact list",
+        "operationId": "createContact",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Contact created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Contact"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Contacts"],
+        "summary": "Delete a contact",
+        "description": "Remove a contact by ID",
+        "operationId": "deleteContact",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The contact document ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contact deleted successfully"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/appwrite/campaigns": {
+      "get": {
+        "tags": ["Campaigns"],
+        "summary": "List all campaigns",
+        "description": "Retrieve all email campaigns for the authenticated user",
+        "operationId": "listCampaigns",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Campaigns"],
+        "summary": "Create a new campaign",
+        "description": "Create a new email campaign record",
+        "operationId": "createCampaign",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Campaign created successfully"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/appwrite/templates": {
+      "get": {
+        "tags": ["Templates"],
+        "summary": "List all templates",
+        "description": "Retrieve all email templates for the authenticated user",
+        "operationId": "listTemplates",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Templates"],
+        "summary": "Create a new template",
+        "description": "Save a new email template",
+        "operationId": "createTemplate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Template created successfully"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "put": {
+        "tags": ["Templates"],
+        "summary": "Update a template",
+        "description": "Update an existing email template",
+        "operationId": "updateTemplate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Template updated successfully"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Templates"],
+        "summary": "Delete a template",
+        "description": "Remove an email template",
+        "operationId": "deleteTemplate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template deleted successfully"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/send-email": {
+      "post": {
+        "tags": ["Email"],
+        "summary": "Send email campaign",
+        "description": "Send personalized emails to multiple recipients",
+        "operationId": "sendEmailCampaign",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendEmailRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Emails sent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendEmailResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/send-single-email": {
+      "post": {
+        "tags": ["Email"],
+        "summary": "Send single email",
+        "description": "Send a single email to one recipient",
+        "operationId": "sendSingleEmail",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SingleEmailRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Email sent successfully"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/upload-attachment": {
+      "post": {
+        "tags": ["Files"],
+        "summary": "Upload email attachments",
+        "description": "Upload files to be attached to emails",
+        "operationId": "uploadAttachment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "binary"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Files uploaded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/gdpr/export": {
+      "get": {
+        "tags": ["GDPR"],
+        "summary": "Export user data",
+        "description": "Download all user data as JSON (GDPR data portability)",
+        "operationId": "exportUserData",
+        "responses": {
+          "200": {
+            "description": "JSON file containing all user data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GDPRExport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/gdpr/delete": {
+      "delete": {
+        "tags": ["GDPR"],
+        "summary": "Delete all user data",
+        "description": "Permanently delete all user data (GDPR right to erasure)",
+        "operationId": "deleteUserData",
+        "responses": {
+          "200": {
+            "description": "Data deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/teams": {
+      "get": {
+        "tags": ["Teams"],
+        "summary": "List all teams",
+        "description": "Get all teams the user is a member of",
+        "operationId": "listTeams",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Teams"],
+        "summary": "Create a new team",
+        "description": "Create a new team for collaboration",
+        "operationId": "createTeam",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Team created successfully"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Contact": {
+        "type": "object",
+        "properties": {
+          "$id": {
+            "type": "string",
+            "description": "Unique identifier"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "name": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "user_email": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ContactInput": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "name": {
+            "type": "string"
+          },
+          "company": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          }
+        }
+      },
+      "ContactListResponse": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Contact"
+            }
+          }
+        }
+      },
+      "Campaign": {
+        "type": "object",
+        "properties": {
+          "$id": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "recipients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sent": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["draft", "sending", "completed", "failed"]
+          },
+          "campaign_type": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CampaignInput": {
+        "type": "object",
+        "required": ["subject", "content", "recipients"],
+        "properties": {
+          "subject": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "recipients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "campaign_type": {
+            "type": "string"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "CampaignListResponse": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Campaign"
+            }
+          }
+        }
+      },
+      "Template": {
+        "type": "object",
+        "properties": {
+          "$id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          }
+        }
+      },
+      "TemplateInput": {
+        "type": "object",
+        "required": ["name", "subject", "content"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          }
+        }
+      },
+      "TemplateUpdate": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "TemplateListResponse": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Template"
+            }
+          }
+        }
+      },
+      "SendEmailRequest": {
+        "type": "object",
+        "required": ["personalizedEmails"],
+        "properties": {
+          "personalizedEmails": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "to": {
+                  "type": "string",
+                  "format": "email"
+                },
+                "subject": {
+                  "type": "string"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "originalRowData": {
+                  "type": "object"
+                },
+                "attachments": {
+                  "type": "array"
+                }
+              }
+            }
+          }
+        }
+      },
+      "SendEmailResponse": {
+        "type": "object",
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "email": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["success", "error"]
+                },
+                "error": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer"
+              },
+              "sent": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "SingleEmailRequest": {
+        "type": "object",
+        "required": ["to", "subject", "html"],
+        "properties": {
+          "to": {
+            "type": "string",
+            "format": "email"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string"
+          }
+        }
+      },
+      "UploadResponse": {
+        "type": "object",
+        "properties": {
+          "uploads": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "fileName": {
+                  "type": "string"
+                },
+                "fileSize": {
+                  "type": "integer"
+                },
+                "fileType": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "appwrite_file_id": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "Team": {
+        "type": "object",
+        "properties": {
+          "$id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "owner_email": {
+            "type": "string"
+          },
+          "user_role": {
+            "type": "string",
+            "enum": ["owner", "admin", "member", "viewer"]
+          }
+        }
+      },
+      "TeamInput": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "TeamListResponse": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Team"
+            }
+          }
+        }
+      },
+      "GDPRExport": {
+        "type": "object",
+        "properties": {
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user": {
+            "type": "object"
+          },
+          "contacts": {
+            "type": "array"
+          },
+          "campaigns": {
+            "type": "array"
+          },
+          "templates": {
+            "type": "array"
+          }
+        }
+      },
+      "DeleteResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "type": "object"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Authentication required",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "error": "Unauthorized"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Invalid request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Internal server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "next-auth.session-token",
+        "description": "NextAuth.js session cookie"
+      }
+    }
+  },
+  "security": [
+    {
+      "session": []
+    }
+  ]
+}
