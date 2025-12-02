@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -14,6 +15,7 @@ import { RichTextEditor } from "@/components/rich-text-editor"
 import { CSVUpload } from "@/components/csv-upload"
 import { contactsService, campaignsService, templatesService, contactGroupsService, draftEmailsService, signaturesService, unsubscribesService, type EmailTemplate, type ContactGroup, type EmailSignature } from "@/lib/appwrite"
 import { useEmailSend } from "@/hooks/useEmailSend"
+import { detectPdfColumn, isPdfUrl } from "@/lib/attachment-fetcher"
 import { toast } from "sonner"
 import type { CSVRow } from "@/types/email"
 import {
@@ -84,6 +86,7 @@ export function ComposeForm() {
   const [recipients, setRecipients] = useState<string[]>([])
   const [attachments, setAttachments] = useState<any[]>([])
   const [isUploading, setIsUploading] = useState(false)
+  const [isPreparingSend, setIsPreparingSend] = useState(false)
   
   // Editing draft email state
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null)
@@ -120,6 +123,15 @@ export function ComposeForm() {
   // CSV data
   const [csvData, setCsvData] = useState<any[]>([])
   const [csvHeaders, setCsvHeaders] = useState<string[]>([])
+  
+  // PDF attachment column (for personalized certificates)
+  const [pdfColumn, setPdfColumn] = useState<string | null>(null)
+  const [showPersonalizedAttachments, setShowPersonalizedAttachments] = useState(false)
+
+  // Sync toggle with pdfColumn state
+  useEffect(() => {
+    if (pdfColumn) setShowPersonalizedAttachments(true)
+  }, [pdfColumn])
   
   // Preview state
   const [previewRecipientIndex, setPreviewRecipientIndex] = useState(0)
@@ -505,6 +517,22 @@ export function ComposeForm() {
     if (data.length > 0) {
       const headers = Object.keys(data[0])
       setCsvHeaders(headers)
+      
+      // Auto-detect PDF/certificate column
+      const detectedPdfCol = detectPdfColumn(headers)
+      if (detectedPdfCol) {
+        setPdfColumn(detectedPdfCol)
+        setShowPersonalizedAttachments(true)
+        // Verify at least one row has a valid URL
+        const hasValidUrls = data.some(row => isPdfUrl(row[detectedPdfCol]))
+        if (hasValidUrls) {
+          toast.success(`Detected certificate column: "${detectedPdfCol}"`, {
+            description: "Each recipient will receive their personalized PDF attachment"
+          })
+        }
+      } else {
+        setPdfColumn(null)
+      }
     }
     
     // Extract emails from CSV
@@ -696,6 +724,9 @@ export function ComposeForm() {
       return
     }
     
+    // Immediately show preparing state to prevent double-clicks
+    setIsPreparingSend(true)
+    
     // No date/time validation needed for drafts - saved immediately
     
     // Filter out unsubscribed emails
@@ -832,14 +863,29 @@ export function ComposeForm() {
         return
       } finally {
         setIsSavingDraft(false)
+        setIsPreparingSend(false)
       }
     }
     
     setShowSendingDialog(true)
+    setIsPreparingSend(false) // Reset preparing state once sending dialog is shown
     
     // Prepare personalized emails
-    const personalizedEmails = filteredRecipients.map((email, index) => {
-      const csvRow = csvData[index] || {}
+    const personalizedEmails = filteredRecipients.map((email) => {
+      // Find the CSV row for this recipient (case-insensitive email match)
+      const csvRow = csvData.find(row => {
+        const rowEmail = row.email || row.Email || row.EMAIL || ''
+        return rowEmail.toLowerCase() === email.toLowerCase()
+      }) || {}
+      
+      // Check if there's a personalized PDF attachment for this recipient
+      let personalizedAttachment = undefined
+      if (pdfColumn && csvRow[pdfColumn] && isPdfUrl(csvRow[pdfColumn])) {
+        personalizedAttachment = {
+          url: csvRow[pdfColumn],
+          fileName: undefined // Let the fetcher determine the filename and extension
+        }
+      }
       
       return {
         to: email,
@@ -847,6 +893,7 @@ export function ComposeForm() {
         message: finalContent,
         originalRowData: csvRow,
         attachments,
+        personalizedAttachment,
       }
     })
     
@@ -1203,6 +1250,68 @@ export function ComposeForm() {
             </div>
           </div>
 
+          {/* Personalized Attachments Toggle */}
+          <div className="space-y-4 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-base flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Personalized Attachments
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Send a unique file to each recipient (e.g. certificates, invoices)
+                </p>
+              </div>
+              <Switch
+                checked={showPersonalizedAttachments}
+                onCheckedChange={(checked) => {
+                  setShowPersonalizedAttachments(checked)
+                  if (!checked) setPdfColumn(null)
+                  else if (csvHeaders.length > 0 && !pdfColumn) {
+                     // Try to auto-detect or default to first
+                     const detected = detectPdfColumn(csvHeaders)
+                     setPdfColumn(detected || csvHeaders[0])
+                  }
+                }}
+              />
+            </div>
+
+            {showPersonalizedAttachments && (
+              <div className="p-4 border rounded-lg bg-muted/30 space-y-4 animate-in fade-in slide-in-from-top-2">
+                {csvData.length === 0 ? (
+                  <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="text-sm">Please upload a CSV file in the Recipients tab first.</span>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Select Attachment Column</Label>
+                    <select
+                        value={pdfColumn || ''}
+                        onChange={(e) => setPdfColumn(e.target.value || null)}
+                        className="w-full p-2 text-sm border rounded-md bg-background"
+                      >
+                        <option value="">Select a column...</option>
+                        {csvHeaders.map((header) => (
+                          <option key={header} value={header}>
+                            {header} {isPdfUrl(csvData[0]?.[header]) ? '(Detected Link)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {pdfColumn && (
+                        <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+                          <CheckCircle className="h-3 w-3" />
+                          <span>
+                           {csvData.filter(row => isPdfUrl(row[pdfColumn])).length} valid links found in {csvData.length} rows
+                          </span>
+                        </div>
+                      )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Email Signature */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2">
@@ -1359,10 +1468,12 @@ export function ComposeForm() {
             <CardContent>
               <CSVUpload onDataLoad={handleCsvData} csvData={csvData} />
               {csvData.length > 0 && (
-                <div className="mt-4">
+                <div className="mt-4 space-y-3">
                   <Badge variant="success">
                     {csvData.length} rows loaded
                   </Badge>
+                  
+                  {/* PDF/Certificate Column Selector moved to Compose tab */}
                 </div>
               )}
             </CardContent>
@@ -1587,7 +1698,8 @@ export function ComposeForm() {
                         className="prose dark:prose-invert max-w-none"
                         dangerouslySetInnerHTML={{ __html: preview.content }}
                       />
-                      {attachments.length > 0 && (
+                      {/* Show attachments section */}
+                      {(attachments.length > 0 || (pdfColumn && preview.data?.[pdfColumn])) && (
                         <div className="border-t pt-3 mt-4">
                           <p className="text-sm font-medium mb-2">Attachments:</p>
                           <div className="flex flex-wrap gap-2">
@@ -1597,6 +1709,14 @@ export function ComposeForm() {
                                 {att.name}
                               </Badge>
                             ))}
+                            {/* Show personalized PDF attachment */}
+                            {pdfColumn && preview.data?.[pdfColumn] && isPdfUrl(preview.data[pdfColumn]) && (
+                              <Badge variant="default" className="bg-blue-600">
+                                <FileText className="h-3 w-3 mr-1" />
+                                Personalized Attachment
+                                <span className="ml-1 text-xs opacity-75">(from CSV)</span>
+                              </Badge>
+                            )}
                           </div>
                         </div>
                       )}
@@ -1639,7 +1759,7 @@ export function ComposeForm() {
         
         <Button
           onClick={handleSend}
-          disabled={isSending || isSavingDraft || isUploading || attachments.some(a => a.isProcessing) || !subject || !content || recipients.length === 0}
+          disabled={isSending || isPreparingSend || isSavingDraft || isUploading || attachments.some(a => a.isProcessing) || !subject || !content || recipients.length === 0}
           size="lg"
         >
           {saveAsDraft ? (
@@ -1659,6 +1779,11 @@ export function ComposeForm() {
                 Save as Draft ({recipients.length} {recipients.length === 1 ? "recipient" : "recipients"})
               </>
             )
+          ) : isPreparingSend || isSending ? (
+            <>
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              {isPreparingSend ? "Preparing..." : "Sending..."}
+            </>
           ) : isUploading || attachments.some(a => a.isProcessing) ? (
             <>
               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
