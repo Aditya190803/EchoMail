@@ -1,20 +1,22 @@
-"use client"
+"use client";
 
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { useEffect, useState, useCallback } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Navbar } from "@/components/navbar"
-import { Skeleton } from "@/components/ui/skeleton"
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Navbar } from "@/components/navbar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Pagination } from "@/components/pagination";
+import { usePagination } from "@/hooks/usePagination";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   History,
   TrendingUp,
@@ -37,112 +39,135 @@ import {
   Copy,
   Search,
   Percent,
-} from "lucide-react"
-import Link from "next/link"
-import { campaignsService, EmailCampaign } from "@/lib/appwrite"
-import { Input } from "@/components/ui/input"
-import { toast } from "sonner"
+} from "lucide-react";
+import Link from "next/link";
+import { campaignsService, EmailCampaign } from "@/lib/appwrite";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { componentLogger } from "@/lib/client-logger";
 
 interface HistoryData {
-  totalCampaigns: number
-  totalSent: number
-  totalRecipients: number
-  totalFailed: number
-  successRate: number
-  averageRecipientsPerCampaign: number
-  campaignsThisMonth: number
-  campaignsLastMonth: number
-  recentCampaigns: EmailCampaign[]
-  monthlyTrend: "up" | "down" | "same"
+  totalCampaigns: number;
+  totalSent: number;
+  totalRecipients: number;
+  totalFailed: number;
+  successRate: number;
+  averageRecipientsPerCampaign: number;
+  campaignsThisMonth: number;
+  campaignsLastMonth: number;
+  recentCampaigns: EmailCampaign[];
+  monthlyTrend: "up" | "down" | "same";
 }
 
 // Helper to get authenticated attachment URL
-const getAttachmentUrl = (attachment: { fileUrl?: string; appwrite_file_id?: string }) => {
+const getAttachmentUrl = (attachment: {
+  fileUrl?: string;
+  appwrite_file_id?: string;
+}) => {
   // If we have the Appwrite file ID, use our authenticated proxy
   if (attachment.appwrite_file_id) {
-    return `/api/appwrite/attachments/${attachment.appwrite_file_id}`
+    return `/api/appwrite/attachments/${attachment.appwrite_file_id}`;
   }
-  
+
   // Try to extract file ID from Appwrite URL
   if (attachment.fileUrl) {
-    const match = attachment.fileUrl.match(/\/files\/([^\/]+)\//)
+    const match = attachment.fileUrl.match(/\/files\/([^\/]+)\//);
     if (match && match[1]) {
-      return `/api/appwrite/attachments/${match[1]}`
+      return `/api/appwrite/attachments/${match[1]}`;
     }
   }
-  
+
   // Fallback to original URL (for legacy/external attachments)
-  return attachment.fileUrl || '#'
-}
+  return attachment.fileUrl || "#";
+};
 
 export default function HistoryPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
-  const [historyData, setHistoryData] = useState<HistoryData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [isMounted, setIsMounted] = useState(false)
-  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set())
-  const [selectedCampaign, setSelectedCampaign] = useState<EmailCampaign | null>(null)
-  const [recipientSearch, setRecipientSearch] = useState("")
-  const [filterStatus, setFilterStatus] = useState<"all" | "success" | "failed">("all")
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [historyData, setHistoryData] = useState<HistoryData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(
+    new Set(),
+  );
+  const [selectedCampaign, setSelectedCampaign] =
+    useState<EmailCampaign | null>(null);
+  const [recipientSearch, setRecipientSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<
+    "all" | "success" | "failed"
+  >("all");
+
+  // Pagination hook must be called unconditionally (before any early returns)
+  const campaignsPagination = usePagination(
+    historyData?.recentCampaigns ?? [],
+    { pageSize: 10 },
+  );
 
   useEffect(() => {
-    setIsMounted(true)
-  }, [])
+    setIsMounted(true);
+  }, []);
 
   // Helper function to safely get recipients as array
   const getRecipientsArray = (recipients: any): string[] => {
     if (Array.isArray(recipients)) {
+      return recipients;
+    }
+    if (typeof recipients === "string") {
       return recipients
+        .split(",")
+        .map((email) => email.trim())
+        .filter((email) => email);
     }
-    if (typeof recipients === 'string') {
-      return recipients.split(',').map(email => email.trim()).filter(email => email)
-    }
-    return []
-  }
+    return [];
+  };
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/")
+      router.push("/");
     }
-  }, [status, router])
+  }, [status, router]);
 
   // Fetch campaigns and calculate history data
   const fetchHistory = useCallback(async () => {
-    if (!session?.user?.email) return
-    
+    if (!session?.user?.email) return;
+
     try {
-      const response = await campaignsService.listByUser(session.user.email)
-      const campaigns = response.documents
+      const response = await campaignsService.listByUser(session.user.email);
+      const campaigns = response.documents;
 
-      const now = new Date()
-      const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0)
+      const now = new Date();
+      const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
 
-      const totalCampaigns = campaigns.length
-      const totalSent = campaigns.reduce((sum, c) => sum + c.sent, 0)
-      const totalRecipients = campaigns.reduce((sum, c) => sum + getRecipientsArray(c.recipients).length, 0)
-      const totalFailed = campaigns.reduce((sum, c) => sum + c.failed, 0)
-      const successRate = totalRecipients > 0 ? (totalSent / totalRecipients) * 100 : 0
-      const averageRecipientsPerCampaign = totalCampaigns > 0 ? totalRecipients / totalCampaigns : 0
+      const totalCampaigns = campaigns.length;
+      const totalSent = campaigns.reduce((sum, c) => sum + c.sent, 0);
+      const totalRecipients = campaigns.reduce(
+        (sum, c) => sum + getRecipientsArray(c.recipients).length,
+        0,
+      );
+      const totalFailed = campaigns.reduce((sum, c) => sum + c.failed, 0);
+      const successRate =
+        totalRecipients > 0 ? (totalSent / totalRecipients) * 100 : 0;
+      const averageRecipientsPerCampaign =
+        totalCampaigns > 0 ? totalRecipients / totalCampaigns : 0;
 
       const campaignsThisMonth = campaigns.filter((c) => {
-        const date = new Date(c.created_at || '')
-        return date >= thisMonth
-      }).length
+        const date = new Date(c.created_at || "");
+        return date >= thisMonth;
+      }).length;
 
       const campaignsLastMonth = campaigns.filter((c) => {
-        const date = new Date(c.created_at || '')
-        return date >= lastMonth && date <= lastMonthEnd
-      }).length
+        const date = new Date(c.created_at || "");
+        return date >= lastMonth && date <= lastMonthEnd;
+      }).length;
 
       const monthlyTrend =
         campaignsThisMonth > campaignsLastMonth
           ? "up"
           : campaignsThisMonth < campaignsLastMonth
-          ? "down"
-          : "same"
+            ? "down"
+            : "same";
 
       setHistoryData({
         totalCampaigns,
@@ -155,80 +180,151 @@ export default function HistoryPage() {
         campaignsLastMonth,
         recentCampaigns: campaigns,
         monthlyTrend,
-      })
+      });
     } catch (error) {
-      console.error("Error fetching history:", error)
+      componentLogger.error(
+        "Error fetching history",
+        error instanceof Error ? error : undefined,
+      );
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [session?.user?.email])
+  }, [session?.user?.email]);
 
   // Initial fetch and real-time subscription
   useEffect(() => {
-    if (!session?.user?.email) return
+    if (!session?.user?.email) return;
 
     // Initial fetch
-    fetchHistory()
-    
+    fetchHistory();
+
     // Subscribe to real-time updates
     const unsubscribe = campaignsService.subscribeToUserCampaigns(
       session.user.email,
-      (response) => {
+      (_response) => {
         // Refetch on any change
-        fetchHistory()
-      }
-    )
-    
+        fetchHistory();
+      },
+    );
+
     return () => {
-      if (unsubscribe) unsubscribe()
-    }
-  }, [session?.user?.email, fetchHistory])
+      if (unsubscribe) unsubscribe();
+    };
+  }, [session?.user?.email, fetchHistory]);
 
   // Helper functions for campaign details
   const toggleCampaignExpansion = (campaignId: string) => {
-    setExpandedCampaigns(prev => {
-      const newSet = new Set(prev)
+    setExpandedCampaigns((prev) => {
+      const newSet = new Set(prev);
       if (newSet.has(campaignId)) {
-        newSet.delete(campaignId)
+        newSet.delete(campaignId);
       } else {
-        newSet.add(campaignId)
+        newSet.add(campaignId);
       }
-      return newSet
-    })
-  }
-  
+      return newSet;
+    });
+  };
+
   const copyEmailList = async (emails: string[]) => {
     try {
-      await navigator.clipboard.writeText(emails.join(', '))
-      toast.success("Email list copied!")
+      await navigator.clipboard.writeText(emails.join(", "));
+      toast.success("Email list copied!");
     } catch (err) {
-      console.error('Failed to copy emails:', err)
-      toast.error("Failed to copy")
+      componentLogger.error(
+        "Failed to copy emails",
+        err instanceof Error ? err : undefined,
+      );
+      toast.error("Failed to copy");
     }
-  }
+  };
 
   const downloadEmailList = (emails: string[], campaignSubject: string) => {
-    const csvContent = emails.join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${campaignSubject.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_recipients.csv`
-    document.body.appendChild(a)
-    a.click()
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(a)
-    toast.success("Recipients exported!")
-  }
+    const csvContent = emails.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${campaignSubject.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_recipients.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    toast.success("Recipients exported!");
+  };
+
+  const duplicateCampaign = (campaign: EmailCampaign) => {
+    // Store campaign data in sessionStorage for the compose page to pick up
+    const duplicateData = {
+      subject: `${campaign.subject} (Copy)`,
+      content: campaign.content || "",
+      recipients: getRecipientsArray(campaign.recipients),
+      attachments: campaign.attachments || [],
+    };
+    sessionStorage.setItem("duplicateCampaign", JSON.stringify(duplicateData));
+    toast.success("Campaign data copied! Redirecting to compose...");
+    router.push("/compose");
+  };
+
+  const exportCampaignResults = (campaign: EmailCampaign) => {
+    // Build CSV content with campaign results
+    const headers = ["Email", "Status", "Error Message", "Sent At"];
+    const rows: string[][] = [];
+
+    if (campaign.send_results && campaign.send_results.length > 0) {
+      campaign.send_results.forEach((result: any) => {
+        rows.push([
+          result.email || "",
+          result.success ? "Sent" : "Failed",
+          result.error || "",
+          result.timestamp || campaign.created_at || "",
+        ]);
+      });
+    } else {
+      // Fallback to recipient list if no send_results
+      getRecipientsArray(campaign.recipients).forEach((email) => {
+        rows.push([email, "Unknown", "", campaign.created_at || ""]);
+      });
+    }
+
+    // Build CSV string
+    const csvContent = [
+      // Campaign summary header
+      `# Campaign: ${campaign.subject}`,
+      `# Sent: ${formatDate(campaign.created_at)}`,
+      `# Total Recipients: ${getRecipientsArray(campaign.recipients).length}`,
+      `# Successful: ${campaign.sent}`,
+      `# Failed: ${campaign.failed}`,
+      "",
+      headers.join(","),
+      ...rows.map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `campaign_results_${campaign.subject.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    toast.success("Campaign results exported!");
+  };
 
   const formatDate = (value: string) => {
     try {
-      const date = new Date(value)
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      const date = new Date(value);
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
     } catch {
-      return new Date().toLocaleDateString()
+      return new Date().toLocaleDateString();
     }
-  }
+  };
 
   if (status === "loading" || !isMounted || isLoading) {
     return (
@@ -288,7 +384,7 @@ export default function HistoryPage() {
           </Card>
         </main>
       </div>
-    )
+    );
   }
 
   if (!historyData) {
@@ -311,7 +407,7 @@ export default function HistoryPage() {
           </Button>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -322,13 +418,17 @@ export default function HistoryPage() {
         {/* Header */}
         <div className="mb-8 flex items-start justify-between">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold mb-2">Email History</h1>
-            <p className="text-muted-foreground">View your sent campaigns and delivery status</p>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2">
+              Email History
+            </h1>
+            <p className="text-muted-foreground">
+              View your sent campaigns and delivery status
+            </p>
           </div>
           <Button
             variant="outline"
             onClick={() => {
-              window.location.href = '/api/export-report'
+              window.location.href = "/api/export-report";
             }}
           >
             <Download className="h-4 w-4 mr-2" />
@@ -345,7 +445,9 @@ export default function HistoryPage() {
                   <Mail className="h-5 w-5 text-primary" />
                 </div>
               </div>
-              <div className="text-2xl font-bold">{historyData.totalCampaigns}</div>
+              <div className="text-2xl font-bold">
+                {historyData.totalCampaigns}
+              </div>
               <p className="text-sm text-muted-foreground">Total Campaigns</p>
             </CardContent>
           </Card>
@@ -357,7 +459,9 @@ export default function HistoryPage() {
                   <Percent className="h-5 w-5 text-success" />
                 </div>
               </div>
-              <div className="text-2xl font-bold">{historyData.successRate.toFixed(1)}%</div>
+              <div className="text-2xl font-bold">
+                {historyData.successRate.toFixed(1)}%
+              </div>
               <p className="text-sm text-muted-foreground">Delivery Rate</p>
             </CardContent>
           </Card>
@@ -369,7 +473,9 @@ export default function HistoryPage() {
                   <Send className="h-5 w-5 text-secondary" />
                 </div>
               </div>
-              <div className="text-2xl font-bold">{historyData.totalSent.toLocaleString()}</div>
+              <div className="text-2xl font-bold">
+                {historyData.totalSent.toLocaleString()}
+              </div>
               <p className="text-sm text-muted-foreground">Emails Delivered</p>
             </CardContent>
           </Card>
@@ -381,7 +487,9 @@ export default function HistoryPage() {
                   <Users className="h-5 w-5 text-accent" />
                 </div>
               </div>
-              <div className="text-2xl font-bold">{Math.round(historyData.averageRecipientsPerCampaign)}</div>
+              <div className="text-2xl font-bold">
+                {Math.round(historyData.averageRecipientsPerCampaign)}
+              </div>
               <p className="text-sm text-muted-foreground">Avg Recipients</p>
             </CardContent>
           </Card>
@@ -399,19 +507,28 @@ export default function HistoryPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">This Month</p>
-                <p className="text-2xl font-bold">{historyData.campaignsThisMonth} campaigns</p>
+                <p className="text-2xl font-bold">
+                  {historyData.campaignsThisMonth} campaigns
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 {historyData.monthlyTrend === "up" && (
                   <Badge variant="success" className="flex items-center gap-1">
-                    <TrendingUp className="h-3 w-3" />
-                    +{historyData.campaignsThisMonth - historyData.campaignsLastMonth} from last month
+                    <TrendingUp className="h-3 w-3" />+
+                    {historyData.campaignsThisMonth -
+                      historyData.campaignsLastMonth}{" "}
+                    from last month
                   </Badge>
                 )}
                 {historyData.monthlyTrend === "down" && (
-                  <Badge variant="destructive" className="flex items-center gap-1">
+                  <Badge
+                    variant="destructive"
+                    className="flex items-center gap-1"
+                  >
                     <TrendingDown className="h-3 w-3" />
-                    {historyData.campaignsThisMonth - historyData.campaignsLastMonth} from last month
+                    {historyData.campaignsThisMonth -
+                      historyData.campaignsLastMonth}{" "}
+                    from last month
                   </Badge>
                 )}
                 {historyData.monthlyTrend === "same" && (
@@ -437,7 +554,14 @@ export default function HistoryPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setExpandedCampaigns(new Set(historyData?.recentCampaigns.map(c => c.$id) || []))}
+                onClick={() =>
+                  setExpandedCampaigns(
+                    new Set(
+                      campaignsPagination.paginatedItems.map((c) => c.$id) ||
+                        [],
+                    ),
+                  )
+                }
               >
                 <Eye className="h-4 w-4 mr-2" />
                 Expand All
@@ -445,14 +569,16 @@ export default function HistoryPage() {
             </div>
           </div>
 
-          {historyData.recentCampaigns.map((campaign) => {
-            const isExpanded = expandedCampaigns.has(campaign.$id)
+          {campaignsPagination.paginatedItems.map((campaign) => {
+            const isExpanded = expandedCampaigns.has(campaign.$id);
             return (
               <Card key={campaign.$id} hover className="overflow-hidden">
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-4 mb-3">
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold truncate mb-1">{campaign.subject}</h3>
+                      <h3 className="font-semibold truncate mb-1">
+                        {campaign.subject}
+                      </h3>
                       <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3.5 w-3.5" />
@@ -460,14 +586,17 @@ export default function HistoryPage() {
                         </span>
                         <span className="flex items-center gap-1">
                           <Users className="h-3.5 w-3.5" />
-                          {getRecipientsArray(campaign.recipients).length} recipients
+                          {getRecipientsArray(campaign.recipients).length}{" "}
+                          recipients
                         </span>
-                        {campaign.attachments && campaign.attachments.length > 0 && (
-                          <span className="flex items-center gap-1">
-                            <Paperclip className="h-3.5 w-3.5" />
-                            {campaign.attachments.length} attachment{campaign.attachments.length > 1 ? 's' : ''}
-                          </span>
-                        )}
+                        {campaign.attachments &&
+                          campaign.attachments.length > 0 && (
+                            <span className="flex items-center gap-1">
+                              <Paperclip className="h-3.5 w-3.5" />
+                              {campaign.attachments.length} attachment
+                              {campaign.attachments.length > 1 ? "s" : ""}
+                            </span>
+                          )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -476,8 +605,8 @@ export default function HistoryPage() {
                           campaign.status === "completed"
                             ? "success"
                             : campaign.status === "sending"
-                            ? "warning"
-                            : "destructive"
+                              ? "warning"
+                              : "destructive"
                         }
                         className="capitalize"
                       >
@@ -488,11 +617,15 @@ export default function HistoryPage() {
                         size="icon-sm"
                         onClick={() => toggleCampaignExpansion(campaign.$id)}
                       >
-                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        {isExpanded ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
                       </Button>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-4 text-sm">
                     <span className="flex items-center gap-1.5 text-success">
                       <CheckCircle className="h-4 w-4" />
@@ -515,13 +648,18 @@ export default function HistoryPage() {
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="text-sm font-medium flex items-center gap-2">
                           <Users className="h-4 w-4" />
-                          Recipients ({getRecipientsArray(campaign.recipients).length})
+                          Recipients (
+                          {getRecipientsArray(campaign.recipients).length})
                         </h4>
                         <div className="flex gap-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => copyEmailList(getRecipientsArray(campaign.recipients))}
+                            onClick={() =>
+                              copyEmailList(
+                                getRecipientsArray(campaign.recipients),
+                              )
+                            }
                           >
                             <Copy className="h-3 w-3 mr-1" />
                             Copy
@@ -529,7 +667,12 @@ export default function HistoryPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => downloadEmailList(getRecipientsArray(campaign.recipients), campaign.subject)}
+                            onClick={() =>
+                              downloadEmailList(
+                                getRecipientsArray(campaign.recipients),
+                                campaign.subject,
+                              )
+                            }
                           >
                             <Download className="h-3 w-3 mr-1" />
                             CSV
@@ -537,7 +680,8 @@ export default function HistoryPage() {
                         </div>
                       </div>
                       <div className="bg-background rounded-lg p-3 max-h-32 overflow-y-auto text-sm text-muted-foreground">
-                        {getRecipientsArray(campaign.recipients).join(', ') || 'No recipients'}
+                        {getRecipientsArray(campaign.recipients).join(", ") ||
+                          "No recipients"}
                       </div>
                     </div>
 
@@ -549,114 +693,216 @@ export default function HistoryPage() {
                           Email Content
                         </h4>
                         <div className="bg-background rounded-lg p-3 max-h-40 overflow-y-auto">
-                          <div 
+                          <div
                             className="text-sm prose prose-sm max-w-none dark:prose-invert"
-                            dangerouslySetInnerHTML={{ __html: campaign.content }}
+                            dangerouslySetInnerHTML={{
+                              __html: campaign.content,
+                            }}
                           />
                         </div>
                       </div>
                     )}
 
                     {/* Attachments */}
-                    {campaign.attachments && campaign.attachments.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
-                          <Paperclip className="h-4 w-4" />
-                          Attachments
-                        </h4>
-                        <div className="space-y-2">
-                          {campaign.attachments.map((attachment, index) => (
-                            <div key={index} className="bg-background rounded-lg p-3 flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <FileText className="h-4 w-4 text-muted-foreground" />
-                                <div>
-                                  <div className="text-sm font-medium">{attachment.fileName}</div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {(attachment.fileSize / 1024 / 1024).toFixed(2)} MB
+                    {campaign.attachments &&
+                      campaign.attachments.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
+                            <Paperclip className="h-4 w-4" />
+                            Attachments
+                          </h4>
+                          <div className="space-y-2">
+                            {campaign.attachments.map((attachment, index) => (
+                              <div
+                                key={index}
+                                className="bg-background rounded-lg p-3 flex items-center justify-between"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <FileText className="h-4 w-4 text-muted-foreground" />
+                                  <div>
+                                    <div className="text-sm font-medium">
+                                      {attachment.fileName}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {(
+                                        attachment.fileSize /
+                                        1024 /
+                                        1024
+                                      ).toFixed(2)}{" "}
+                                      MB
+                                    </div>
                                   </div>
                                 </div>
+                                <Button variant="outline" size="sm" asChild>
+                                  <a
+                                    href={getAttachmentUrl(attachment)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <ExternalLink className="h-3 w-3 mr-1" />
+                                    View
+                                  </a>
+                                </Button>
                               </div>
-                              <Button variant="outline" size="sm" asChild>
-                                <a href={getAttachmentUrl(attachment)} target="_blank" rel="noopener noreferrer">
-                                  <ExternalLink className="h-3 w-3 mr-1" />
-                                  View
-                                </a>
-                              </Button>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
                     {/* Delivery Details */}
-                    {campaign.send_results && campaign.send_results.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
-                          <Activity className="h-4 w-4" />
-                          Delivery Details
-                        </h4>
-                        <div className="bg-background rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
-                          {campaign.send_results.slice(0, 10).map((result: any, index: number) => (
-                            <div key={index} className="text-sm py-1 border-b border-border/50 last:border-0">
-                              <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground truncate flex-1 mr-2">{result.email || 'Unknown'}</span>
-                                <Badge
-                                  variant={result.status === "success" ? "success" : "destructive"}
+                    {campaign.send_results &&
+                      campaign.send_results.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
+                            <Activity className="h-4 w-4" />
+                            Delivery Details
+                          </h4>
+                          <div className="bg-background rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
+                            {campaign.send_results
+                              .slice(0, 10)
+                              .map((result: any, index: number) => (
+                                <div
+                                  key={index}
+                                  className="text-sm py-1 border-b border-border/50 last:border-0"
                                 >
-                                  {result.status === "success" ? "Sent" : "Failed"}
-                                </Badge>
-                              </div>
-                              {result.status !== "success" && result.error && (
-                                <div className="text-xs text-destructive mt-1 pl-1">
-                                  ⚠️ {result.error}
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground truncate flex-1 mr-2">
+                                      {result.email || "Unknown"}
+                                    </span>
+                                    <Badge
+                                      variant={
+                                        result.status === "success"
+                                          ? "success"
+                                          : "destructive"
+                                      }
+                                    >
+                                      {result.status === "success"
+                                        ? "Sent"
+                                        : "Failed"}
+                                    </Badge>
+                                  </div>
+                                  {result.status !== "success" &&
+                                    result.error && (
+                                      <div className="text-xs text-destructive mt-1 pl-1">
+                                        ⚠️ {result.error}
+                                      </div>
+                                    )}
                                 </div>
-                              )}
-                            </div>
-                          ))}
-                          {campaign.send_results.length > 10 && (
-                            <p className="text-sm text-muted-foreground pt-2">
-                              And {campaign.send_results.length - 10} more...
-                            </p>
-                          )}
+                              ))}
+                            {campaign.send_results.length > 10 && (
+                              <p className="text-sm text-muted-foreground pt-2">
+                                And {campaign.send_results.length - 10} more...
+                              </p>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    <Button
-                      className="w-full"
-                      onClick={() => setSelectedCampaign(campaign)}
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Full Details
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => exportCampaignResults(campaign)}
+                        title="Export campaign results as CSV"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => duplicateCampaign(campaign)}
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        Duplicate
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        onClick={() => setSelectedCampaign(campaign)}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Details
+                      </Button>
+                    </div>
                   </div>
                 )}
               </Card>
-            )
+            );
           })}
+
+          {/* Pagination */}
+          {historyData.recentCampaigns.length >
+            campaignsPagination.pageSize && (
+            <div className="mt-6">
+              <Pagination
+                currentPage={campaignsPagination.currentPage}
+                totalPages={campaignsPagination.totalPages}
+                pageSize={campaignsPagination.pageSize}
+                totalItems={campaignsPagination.totalItems}
+                hasPreviousPage={campaignsPagination.hasPreviousPage}
+                hasNextPage={campaignsPagination.hasNextPage}
+                onPageChange={campaignsPagination.goToPage}
+                onPageSizeChange={campaignsPagination.setPageSize}
+                getPageNumbers={campaignsPagination.getPageNumbers}
+                startIndex={campaignsPagination.startIndex}
+                endIndex={campaignsPagination.endIndex}
+              />
+            </div>
+          )}
         </div>
       </main>
 
       {/* Full Campaign Details Modal */}
-      <Dialog open={!!selectedCampaign} onOpenChange={(open) => !open && setSelectedCampaign(null)}>
+      <Dialog
+        open={!!selectedCampaign}
+        onOpenChange={(open) => !open && setSelectedCampaign(null)}
+      >
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader className="flex-shrink-0">
-            <DialogTitle className="flex items-center gap-2">
-              <Mail className="h-5 w-5 text-primary" />
-              Campaign Details
-            </DialogTitle>
-            <DialogDescription>
-              Full details and delivery information for this campaign
-            </DialogDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="flex items-center gap-2">
+                  <Mail className="h-5 w-5 text-primary" />
+                  Campaign Details
+                </DialogTitle>
+                <DialogDescription>
+                  Full details and delivery information for this campaign
+                </DialogDescription>
+              </div>
+              {selectedCampaign && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => exportCampaignResults(selectedCampaign)}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export Results
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      duplicateCampaign(selectedCampaign);
+                      setSelectedCampaign(null);
+                    }}
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Duplicate
+                  </Button>
+                </div>
+              )}
+            </div>
           </DialogHeader>
-          
+
           {selectedCampaign && (
             <div className="flex-1 overflow-y-auto space-y-6 pr-2">
               {/* Campaign Header */}
               <div className="bg-gradient-to-br from-primary/10 to-accent/10 rounded-xl p-5 space-y-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h3 className="text-lg font-semibold">{selectedCampaign.subject}</h3>
+                    <h3 className="text-lg font-semibold">
+                      {selectedCampaign.subject}
+                    </h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       Sent on {formatDate(selectedCampaign.created_at)}
                     </p>
@@ -666,15 +912,15 @@ export default function HistoryPage() {
                       selectedCampaign.status === "completed"
                         ? "success"
                         : selectedCampaign.status === "sending"
-                        ? "warning"
-                        : "destructive"
+                          ? "warning"
+                          : "destructive"
                     }
                     className="capitalize"
                   >
                     {selectedCampaign.status}
                   </Badge>
                 </div>
-                
+
                 <div className="grid grid-cols-4 gap-3">
                   <div className="bg-background rounded-lg p-3 text-center">
                     <div className="text-2xl font-bold text-primary">
@@ -683,11 +929,15 @@ export default function HistoryPage() {
                     <div className="text-xs text-muted-foreground">Total</div>
                   </div>
                   <div className="bg-background rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold text-success">{selectedCampaign.sent}</div>
+                    <div className="text-2xl font-bold text-success">
+                      {selectedCampaign.sent}
+                    </div>
                     <div className="text-xs text-muted-foreground">Sent</div>
                   </div>
                   <div className="bg-background rounded-lg p-3 text-center">
-                    <div className="text-2xl font-bold text-destructive">{selectedCampaign.failed}</div>
+                    <div className="text-2xl font-bold text-destructive">
+                      {selectedCampaign.failed}
+                    </div>
                     <div className="text-xs text-muted-foreground">Failed</div>
                   </div>
                   <div className="bg-background rounded-lg p-3 text-center">
@@ -707,58 +957,78 @@ export default function HistoryPage() {
                 </h4>
                 <div className="bg-muted/50 border rounded-lg p-4 max-h-64 overflow-y-auto">
                   {selectedCampaign.content ? (
-                    <div 
+                    <div
                       className="prose prose-sm max-w-none dark:prose-invert"
-                      dangerouslySetInnerHTML={{ __html: selectedCampaign.content }}
+                      dangerouslySetInnerHTML={{
+                        __html: selectedCampaign.content,
+                      }}
                     />
                   ) : (
-                    <p className="text-muted-foreground text-sm italic">No content preview available</p>
+                    <p className="text-muted-foreground text-sm italic">
+                      No content preview available
+                    </p>
                   )}
                 </div>
               </div>
 
               {/* Attachments */}
-              {selectedCampaign.attachments && selectedCampaign.attachments.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <Paperclip className="h-4 w-4 text-muted-foreground" />
-                    Attachments ({selectedCampaign.attachments.length})
-                  </h4>
-                  <div className="grid grid-cols-2 gap-2">
-                    {selectedCampaign.attachments.map((attachment, index) => (
-                      <div key={index} className="bg-muted/50 border rounded-lg p-3 flex items-center justify-between">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="h-4 w-4 text-primary flex-shrink-0" />
-                          <div className="min-w-0">
-                            <div className="text-sm font-medium truncate">{attachment.fileName}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {(attachment.fileSize / 1024 / 1024).toFixed(2)} MB
+              {selectedCampaign.attachments &&
+                selectedCampaign.attachments.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Paperclip className="h-4 w-4 text-muted-foreground" />
+                      Attachments ({selectedCampaign.attachments.length})
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedCampaign.attachments.map((attachment, index) => (
+                        <div
+                          key={index}
+                          className="bg-muted/50 border rounded-lg p-3 flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText className="h-4 w-4 text-primary flex-shrink-0" />
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium truncate">
+                                {attachment.fileName}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {(attachment.fileSize / 1024 / 1024).toFixed(2)}{" "}
+                                MB
+                              </div>
                             </div>
                           </div>
+                          <Button variant="outline" size="icon-sm" asChild>
+                            <a
+                              href={getAttachmentUrl(attachment)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </Button>
                         </div>
-                        <Button variant="outline" size="icon-sm" asChild>
-                          <a href={getAttachmentUrl(attachment)} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        </Button>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Recipients */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-medium flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
-                    Recipients ({getRecipientsArray(selectedCampaign.recipients).length})
+                    Recipients (
+                    {getRecipientsArray(selectedCampaign.recipients).length})
                   </h4>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => copyEmailList(getRecipientsArray(selectedCampaign.recipients))}
+                      onClick={() =>
+                        copyEmailList(
+                          getRecipientsArray(selectedCampaign.recipients),
+                        )
+                      }
                     >
                       <Copy className="h-3 w-3 mr-1" />
                       Copy All
@@ -766,7 +1036,12 @@ export default function HistoryPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => downloadEmailList(getRecipientsArray(selectedCampaign.recipients), selectedCampaign.subject)}
+                      onClick={() =>
+                        downloadEmailList(
+                          getRecipientsArray(selectedCampaign.recipients),
+                          selectedCampaign.subject,
+                        )
+                      }
                     >
                       <Download className="h-3 w-3 mr-1" />
                       Export
@@ -793,7 +1068,9 @@ export default function HistoryPage() {
                         All
                       </Button>
                       <Button
-                        variant={filterStatus === "success" ? "success" : "outline"}
+                        variant={
+                          filterStatus === "success" ? "success" : "outline"
+                        }
                         size="sm"
                         onClick={() => setFilterStatus("success")}
                       >
@@ -801,7 +1078,9 @@ export default function HistoryPage() {
                         Sent
                       </Button>
                       <Button
-                        variant={filterStatus === "failed" ? "destructive" : "outline"}
+                        variant={
+                          filterStatus === "failed" ? "destructive" : "outline"
+                        }
                         size="sm"
                         onClick={() => setFilterStatus("failed")}
                       >
@@ -814,19 +1093,28 @@ export default function HistoryPage() {
 
                 {/* Recipients List */}
                 <div className="bg-muted/50 border rounded-lg max-h-64 overflow-y-auto">
-                  {selectedCampaign.send_results && selectedCampaign.send_results.length > 0 ? (
+                  {selectedCampaign.send_results &&
+                  selectedCampaign.send_results.length > 0 ? (
                     <div className="divide-y divide-border">
                       {selectedCampaign.send_results
                         .filter((result: any) => {
-                          const email = result.email || ''
-                          const matchesSearch = email.toLowerCase().includes(recipientSearch.toLowerCase())
-                          const matchesFilter = filterStatus === "all" || 
-                            (filterStatus === "success" && result.status === "success") ||
-                            (filterStatus === "failed" && result.status !== "success")
-                          return matchesSearch && matchesFilter
+                          const email = result.email || "";
+                          const matchesSearch = email
+                            .toLowerCase()
+                            .includes(recipientSearch.toLowerCase());
+                          const matchesFilter =
+                            filterStatus === "all" ||
+                            (filterStatus === "success" &&
+                              result.status === "success") ||
+                            (filterStatus === "failed" &&
+                              result.status !== "success");
+                          return matchesSearch && matchesFilter;
                         })
                         .map((result: any, index: number) => (
-                          <div key={index} className="p-3 flex items-center justify-between hover:bg-muted/50">
+                          <div
+                            key={index}
+                            className="p-3 flex items-center justify-between hover:bg-muted/50"
+                          >
                             <div className="flex items-center gap-3">
                               {result.status === "success" ? (
                                 <CheckCircle className="h-4 w-4 text-success" />
@@ -834,14 +1122,26 @@ export default function HistoryPage() {
                                 <XCircle className="h-4 w-4 text-destructive" />
                               )}
                               <div>
-                                <div className="text-sm font-medium">{result.email}</div>
+                                <div className="text-sm font-medium">
+                                  {result.email}
+                                </div>
                                 {result.error && (
-                                  <div className="text-xs text-destructive">{result.error}</div>
+                                  <div className="text-xs text-destructive">
+                                    {result.error}
+                                  </div>
                                 )}
                               </div>
                             </div>
-                            <Badge variant={result.status === "success" ? "success" : "destructive"}>
-                              {result.status === "success" ? "Delivered" : "Failed"}
+                            <Badge
+                              variant={
+                                result.status === "success"
+                                  ? "success"
+                                  : "destructive"
+                              }
+                            >
+                              {result.status === "success"
+                                ? "Delivered"
+                                : "Failed"}
                             </Badge>
                           </div>
                         ))}
@@ -850,9 +1150,16 @@ export default function HistoryPage() {
                     <div className="p-4">
                       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                         {getRecipientsArray(selectedCampaign.recipients)
-                          .filter(email => email.toLowerCase().includes(recipientSearch.toLowerCase()))
+                          .filter((email) =>
+                            email
+                              .toLowerCase()
+                              .includes(recipientSearch.toLowerCase()),
+                          )
                           .map((email, index) => (
-                            <div key={index} className="bg-background rounded-lg p-2 text-sm truncate border">
+                            <div
+                              key={index}
+                              className="bg-background rounded-lg p-2 text-sm truncate border"
+                            >
                               {email}
                             </div>
                           ))}
@@ -861,24 +1168,28 @@ export default function HistoryPage() {
                   )}
                 </div>
 
-                {recipientSearch && (
-                  selectedCampaign.send_results 
-                    ? selectedCampaign.send_results.filter((r: any) => 
-                        r.email?.toLowerCase().includes(recipientSearch.toLowerCase())
+                {recipientSearch &&
+                  (selectedCampaign.send_results
+                    ? selectedCampaign.send_results.filter((r: any) =>
+                        r.email
+                          ?.toLowerCase()
+                          .includes(recipientSearch.toLowerCase()),
                       ).length === 0
-                    : getRecipientsArray(selectedCampaign.recipients).filter(e => 
-                        e.toLowerCase().includes(recipientSearch.toLowerCase())
-                      ).length === 0
-                ) && (
-                  <p className="text-center text-muted-foreground text-sm py-2">
-                    No recipients found matching "{recipientSearch}"
-                  </p>
-                )}
+                    : getRecipientsArray(selectedCampaign.recipients).filter(
+                        (e) =>
+                          e
+                            .toLowerCase()
+                            .includes(recipientSearch.toLowerCase()),
+                      ).length === 0) && (
+                    <p className="text-center text-muted-foreground text-sm py-2">
+                      No recipients found matching "{recipientSearch}"
+                    </p>
+                  )}
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

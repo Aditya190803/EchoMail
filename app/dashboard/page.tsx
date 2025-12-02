@@ -1,13 +1,13 @@
-"use client"
+"use client";
 
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { useEffect, useState, useCallback } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Navbar } from "@/components/navbar"
-import { Skeleton } from "@/components/ui/skeleton"
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Navbar } from "@/components/navbar";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Mail,
   Send,
@@ -19,84 +19,85 @@ import {
   Clock,
   Plus,
   History,
-  Activity,
   ArrowRight,
-  Sparkles,
   Zap,
   Target,
   BarChart3,
-} from "lucide-react"
-import Link from "next/link"
-import { campaignsService, EmailCampaign } from "@/lib/appwrite"
+} from "lucide-react";
+import Link from "next/link";
+import { campaignsService, EmailCampaign } from "@/lib/appwrite";
+import { componentLogger } from "@/lib/client-logger";
 
 export default function DashboardPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
-  const [emailHistory, setEmailHistory] = useState<EmailCampaign[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isMounted, setIsMounted] = useState(false)
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [emailHistory, setEmailHistory] = useState<EmailCampaign[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setIsMounted(true)
-  }, [])
+    setIsMounted(true);
+  }, []);
 
   const formatDate = (dateValue: string) => {
     try {
-      return new Date(dateValue).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      })
+      return new Date(dateValue).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
     } catch {
-      return "Invalid date"
+      return "Invalid date";
     }
-  }
+  };
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/")
+      router.push("/");
     }
-  }, [status, router])
+  }, [status, router]);
 
   // Fetch campaigns function
   const fetchCampaigns = useCallback(async () => {
-    if (!session?.user?.email) return
-    
+    if (!session?.user?.email) return;
+
     try {
-      const response = await campaignsService.listByUser(session.user.email)
-      setEmailHistory(response.documents)
+      const response = await campaignsService.listByUser(session.user.email);
+      setEmailHistory(response.documents);
     } catch (error: any) {
-      console.error("Error loading campaigns:", error)
+      componentLogger.error("Error loading campaigns", error);
       // If collection doesn't exist, just show empty state
-      if (error?.code === 404 || error?.message?.includes('Collection')) {
-        console.log("Collections may not be set up yet. Run: bun run scripts/setup-appwrite.ts")
+      if (error?.code === 404 || error?.message?.includes("Collection")) {
+        componentLogger.debug(
+          "Collections may not be set up yet. Run: bun run scripts/setup-appwrite.ts",
+        );
       }
-      setEmailHistory([])
+      setEmailHistory([]);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [session?.user?.email])
+  }, [session?.user?.email]);
 
   // Initial fetch and real-time subscription
   useEffect(() => {
-    if (!session?.user?.email) return
+    if (!session?.user?.email) return;
 
     // Initial fetch
-    fetchCampaigns()
-    
+    fetchCampaigns();
+
     // Subscribe to real-time updates
     const unsubscribe = campaignsService.subscribeToUserCampaigns(
       session.user.email,
-      (response) => {
+      (_response) => {
         // Refetch on any change
-        fetchCampaigns()
-      }
-    )
-    
+        fetchCampaigns();
+      },
+    );
+
     return () => {
-      if (unsubscribe) unsubscribe()
-    }
-  }, [session?.user?.email, fetchCampaigns])
+      if (unsubscribe) unsubscribe();
+    };
+  }, [session?.user?.email, fetchCampaigns]);
 
   if (status === "loading" || !isMounted || isLoading) {
     return (
@@ -169,68 +170,73 @@ export default function DashboardPage() {
           </Card>
         </main>
       </div>
-    )
+    );
   }
 
-  if (status === "unauthenticated") return null
+  if (status === "unauthenticated") return null;
 
-  const totalSent = emailHistory.reduce((sum, c) => sum + c.sent, 0)
-  const totalRecipients = emailHistory.reduce((sum, c) => sum + (c.recipients?.length || 0), 0)
-  const totalFailed = emailHistory.reduce((sum, c) => sum + c.failed, 0)
-  const successRate = totalRecipients ? ((totalSent / totalRecipients) * 100).toFixed(1) : "0"
+  const totalSent = emailHistory.reduce((sum, c) => sum + c.sent, 0);
+  const totalRecipients = emailHistory.reduce(
+    (sum, c) => sum + (c.recipients?.length || 0),
+    0,
+  );
+  const _totalFailed = emailHistory.reduce((sum, c) => sum + c.failed, 0);
+  const successRate = totalRecipients
+    ? ((totalSent / totalRecipients) * 100).toFixed(1)
+    : "0";
 
   const stats = [
-    { 
-      label: "Total Sent", 
-      value: totalSent, 
-      icon: Send, 
+    {
+      label: "Total Sent",
+      value: totalSent,
+      icon: Send,
       gradient: "from-primary to-primary/80",
       bgGradient: "from-primary/10 to-primary/5",
     },
-    { 
-      label: "Success Rate", 
-      value: `${successRate}%`, 
-      icon: Target, 
+    {
+      label: "Success Rate",
+      value: `${successRate}%`,
+      icon: Target,
       gradient: "from-success to-success/80",
       bgGradient: "from-success/10 to-success/5",
     },
-    { 
-      label: "Recipients", 
-      value: totalRecipients, 
-      icon: Users, 
+    {
+      label: "Recipients",
+      value: totalRecipients,
+      icon: Users,
       gradient: "from-secondary to-secondary/80",
       bgGradient: "from-secondary/10 to-secondary/5",
     },
-    { 
-      label: "Campaigns", 
-      value: emailHistory.length, 
-      icon: BarChart3, 
+    {
+      label: "Campaigns",
+      value: emailHistory.length,
+      icon: BarChart3,
       gradient: "from-warning to-warning/80",
       bgGradient: "from-warning/10 to-warning/5",
-    }
-  ]
+    },
+  ];
 
   const quickActions = [
-    { 
-      title: "New Campaign", 
+    {
+      title: "New Campaign",
       description: "Create and send a new email campaign",
-      icon: Plus, 
+      icon: Plus,
       href: "/compose",
-      primary: true 
+      primary: true,
     },
-    { 
-      title: "Manage Contacts", 
+    {
+      title: "Manage Contacts",
       description: "View and organize your contacts",
-      icon: Users, 
-      href: "/contacts" 
+      icon: Users,
+      href: "/contacts",
     },
-    { 
-      title: "Email History", 
+    {
+      title: "Email History",
       description: "View sent campaigns and delivery status",
-      icon: History, 
-      href: "/history" 
+      icon: History,
+      href: "/history",
     },
-  ]
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -240,7 +246,7 @@ export default function DashboardPage() {
         {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-            Welcome back, {session?.user?.name?.split(' ')[0] || 'there'}! 👋
+            Welcome back, {session?.user?.name?.split(" ")[0] || "there"}! 👋
           </h1>
           <p className="text-muted-foreground">
             Here's an overview of your email campaigns
@@ -250,24 +256,33 @@ export default function DashboardPage() {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {stats.map((stat, idx) => {
-            const Icon = stat.icon
+            const Icon = stat.icon;
             return (
-              <Card key={idx} className={`border-0 shadow-lg bg-gradient-to-br ${stat.bgGradient} overflow-hidden`}>
+              <Card
+                key={idx}
+                className={`border-0 shadow-lg bg-gradient-to-br ${stat.bgGradient} overflow-hidden`}
+              >
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-muted-foreground mb-1">{stat.label}</p>
+                      <p className="text-sm font-medium text-muted-foreground mb-1">
+                        {stat.label}
+                      </p>
                       <p className="text-2xl sm:text-3xl font-bold">
-                        {typeof stat.value === 'number' ? stat.value.toLocaleString() : stat.value}
+                        {typeof stat.value === "number"
+                          ? stat.value.toLocaleString()
+                          : stat.value}
                       </p>
                     </div>
-                    <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.gradient} shadow-lg`}>
+                    <div
+                      className={`p-3 rounded-xl bg-gradient-to-br ${stat.gradient} shadow-lg`}
+                    >
                       <Icon className="h-5 w-5 text-white" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            )
+            );
           })}
         </div>
 
@@ -281,20 +296,27 @@ export default function DashboardPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {quickActions.map((action, idx) => {
-              const Icon = action.icon
+              const Icon = action.icon;
               return (
                 <Link key={idx} href={action.href}>
-                  <Card hover className={`h-full ${action.primary ? 'bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20' : ''}`}>
+                  <Card
+                    hover
+                    className={`h-full ${action.primary ? "bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20" : ""}`}
+                  >
                     <CardContent className="p-5 flex flex-col items-center text-center">
-                      <div className={`p-4 rounded-2xl mb-4 ${action.primary ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'bg-muted'}`}>
+                      <div
+                        className={`p-4 rounded-2xl mb-4 ${action.primary ? "bg-primary text-white shadow-lg shadow-primary/30" : "bg-muted"}`}
+                      >
                         <Icon className="h-6 w-6" />
                       </div>
                       <h3 className="font-semibold mb-1">{action.title}</h3>
-                      <p className="text-sm text-muted-foreground">{action.description}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {action.description}
+                      </p>
                     </CardContent>
                   </Card>
                 </Link>
-              )
+              );
             })}
           </div>
         </div>
@@ -308,7 +330,9 @@ export default function DashboardPage() {
                   <Mail className="h-5 w-5 text-primary" />
                   Recent Campaigns
                 </CardTitle>
-                <CardDescription>Your latest email campaign activity</CardDescription>
+                <p className="text-sm text-muted-foreground">
+                  Your latest email campaign activity
+                </p>
               </div>
               {emailHistory.length > 0 && (
                 <Badge variant="secondary" className="text-xs">
@@ -325,7 +349,8 @@ export default function DashboardPage() {
                 </div>
                 <h3 className="text-lg font-semibold mb-2">No campaigns yet</h3>
                 <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-                  Get started by creating your first email campaign to reach your audience.
+                  Get started by creating your first email campaign to reach
+                  your audience.
                 </p>
                 <Button asChild>
                   <Link href="/compose">
@@ -336,8 +361,11 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div className="space-y-4">
-                {emailHistory.slice(0, 5).map(c => (
-                  <div key={c.$id} className="group border rounded-xl p-4 hover:shadow-md hover:border-primary/20 transition-all duration-200">
+                {emailHistory.slice(0, 5).map((c) => (
+                  <div
+                    key={c.$id}
+                    className="group border rounded-xl p-4 hover:shadow-md hover:border-primary/20 transition-all duration-200"
+                  >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-foreground line-clamp-1 mb-2 group-hover:text-primary transition-colors">
@@ -355,10 +383,18 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       <Badge
-                        variant={c.status === "completed" ? "success" : c.status === "sending" ? "info" : "destructive"}
+                        variant={
+                          c.status === "completed"
+                            ? "success"
+                            : c.status === "sending"
+                              ? "info"
+                              : "destructive"
+                        }
                         className="capitalize flex-shrink-0"
                       >
-                        {c.status === "sending" && <Clock className="h-3 w-3 mr-1" />}
+                        {c.status === "sending" && (
+                          <Clock className="h-3 w-3 mr-1" />
+                        )}
                         {c.status}
                       </Badge>
                     </div>
@@ -375,30 +411,61 @@ export default function DashboardPage() {
                       )}
                       <div className="flex items-center gap-1.5 font-medium text-primary">
                         <TrendingUp className="h-4 w-4" />
-                        {(c.recipients?.length || 0) > 0 ? ((c.sent / (c.recipients?.length || 1)) * 100).toFixed(0) : 0}% success
+                        {(c.recipients?.length || 0) > 0
+                          ? (
+                              (c.sent / (c.recipients?.length || 1)) *
+                              100
+                            ).toFixed(0)
+                          : 0}
+                        % success
                       </div>
                     </div>
                     {/* Show failure reasons if there are failed emails */}
-                    {c.failed > 0 && c.send_results && c.send_results.filter((r: any) => r.status !== "success" && r.error).length > 0 && (
-                      <div className="mt-3 p-3 bg-destructive/5 border border-destructive/20 rounded-lg">
-                        <p className="text-xs font-medium text-destructive mb-2">Failure Reasons:</p>
-                        <div className="space-y-1 max-h-24 overflow-y-auto">
-                          {c.send_results
-                            .filter((r: any) => r.status !== "success" && r.error)
-                            .slice(0, 3)
-                            .map((result: any, index: number) => (
-                              <div key={index} className="text-xs text-muted-foreground">
-                                <span className="font-medium">{result.email}</span>: {result.error}
-                              </div>
-                            ))}
-                          {c.send_results.filter((r: any) => r.status !== "success" && r.error).length > 3 && (
-                            <Link href="/history" className="text-xs text-primary hover:underline">
-                              View all {c.send_results.filter((r: any) => r.status !== "success").length} failures →
-                            </Link>
-                          )}
+                    {c.failed > 0 &&
+                      c.send_results &&
+                      c.send_results.filter(
+                        (r: any) => r.status !== "success" && r.error,
+                      ).length > 0 && (
+                        <div className="mt-3 p-3 bg-destructive/5 border border-destructive/20 rounded-lg">
+                          <p className="text-xs font-medium text-destructive mb-2">
+                            Failure Reasons:
+                          </p>
+                          <div className="space-y-1 max-h-24 overflow-y-auto">
+                            {c.send_results
+                              .filter(
+                                (r: any) => r.status !== "success" && r.error,
+                              )
+                              .slice(0, 3)
+                              .map((result: any, index: number) => (
+                                <div
+                                  key={index}
+                                  className="text-xs text-muted-foreground"
+                                >
+                                  <span className="font-medium">
+                                    {result.email}
+                                  </span>
+                                  : {result.error}
+                                </div>
+                              ))}
+                            {c.send_results.filter(
+                              (r: any) => r.status !== "success" && r.error,
+                            ).length > 3 && (
+                              <Link
+                                href="/history"
+                                className="text-xs text-primary hover:underline"
+                              >
+                                View all{" "}
+                                {
+                                  c.send_results.filter(
+                                    (r: any) => r.status !== "success",
+                                  ).length
+                                }{" "}
+                                failures →
+                              </Link>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
                   </div>
                 ))}
                 {emailHistory.length > 5 && (
@@ -417,5 +484,5 @@ export default function DashboardPage() {
         </Card>
       </main>
     </div>
-  )
+  );
 }
