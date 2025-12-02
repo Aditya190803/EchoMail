@@ -1,12 +1,12 @@
-"use client"
+"use client";
 
-import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { useEffect, useState, useCallback } from "react"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Navbar } from "@/components/navbar"
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useCallback } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Navbar } from "@/components/navbar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +16,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
 import {
   Users,
   Search,
@@ -28,182 +28,204 @@ import {
   Building,
   Phone,
   RefreshCw,
-} from "lucide-react"
-import { contactsService } from "@/lib/appwrite"
-import { toast } from "sonner"
+} from "lucide-react";
+import { contactsService } from "@/lib/appwrite";
+import { toast } from "sonner";
+import { componentLogger } from "@/lib/client-logger";
 
 interface Contact {
-  $id: string
-  email: string
-  name?: string
-  company?: string
-  phone?: string
-  created_at: string
+  $id: string;
+  email: string;
+  name?: string;
+  company?: string;
+  phone?: string;
+  created_at: string;
 }
 
 interface DuplicateGroup {
-  email: string
-  contacts: Contact[]
+  email: string;
+  contacts: Contact[];
 }
 
 export default function DuplicatesPage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isMounted, setIsMounted] = useState(false)
-  const [showMergeDialog, setShowMergeDialog] = useState(false)
-  const [selectedGroup, setSelectedGroup] = useState<DuplicateGroup | null>(null)
-  const [primaryContact, setPrimaryContact] = useState<string | null>(null)
-  const [isProcessing, setIsProcessing] = useState(false)
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState<DuplicateGroup | null>(
+    null,
+  );
+  const [primaryContact, setPrimaryContact] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    setIsMounted(true)
-  }, [])
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (status === "unauthenticated") {
-      router.push("/")
+      router.push("/");
     }
-  }, [status, router])
+  }, [status, router]);
 
   const fetchContacts = useCallback(async () => {
-    if (!session?.user?.email) return
-    
-    setIsLoading(true)
+    if (!session?.user?.email) return;
+
+    setIsLoading(true);
     try {
-      const response = await contactsService.listByUser(session.user.email)
-      const contactsData = response.documents.map(doc => ({
+      const response = await contactsService.listByUser(session.user.email);
+      const contactsData = response.documents.map((doc) => ({
         $id: doc.$id,
         email: (doc as any).email,
         name: (doc as any).name,
         company: (doc as any).company,
         phone: (doc as any).phone,
         created_at: (doc as any).created_at,
-      })) as Contact[]
-      
-      setContacts(contactsData)
-      findDuplicates(contactsData)
+      })) as Contact[];
+
+      setContacts(contactsData);
+      findDuplicates(contactsData);
     } catch (error) {
-      console.error("Error fetching contacts:", error)
-      toast.error("Failed to load contacts")
+      componentLogger.error(
+        "Error fetching contacts",
+        error instanceof Error ? error : undefined,
+      );
+      toast.error("Failed to load contacts");
     }
-    setIsLoading(false)
-  }, [session?.user?.email])
+    setIsLoading(false);
+  }, [session?.user?.email]);
 
   const findDuplicates = (contactsList: Contact[]) => {
-    const emailMap = new Map<string, Contact[]>()
-    
-    contactsList.forEach(contact => {
-      const normalizedEmail = contact.email.toLowerCase().trim()
-      const existing = emailMap.get(normalizedEmail) || []
-      existing.push(contact)
-      emailMap.set(normalizedEmail, existing)
-    })
-    
-    const duplicateGroups: DuplicateGroup[] = []
+    const emailMap = new Map<string, Contact[]>();
+
+    contactsList.forEach((contact) => {
+      const normalizedEmail = contact.email.toLowerCase().trim();
+      const existing = emailMap.get(normalizedEmail) || [];
+      existing.push(contact);
+      emailMap.set(normalizedEmail, existing);
+    });
+
+    const duplicateGroups: DuplicateGroup[] = [];
     emailMap.forEach((contacts, email) => {
       if (contacts.length > 1) {
-        duplicateGroups.push({ email, contacts })
+        duplicateGroups.push({ email, contacts });
       }
-    })
-    
+    });
+
     // Sort by number of duplicates (most duplicates first)
-    duplicateGroups.sort((a, b) => b.contacts.length - a.contacts.length)
-    
-    setDuplicates(duplicateGroups)
-  }
+    duplicateGroups.sort((a, b) => b.contacts.length - a.contacts.length);
+
+    setDuplicates(duplicateGroups);
+  };
 
   useEffect(() => {
-    if (!session?.user?.email) return
-    fetchContacts()
-  }, [session?.user?.email, fetchContacts])
+    if (!session?.user?.email) return;
+    fetchContacts();
+  }, [session?.user?.email, fetchContacts]);
 
   const openMergeDialog = (group: DuplicateGroup) => {
-    setSelectedGroup(group)
+    setSelectedGroup(group);
     // Default to the oldest contact (first created) as primary
-    const oldest = [...group.contacts].sort((a, b) => 
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-    )[0]
-    setPrimaryContact(oldest.$id)
-    setShowMergeDialog(true)
-  }
+    const oldest = [...group.contacts].sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    )[0];
+    setPrimaryContact(oldest.$id);
+    setShowMergeDialog(true);
+  };
 
   const mergeDuplicates = async () => {
-    if (!selectedGroup || !primaryContact) return
-    
-    setIsProcessing(true)
+    if (!selectedGroup || !primaryContact) return;
+
+    setIsProcessing(true);
     try {
       // Delete all contacts except the primary one
-      const contactsToDelete = selectedGroup.contacts.filter(c => c.$id !== primaryContact)
-      
+      const contactsToDelete = selectedGroup.contacts.filter(
+        (c) => c.$id !== primaryContact,
+      );
+
       for (const contact of contactsToDelete) {
-        await contactsService.delete(contact.$id)
+        await contactsService.delete(contact.$id);
       }
-      
-      toast.success(`Merged ${contactsToDelete.length + 1} duplicates into 1 contact`)
-      setShowMergeDialog(false)
-      setSelectedGroup(null)
-      setPrimaryContact(null)
-      fetchContacts()
+
+      toast.success(
+        `Merged ${contactsToDelete.length + 1} duplicates into 1 contact`,
+      );
+      setShowMergeDialog(false);
+      setSelectedGroup(null);
+      setPrimaryContact(null);
+      fetchContacts();
     } catch (error) {
-      console.error("Error merging duplicates:", error)
-      toast.error("Failed to merge duplicates")
+      componentLogger.error(
+        "Error merging duplicates",
+        error instanceof Error ? error : undefined,
+      );
+      toast.error("Failed to merge duplicates");
     }
-    setIsProcessing(false)
-  }
+    setIsProcessing(false);
+  };
 
   const deleteAllDuplicates = async (group: DuplicateGroup) => {
-    setIsProcessing(true)
+    setIsProcessing(true);
     try {
       // Keep the oldest one, delete the rest
-      const sorted = [...group.contacts].sort((a, b) => 
-        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      )
-      const toDelete = sorted.slice(1)
-      
+      const sorted = [...group.contacts].sort(
+        (a, b) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      );
+      const toDelete = sorted.slice(1);
+
       for (const contact of toDelete) {
-        await contactsService.delete(contact.$id)
+        await contactsService.delete(contact.$id);
       }
-      
-      toast.success(`Removed ${toDelete.length} duplicate(s)`)
-      fetchContacts()
+
+      toast.success(`Removed ${toDelete.length} duplicate(s)`);
+      fetchContacts();
     } catch (error) {
-      console.error("Error deleting duplicates:", error)
-      toast.error("Failed to delete duplicates")
+      componentLogger.error(
+        "Error deleting duplicates",
+        error instanceof Error ? error : undefined,
+      );
+      toast.error("Failed to delete duplicates");
     }
-    setIsProcessing(false)
-  }
+    setIsProcessing(false);
+  };
 
   const autoMergeAll = async () => {
-    if (duplicates.length === 0) return
-    
-    setIsProcessing(true)
-    let totalMerged = 0
-    
+    if (duplicates.length === 0) return;
+
+    setIsProcessing(true);
+    let totalMerged = 0;
+
     try {
       for (const group of duplicates) {
         // Keep the oldest contact (most complete data usually)
-        const sorted = [...group.contacts].sort((a, b) => 
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        )
-        const toDelete = sorted.slice(1)
-        
+        const sorted = [...group.contacts].sort(
+          (a, b) =>
+            new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+        );
+        const toDelete = sorted.slice(1);
+
         for (const contact of toDelete) {
-          await contactsService.delete(contact.$id)
-          totalMerged++
+          await contactsService.delete(contact.$id);
+          totalMerged++;
         }
       }
-      
-      toast.success(`Removed ${totalMerged} duplicate contacts`)
-      fetchContacts()
+
+      toast.success(`Removed ${totalMerged} duplicate contacts`);
+      fetchContacts();
     } catch (error) {
-      console.error("Error auto-merging:", error)
-      toast.error("Failed to complete auto-merge")
+      componentLogger.error(
+        "Error auto-merging",
+        error instanceof Error ? error : undefined,
+      );
+      toast.error("Failed to complete auto-merge");
     }
-    setIsProcessing(false)
-  }
+    setIsProcessing(false);
+  };
 
   if (status === "loading" || !isMounted) {
     return (
@@ -213,12 +235,15 @@ export default function DuplicatesPage() {
           <p className="text-muted-foreground">Scanning for duplicates...</p>
         </div>
       </div>
-    )
+    );
   }
 
-  if (status === "unauthenticated") return null
+  if (status === "unauthenticated") return null;
 
-  const totalDuplicates = duplicates.reduce((sum, group) => sum + group.contacts.length - 1, 0)
+  const totalDuplicates = duplicates.reduce(
+    (sum, group) => sum + group.contacts.length - 1,
+    0,
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -231,15 +256,21 @@ export default function DuplicatesPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-1">Duplicate Detection</h1>
-            <p className="text-muted-foreground">Find and merge duplicate contacts</p>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-1">
+              Duplicate Detection
+            </h1>
+            <p className="text-muted-foreground">
+              Find and merge duplicate contacts
+            </p>
           </div>
           <Button
             variant="outline"
             onClick={fetchContacts}
             disabled={isLoading}
           >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
+            />
             Rescan
           </Button>
         </div>
@@ -254,7 +285,9 @@ export default function DuplicatesPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{contacts.length}</p>
-                  <p className="text-sm text-muted-foreground">Total Contacts</p>
+                  <p className="text-sm text-muted-foreground">
+                    Total Contacts
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -262,12 +295,18 @@ export default function DuplicatesPage() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${totalDuplicates > 0 ? 'bg-warning/10' : 'bg-success/10'}`}>
-                  <Search className={`h-5 w-5 ${totalDuplicates > 0 ? 'text-warning' : 'text-success'}`} />
+                <div
+                  className={`p-2 rounded-lg ${totalDuplicates > 0 ? "bg-warning/10" : "bg-success/10"}`}
+                >
+                  <Search
+                    className={`h-5 w-5 ${totalDuplicates > 0 ? "text-warning" : "text-success"}`}
+                  />
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{totalDuplicates}</p>
-                  <p className="text-sm text-muted-foreground">Duplicates Found</p>
+                  <p className="text-sm text-muted-foreground">
+                    Duplicates Found
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -282,7 +321,9 @@ export default function DuplicatesPage() {
                 <div>
                   <p className="font-medium">Quick Fix Available</p>
                   <p className="text-sm text-muted-foreground">
-                    Automatically remove {totalDuplicates} duplicate{totalDuplicates > 1 ? 's' : ''}, keeping the oldest entry for each email
+                    Automatically remove {totalDuplicates} duplicate
+                    {totalDuplicates > 1 ? "s" : ""}, keeping the oldest entry
+                    for each email
                   </p>
                 </div>
                 <Button onClick={autoMergeAll} disabled={isProcessing}>
@@ -308,11 +349,13 @@ export default function DuplicatesPage() {
                     <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4 text-muted-foreground" />
                       <CardTitle className="text-base">{group.email}</CardTitle>
-                      <Badge variant="warning">{group.contacts.length} duplicates</Badge>
+                      <Badge variant="warning">
+                        {group.contacts.length} duplicates
+                      </Badge>
                     </div>
                     <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         size="sm"
                         onClick={() => openMergeDialog(group)}
                         disabled={isProcessing}
@@ -320,8 +363,8 @@ export default function DuplicatesPage() {
                         <Merge className="h-4 w-4 mr-2" />
                         Choose Primary
                       </Button>
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         size="sm"
                         onClick={() => deleteAllDuplicates(group)}
                         disabled={isProcessing}
@@ -335,17 +378,19 @@ export default function DuplicatesPage() {
                 <CardContent>
                   <div className="space-y-2">
                     {group.contacts.map((contact, index) => (
-                      <div 
+                      <div
                         key={contact.$id}
                         className="flex items-center gap-4 p-3 rounded-lg bg-muted/50"
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <p className="font-medium truncate">
-                              {contact.name || '(No name)'}
+                              {contact.name || "(No name)"}
                             </p>
                             {index === 0 && (
-                              <Badge variant="secondary" className="text-xs">Oldest</Badge>
+                              <Badge variant="secondary" className="text-xs">
+                                Oldest
+                              </Badge>
                             )}
                           </div>
                           <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
@@ -364,7 +409,8 @@ export default function DuplicatesPage() {
                           </div>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Added {new Date(contact.created_at).toLocaleDateString()}
+                          Added{" "}
+                          {new Date(contact.created_at).toLocaleDateString()}
                         </p>
                       </div>
                     ))}
@@ -380,7 +426,9 @@ export default function DuplicatesPage() {
                 <div className="mx-auto w-16 h-16 bg-success/10 rounded-full flex items-center justify-center mb-4">
                   <CheckCircle className="h-8 w-8 text-success" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">No duplicates found</h3>
+                <h3 className="text-lg font-semibold mb-2">
+                  No duplicates found
+                </h3>
                 <p className="text-muted-foreground max-w-sm mx-auto">
                   Your contact list is clean! All email addresses are unique.
                 </p>
@@ -417,7 +465,7 @@ export default function DuplicatesPage() {
                   className="sr-only"
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium">{contact.name || '(No name)'}</p>
+                  <p className="font-medium">{contact.name || "(No name)"}</p>
                   <div className="text-sm text-muted-foreground">
                     {contact.company && <span>{contact.company} • </span>}
                     {contact.phone && <span>{contact.phone} • </span>}
@@ -431,8 +479,13 @@ export default function DuplicatesPage() {
             ))}
           </div>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isProcessing}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={mergeDuplicates} disabled={isProcessing}>
+            <AlertDialogCancel disabled={isProcessing}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={mergeDuplicates}
+              disabled={isProcessing}
+            >
               {isProcessing ? (
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
               ) : (
@@ -444,5 +497,5 @@ export default function DuplicatesPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
+  );
 }
