@@ -253,6 +253,9 @@ export default function DraftPage() {
         saved_at: email.saved_at,
         attachments: email.attachments,
         csv_data: email.csv_data,
+        // Include personalized attachment settings
+        has_personalized_attachments: email.has_personalized_attachments,
+        personalized_attachment_column: email.personalized_attachment_column,
       }),
     );
     router.push("/compose?edit=draft");
@@ -270,6 +273,9 @@ export default function DraftPage() {
         saved_at: new Date().toISOString(),
         attachments: email.attachments,
         csv_data: email.csv_data,
+        // Include personalized attachment settings
+        has_personalized_attachments: email.has_personalized_attachments,
+        personalized_attachment_column: email.personalized_attachment_column,
       });
       toast.success("Draft duplicated!");
       fetchDraftEmails();
@@ -562,6 +568,16 @@ export default function DraftPage() {
                             >
                               <Paperclip className="h-3 w-3" />
                               {email.attachments?.length}
+                            </Badge>
+                          )}
+                          {/* Show personalized attachment indicator */}
+                          {email.has_personalized_attachments && (
+                            <Badge
+                              variant="secondary"
+                              className="flex items-center gap-1 text-xs"
+                            >
+                              <Mail className="h-3 w-3" />
+                              Personalized
                             </Badge>
                           )}
                         </div>

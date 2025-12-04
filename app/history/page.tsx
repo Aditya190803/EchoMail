@@ -38,12 +38,14 @@ import {
   Copy,
   Search,
   Percent,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { campaignsService, EmailCampaign } from "@/lib/appwrite";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { componentLogger } from "@/lib/client-logger";
+import { getEmailPreviewHTML } from "@/lib/email-formatter-client";
 
 interface HistoryData {
   totalCampaigns: number;
@@ -94,6 +96,8 @@ export default function HistoryPage() {
   const [filterStatus, setFilterStatus] = useState<
     "all" | "success" | "failed"
   >("all");
+  const [formattedPreviewHtml, setFormattedPreviewHtml] = useState<string>("");
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   // Pagination hook must be called unconditionally (before any early returns)
   const campaignsPagination = usePagination(
@@ -203,6 +207,36 @@ export default function HistoryPage() {
       if (unsubscribe) unsubscribe();
     };
   }, [session?.user?.email, fetchHistory]);
+
+  // Load formatted preview HTML when a campaign is selected
+  useEffect(() => {
+    const loadFormattedPreview = async () => {
+      if (!selectedCampaign?.content) {
+        setFormattedPreviewHtml("");
+        return;
+      }
+
+      setIsLoadingPreview(true);
+      try {
+        const formattedHtml = await getEmailPreviewHTML(
+          selectedCampaign.content,
+        );
+        setFormattedPreviewHtml(createGmailPreviewWrapper(formattedHtml));
+      } catch (error) {
+        componentLogger.error(
+          "Failed to load formatted preview",
+          error instanceof Error ? error : undefined,
+        );
+        // Fallback to basic preview
+        setFormattedPreviewHtml(
+          createGmailPreviewWrapper(selectedCampaign.content),
+        );
+      }
+      setIsLoadingPreview(false);
+    };
+
+    loadFormattedPreview();
+  }, [selectedCampaign]);
 
   // Helper functions for campaign details
   const toggleCampaignExpansion = (campaignId: string) => {
@@ -589,6 +623,12 @@ export default function HistoryPage() {
                               {campaign.attachments.length > 1 ? "s" : ""}
                             </span>
                           )}
+                        {campaign.has_personalized_attachments && (
+                          <Badge variant="secondary" className="text-xs">
+                            <FileText className="h-3 w-3 mr-1" />
+                            Personalized
+                          </Badge>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -941,25 +981,48 @@ export default function HistoryPage() {
                 </div>
               </div>
 
-              {/* Email Content */}
+              {/* Email Preview */}
               <div className="space-y-2">
                 <h4 className="font-medium flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                  Email Content
+                  <Eye className="h-4 w-4 text-muted-foreground" />
+                  Email Preview
                 </h4>
-                <div className="bg-muted/50 border rounded-lg p-4 max-h-64 overflow-y-auto">
-                  {selectedCampaign.content ? (
-                    <div
-                      className="prose prose-sm max-w-none dark:prose-invert"
-                      dangerouslySetInnerHTML={{
-                        __html: selectedCampaign.content,
-                      }}
-                    />
-                  ) : (
-                    <p className="text-muted-foreground text-sm italic">
-                      No content preview available
+                <div className="border rounded-lg bg-white dark:bg-zinc-900 overflow-hidden">
+                  {/* Email Header */}
+                  <div className="border-b p-4 bg-gray-50 dark:bg-zinc-800">
+                    <p className="text-sm">
+                      <span className="font-medium text-muted-foreground">
+                        Subject:
+                      </span>{" "}
+                      <span className="text-foreground font-semibold">
+                        {selectedCampaign.subject}
+                      </span>
                     </p>
-                  )}
+                  </div>
+                  {/* Email Body */}
+                  <div className="relative">
+                    {isLoadingPreview ? (
+                      <div className="flex flex-col items-center justify-center py-16">
+                        <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
+                        <p className="text-sm text-muted-foreground">
+                          Loading preview...
+                        </p>
+                      </div>
+                    ) : selectedCampaign.content ? (
+                      <iframe
+                        srcDoc={formattedPreviewHtml}
+                        className="w-full h-[300px] border-0 bg-white"
+                        title={`Email preview - ${selectedCampaign.subject}`}
+                        sandbox="allow-same-origin"
+                      />
+                    ) : (
+                      <div className="p-4">
+                        <p className="text-muted-foreground text-sm italic">
+                          No content preview available
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1003,6 +1066,35 @@ export default function HistoryPage() {
                     </div>
                   </div>
                 )}
+
+              {/* Personalized Attachments Info */}
+              {selectedCampaign.has_personalized_attachments && (
+                <div className="space-y-2">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
+                    Personalized Attachments
+                  </h4>
+                  <div className="bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20 rounded-lg p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <FileText className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">
+                          Each recipient received a unique attachment
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Personalized files from column:{" "}
+                          <span className="font-mono bg-muted px-1.5 py-0.5 rounded">
+                            {selectedCampaign.personalized_attachment_column ||
+                              "certificate"}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Recipients */}
               <div className="space-y-3">
@@ -1184,4 +1276,80 @@ export default function HistoryPage() {
       </Dialog>
     </div>
   );
+}
+
+/**
+ * Gmail-like preview wrapper for email content
+ * This ensures the preview looks identical to the sent email.
+ */
+function createGmailPreviewWrapper(htmlContent: string): string {
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #222222;
+      background: #ffffff;
+      -webkit-font-smoothing: antialiased;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+    * { max-width: 100%; box-sizing: border-box; }
+    h1 { font-size: 2em; font-weight: bold; margin: 0.67em 0; }
+    h2 { font-size: 1.5em; font-weight: bold; margin: 0.75em 0; }
+    h3 { font-size: 1.17em; font-weight: bold; margin: 0.83em 0; }
+    h4 { font-size: 1em; font-weight: bold; margin: 1em 0; }
+    p, div { margin: 0.5em 0; word-wrap: break-word; overflow-wrap: break-word; }
+    ul, ol { padding-left: 1.5em; margin: 0.5em 0; }
+    ul { list-style-type: disc; }
+    ol { list-style-type: decimal; }
+    li { margin: 0.25em 0; }
+    a { color: #2563eb; text-decoration: underline; }
+    blockquote {
+      border-left: 3px solid #ccc;
+      margin: 1em 0;
+      padding-left: 1em;
+      color: #666;
+      font-style: italic;
+    }
+    pre {
+      background: #f5f5f5;
+      color: #333;
+      font-family: 'Courier New', Courier, monospace;
+      padding: 12px 16px;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 1em 0;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    code {
+      background: #f1f5f9;
+      color: #e11d48;
+      padding: 0.2em 0.4em;
+      border-radius: 0.25em;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.9em;
+    }
+    pre code { background: none; color: inherit; padding: 0; }
+    hr { border: none; border-top: 2px solid #e5e7eb; margin: 1.5em 0; }
+    table { border-collapse: collapse; margin: 1em 0; width: 100%; }
+    th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
+    th { background: #f3f4f6; font-weight: bold; }
+    img { max-width: 100%; height: auto; }
+    mark { background-color: #fef08a; border-radius: 0.25em; padding: 0.1em 0.2em; }
+  </style>
+</head>
+<body>
+  ${htmlContent}
+</body>
+</html>`;
 }
