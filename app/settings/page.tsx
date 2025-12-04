@@ -1,8 +1,6 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
@@ -105,16 +103,9 @@ const settingsCategories = [
 ];
 
 export default function SettingsPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
+  const { status, isLoading, session } = useAuthGuard();
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/");
-    }
-  }, [status, router]);
-
-  if (status === "loading") {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

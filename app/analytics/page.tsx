@@ -1,8 +1,7 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -80,8 +79,7 @@ const getAttachmentUrl = (attachment: {
 };
 
 export default function HistoryPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
+  const { session, status, isLoading } = useAuthGuard();
   const [historyData, setHistoryData] = useState<HistoryData | null>(null);
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(
     new Set(),
@@ -106,12 +104,6 @@ export default function HistoryPage() {
     }
     return [];
   };
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/");
-    }
-  }, [status, router]);
 
   // Fetch campaigns and calculate history data
   const fetchHistory = useCallback(async () => {

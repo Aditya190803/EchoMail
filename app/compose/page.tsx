@@ -12,15 +12,20 @@ import Link from "next/link";
 import { useIsClient } from "@/hooks/useIsClient";
 
 export default function ComposePage() {
-  const { data: _session, status } = useSession();
+  const { data: session, status } = useSession();
   const router = useRouter();
   const isClient = useIsClient();
 
   useEffect(() => {
-    if (isClient && status === "unauthenticated") {
+    // Redirect if unauthenticated OR if there's a session error (token refresh failed)
+    if (
+      isClient &&
+      (status === "unauthenticated" ||
+        (status === "authenticated" && session?.error))
+    ) {
       router.push("/");
     }
-  }, [status, router, isClient]);
+  }, [status, session?.error, router, isClient]);
 
   if (!isClient || status === "loading") {
     return (

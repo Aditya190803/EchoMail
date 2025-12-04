@@ -52,10 +52,14 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    if (status === "unauthenticated") {
+    // Redirect if unauthenticated OR if there's a session error (token refresh failed)
+    if (
+      status === "unauthenticated" ||
+      (status === "authenticated" && session?.error)
+    ) {
       router.push("/");
     }
-  }, [status, router]);
+  }, [status, session?.error, router]);
 
   // Fetch campaigns function
   const fetchCampaigns = useCallback(async () => {

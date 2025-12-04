@@ -15,7 +15,10 @@ export function Providers({ children }: { children: ReactNode }) {
       disableTransitionOnChange
     >
       <QueryProvider>
-        <SessionProvider refetchInterval={0} refetchOnWindowFocus={false}>
+        <SessionProvider
+          refetchInterval={5 * 60} // Refetch session every 5 minutes
+          refetchOnWindowFocus={true} // Refetch when window gains focus
+        >
           {children}
           <Toaster
             position="top-right"

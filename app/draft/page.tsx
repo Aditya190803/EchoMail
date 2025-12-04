@@ -1,8 +1,7 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -60,8 +59,7 @@ import { format, formatDistanceToNow, isPast } from "date-fns";
 import { componentLogger } from "@/lib/client-logger";
 
 export default function DraftPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
+  const { session, status, router } = useAuthGuard();
   const [draftEmails, setDraftEmails] = useState<DraftEmail[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
@@ -74,12 +72,6 @@ export default function DraftPage() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/");
-    }
-  }, [status, router]);
 
   const fetchDraftEmails = useCallback(async () => {
     if (!session?.user?.email) return;

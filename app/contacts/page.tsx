@@ -1,8 +1,7 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,8 +89,7 @@ interface Contact {
 }
 
 export default function ContactsPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
+  const { session, status } = useAuthGuard();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [groups, setGroups] = useState<ContactGroup[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -179,12 +177,6 @@ export default function ContactsPage() {
       return "Invalid date";
     }
   };
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/");
-    }
-  }, [status, router]);
 
   // Fetch contacts function
   const fetchContacts = useCallback(async () => {

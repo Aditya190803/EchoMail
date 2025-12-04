@@ -1,8 +1,7 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -221,8 +220,7 @@ const DEFAULT_TEMPLATES = [
 ];
 
 export default function TemplatesPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
+  const { session, status, router } = useAuthGuard();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -264,12 +262,6 @@ export default function TemplatesPage() {
       return "Invalid date";
     }
   };
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/");
-    }
-  }, [status, router]);
 
   // Fetch templates
   const fetchTemplates = useCallback(async () => {

@@ -1,8 +1,7 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import {
   Card,
   CardContent,
@@ -82,8 +81,7 @@ const consentTypes = [
 ];
 
 export default function GDPRPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
+  const { session, status, router } = useAuthGuard();
   const [consents, setConsents] = useState<Record<string, boolean>>({
     data_processing: true,
     analytics: true,
@@ -94,12 +92,6 @@ export default function GDPRPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [updatingConsent, setUpdatingConsent] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/");
-    }
-  }, [status, router]);
 
   useEffect(() => {
     if (session?.user?.email) {

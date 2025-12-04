@@ -1,8 +1,9 @@
 "use client";
 
 import { useSession, signIn, signOut } from "next-auth/react";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { LogOut, ChevronDown } from "lucide-react";
+import { LogOut, ChevronDown, AlertCircle } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,11 +17,34 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 export function AuthButton() {
   const { data: session, status } = useSession();
 
+  // Auto sign out if there's a refresh token error
+  useEffect(() => {
+    if (session?.error === "RefreshAccessTokenError") {
+      // Token refresh failed, sign out and redirect to sign in
+      signOut({ callbackUrl: "/" });
+    }
+  }, [session?.error]);
+
   if (status === "loading") {
     return (
       <Button variant="ghost" size="sm" disabled className="gap-2">
         <div className="h-4 w-4 rounded-full bg-muted animate-pulse" />
         <span className="hidden sm:inline">Loading...</span>
+      </Button>
+    );
+  }
+
+  // Show sign in button if there's a session error
+  if (session?.error) {
+    return (
+      <Button
+        onClick={() => signIn("google")}
+        variant="destructive"
+        size="sm"
+        className="gap-2"
+      >
+        <AlertCircle className="h-4 w-4" />
+        <span>Session Expired - Sign in</span>
       </Button>
     );
   }
