@@ -40,6 +40,9 @@ export interface EmailCampaignInput {
     error?: string;
     messageId?: string;
   }[];
+  // Personalized attachment info (per-recipient PDF certificates, etc.)
+  personalized_attachment_column?: string; // The CSV column containing attachment URLs
+  has_personalized_attachments?: boolean;
 }
 
 export interface EmailCampaign extends EmailCampaignInput {
@@ -98,6 +101,9 @@ export interface DraftEmail {
     appwrite_file_id?: string;
   }[];
   csv_data?: Record<string, string>[]; // Personalization data for each recipient
+  // Personalized attachment settings
+  personalized_attachment_column?: string; // The CSV column containing attachment URLs
+  has_personalized_attachments?: boolean;
   created_at?: string;
   sent_at?: string;
   error?: string;

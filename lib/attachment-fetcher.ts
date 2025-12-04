@@ -181,6 +181,52 @@ function extractFileName(
  * Fetch a file from a URL (Google Drive, OneDrive, or direct link)
  * Supports any file type
  */
+async function fetchWithRetry(
+  directUrl: string,
+  maxRetries: number = 3,
+  initialDelayMs: number = 1000,
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch(directUrl, {
+        method: "GET",
+        redirect: "follow",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; EchoMail/1.0)",
+        },
+      });
+
+      if (response.ok) {
+        return response;
+      }
+
+      // For non-ok responses, throw to trigger retry
+      throw new Error(
+        `Failed to fetch file: ${response.status} ${response.statusText}`,
+      );
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+
+      if (attempt < maxRetries - 1) {
+        const delay = initialDelayMs * Math.pow(2, attempt);
+        logger.debug(
+          `Fetch attempt ${attempt + 1} failed, retrying in ${delay}ms`,
+          {
+            error: lastError.message,
+            attempt: attempt + 1,
+            maxRetries,
+          },
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw lastError || new Error("Failed to fetch file after retries");
+}
+
 export async function fetchFileFromUrl(
   url: string,
   recipientName?: string,
@@ -194,19 +240,7 @@ export async function fetchFileFromUrl(
 
   logger.debug(`Fetching file`, { url, directUrl });
 
-  const response = await fetch(directUrl, {
-    method: "GET",
-    redirect: "follow",
-    headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; EchoMail/1.0)",
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Failed to fetch file: ${response.status} ${response.statusText}`,
-    );
-  }
+  const response = await fetchWithRetry(directUrl);
 
   const contentType =
     response.headers.get("content-type") || "application/octet-stream";

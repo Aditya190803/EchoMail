@@ -183,6 +183,33 @@ export function ComposeForm() {
   );
   const [showClientPreview, setShowClientPreview] = useState(false);
 
+  // Personalized attachment metadata state
+  interface AttachmentMetadata {
+    fileName: string;
+    fileSize: number | null;
+    fileType:
+      | "pdf"
+      | "image"
+      | "document"
+      | "spreadsheet"
+      | "presentation"
+      | "other";
+    contentType?: string;
+    source: "google-drive" | "onedrive" | "dropbox" | "direct";
+    accessible: boolean;
+    originalUrl: string;
+  }
+  const [personalizedAttachmentMetadata, setPersonalizedAttachmentMetadata] =
+    useState<{
+      [email: string]: AttachmentMetadata | null;
+    }>({});
+  const [isLoadingAttachmentMetadata, setIsLoadingAttachmentMetadata] =
+    useState(false);
+  const [showAttachmentPreview, setShowAttachmentPreview] = useState(false);
+  const [previewAttachmentUrl, setPreviewAttachmentUrl] = useState<
+    string | null
+  >(null);
+
   // Draft state
   const [hasDraft, setHasDraft] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
@@ -264,6 +291,14 @@ export function ComposeForm() {
                   "Error parsing csv_data",
                   e instanceof Error ? e : undefined,
                 );
+              }
+            }
+
+            // Restore personalized attachment settings
+            if (draft.has_personalized_attachments) {
+              setShowPersonalizedAttachments(true);
+              if (draft.personalized_attachment_column) {
+                setPdfColumn(draft.personalized_attachment_column);
               }
             }
 
@@ -982,6 +1017,57 @@ export function ComposeForm() {
     manualEntries,
   ]);
 
+  // Fetch personalized attachment metadata when preview tab is active
+  useEffect(() => {
+    const fetchAttachmentMetadata = async () => {
+      if (activeTab !== "preview" || !pdfColumn) return;
+
+      const preview = getPersonalizedContent(previewRecipientIndex);
+      const attachmentUrl = preview.data?.[pdfColumn];
+
+      if (!attachmentUrl || !isPdfUrl(String(attachmentUrl))) return;
+
+      // Check if we already have metadata for this recipient
+      if (personalizedAttachmentMetadata[preview.email]) return;
+
+      setIsLoadingAttachmentMetadata(true);
+
+      try {
+        const response = await fetch("/api/attachment-metadata", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: String(attachmentUrl),
+            recipientName:
+              preview.data?.name ||
+              preview.data?.Name ||
+              preview.email.split("@")[0],
+          }),
+        });
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.metadata) {
+            setPersonalizedAttachmentMetadata((prev) => ({
+              ...prev,
+              [preview.email]: result.metadata,
+            }));
+          }
+        }
+      } catch (error) {
+        componentLogger.error(
+          "Failed to fetch attachment metadata",
+          error instanceof Error ? error : undefined,
+        );
+      }
+
+      setIsLoadingAttachmentMetadata(false);
+    };
+
+    fetchAttachmentMetadata();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, previewRecipientIndex, pdfColumn, recipients]);
+
   // Send emails
   const handleSend = async () => {
     if (!subject.trim()) {
@@ -1137,6 +1223,10 @@ export function ComposeForm() {
           saved_at: savedAt,
           attachments: processedAttachments.filter((a) => a.appwrite_file_id), // Only save attachments that were uploaded
           csv_data: recipientCsvData,
+          // Save personalized attachment settings
+          has_personalized_attachments:
+            !!pdfColumn && showPersonalizedAttachments,
+          personalized_attachment_column: pdfColumn || undefined,
         };
 
         if (editingDraftId) {
@@ -1227,6 +1317,10 @@ export function ComposeForm() {
                 : (r.status as "success" | "error"),
             error: r.error,
           })),
+          // Save personalized attachment info
+          has_personalized_attachments:
+            !!pdfColumn && showPersonalizedAttachments,
+          personalized_attachment_column: pdfColumn || undefined,
         });
       }
 
@@ -2357,20 +2451,157 @@ export function ComposeForm() {
                                 {att.name}
                               </Badge>
                             ))}
-                            {/* Show personalized PDF attachment */}
+                            {/* Show personalized attachment with fetched metadata */}
                             {pdfColumn &&
                               preview.data?.[pdfColumn] &&
                               isPdfUrl(String(preview.data[pdfColumn])) && (
-                                <Badge
-                                  variant="default"
-                                  className="bg-blue-600"
-                                >
-                                  <FileText className="h-3 w-3 mr-1" />
-                                  Personalized Attachment
-                                  <span className="ml-1 text-xs opacity-75">
-                                    (from CSV)
-                                  </span>
-                                </Badge>
+                                <div className="w-full mt-2">
+                                  {isLoadingAttachmentMetadata ? (
+                                    <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                      <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                                      <span className="text-sm text-blue-700 dark:text-blue-300">
+                                        Loading attachment details...
+                                      </span>
+                                    </div>
+                                  ) : personalizedAttachmentMetadata[
+                                      preview.email
+                                    ] ? (
+                                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                      <div className="flex items-start justify-between gap-4">
+                                        <div className="flex items-start gap-3">
+                                          <div className="p-2 bg-blue-100 dark:bg-blue-800 rounded-lg">
+                                            {personalizedAttachmentMetadata[
+                                              preview.email
+                                            ]?.fileType === "pdf" && (
+                                              <FileText className="h-6 w-6 text-red-600 dark:text-red-400" />
+                                            )}
+                                            {personalizedAttachmentMetadata[
+                                              preview.email
+                                            ]?.fileType === "image" && (
+                                              <FileText className="h-6 w-6 text-green-600 dark:text-green-400" />
+                                            )}
+                                            {personalizedAttachmentMetadata[
+                                              preview.email
+                                            ]?.fileType === "document" && (
+                                              <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                                            )}
+                                            {personalizedAttachmentMetadata[
+                                              preview.email
+                                            ]?.fileType === "spreadsheet" && (
+                                              <FileSpreadsheet className="h-6 w-6 text-green-600 dark:text-green-400" />
+                                            )}
+                                            {personalizedAttachmentMetadata[
+                                              preview.email
+                                            ]?.fileType === "presentation" && (
+                                              <FileText className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                                            )}
+                                            {personalizedAttachmentMetadata[
+                                              preview.email
+                                            ]?.fileType === "other" && (
+                                              <Paperclip className="h-6 w-6 text-gray-600 dark:text-gray-400" />
+                                            )}
+                                          </div>
+                                          <div>
+                                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                              {
+                                                personalizedAttachmentMetadata[
+                                                  preview.email
+                                                ]?.fileName
+                                              }
+                                            </p>
+                                            <div className="flex items-center gap-2 mt-1">
+                                              <Badge
+                                                variant="outline"
+                                                className="text-xs"
+                                              >
+                                                {personalizedAttachmentMetadata[
+                                                  preview.email
+                                                ]?.source === "google-drive" &&
+                                                  "Google Drive"}
+                                                {personalizedAttachmentMetadata[
+                                                  preview.email
+                                                ]?.source === "onedrive" &&
+                                                  "OneDrive"}
+                                                {personalizedAttachmentMetadata[
+                                                  preview.email
+                                                ]?.source === "dropbox" &&
+                                                  "Dropbox"}
+                                                {personalizedAttachmentMetadata[
+                                                  preview.email
+                                                ]?.source === "direct" &&
+                                                  "Direct Link"}
+                                              </Badge>
+                                              {personalizedAttachmentMetadata[
+                                                preview.email
+                                              ]?.fileSize && (
+                                                <span className="text-xs text-muted-foreground">
+                                                  {formatFileSize(
+                                                    personalizedAttachmentMetadata[
+                                                      preview.email
+                                                    ]?.fileSize || 0,
+                                                  )}
+                                                </span>
+                                              )}
+                                              {personalizedAttachmentMetadata[
+                                                preview.email
+                                              ]?.accessible && (
+                                                <Badge
+                                                  variant="secondary"
+                                                  className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                                                >
+                                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                                  Accessible
+                                                </Badge>
+                                              )}
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            setPreviewAttachmentUrl(
+                                              String(preview.data?.[pdfColumn]),
+                                            );
+                                            setShowAttachmentPreview(true);
+                                          }}
+                                          className="flex-shrink-0"
+                                        >
+                                          <Eye className="h-3 w-3 mr-1" />
+                                          Preview
+                                        </Button>
+                                      </div>
+                                      <p
+                                        className="text-xs text-muted-foreground mt-2 truncate"
+                                        title={String(preview.data[pdfColumn])}
+                                      >
+                                        {String(preview.data[pdfColumn])
+                                          .length > 60
+                                          ? String(
+                                              preview.data[pdfColumn],
+                                            ).substring(0, 60) + "..."
+                                          : String(preview.data[pdfColumn])}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <Badge
+                                      variant="default"
+                                      className="bg-blue-600 cursor-pointer"
+                                      title={String(preview.data[pdfColumn])}
+                                      onClick={() => {
+                                        setPreviewAttachmentUrl(
+                                          String(preview.data?.[pdfColumn]),
+                                        );
+                                        setShowAttachmentPreview(true);
+                                      }}
+                                    >
+                                      <FileText className="h-3 w-3 mr-1" />
+                                      {getFilenameFromUrl(
+                                        String(preview.data[pdfColumn]),
+                                      )}
+                                    </Badge>
+                                  )}
+                                </div>
                               )}
                           </div>
                         </div>
@@ -2732,6 +2963,174 @@ export function ComposeForm() {
         </DialogContent>
       </Dialog>
 
+      {/* Personalized Attachment Preview Modal */}
+      <Dialog
+        open={showAttachmentPreview}
+        onOpenChange={setShowAttachmentPreview}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Attachment Preview
+            </DialogTitle>
+            <DialogDescription>
+              Preview of the personalized attachment for this recipient
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {previewAttachmentUrl && (
+              <>
+                {/* Show metadata if available */}
+                {(() => {
+                  const preview = getPersonalizedContent(previewRecipientIndex);
+                  const metadata =
+                    personalizedAttachmentMetadata[preview.email];
+                  return metadata ? (
+                    <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        {metadata.fileType === "pdf" && (
+                          <FileText className="h-8 w-8 text-red-500" />
+                        )}
+                        {metadata.fileType === "image" && (
+                          <FileText className="h-8 w-8 text-green-500" />
+                        )}
+                        {metadata.fileType === "document" && (
+                          <FileText className="h-8 w-8 text-blue-500" />
+                        )}
+                        {metadata.fileType === "spreadsheet" && (
+                          <FileSpreadsheet className="h-8 w-8 text-green-600" />
+                        )}
+                        {metadata.fileType === "presentation" && (
+                          <FileText className="h-8 w-8 text-orange-500" />
+                        )}
+                        {metadata.fileType === "other" && (
+                          <Paperclip className="h-8 w-8 text-gray-500" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium">{metadata.fileName}</p>
+                        <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
+                          <span>
+                            {metadata.source === "google-drive" &&
+                              "Google Drive"}
+                            {metadata.source === "onedrive" && "OneDrive"}
+                            {metadata.source === "dropbox" && "Dropbox"}
+                            {metadata.source === "direct" && "Direct Link"}
+                          </span>
+                          {metadata.fileSize && (
+                            <>
+                              <span>•</span>
+                              <span>{formatFileSize(metadata.fileSize)}</span>
+                            </>
+                          )}
+                          {metadata.accessible && (
+                            <>
+                              <span>•</span>
+                              <span className="text-green-600 flex items-center gap-1">
+                                <CheckCircle className="h-3 w-3" />
+                                Accessible
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          window.open(previewAttachmentUrl, "_blank")
+                        }
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Open in New Tab
+                      </Button>
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Embedded preview */}
+                <div className="border rounded-lg overflow-hidden bg-white dark:bg-zinc-900">
+                  {previewAttachmentUrl.includes("drive.google.com") ||
+                  previewAttachmentUrl.includes("docs.google.com") ? (
+                    <div className="w-full h-[60vh]">
+                      <iframe
+                        src={getGooglePreviewUrl(previewAttachmentUrl)}
+                        className="w-full h-full border-0"
+                        title="Attachment Preview"
+                        sandbox="allow-scripts allow-same-origin"
+                      />
+                    </div>
+                  ) : previewAttachmentUrl.match(
+                      /\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i,
+                    ) ? (
+                    <div className="flex items-center justify-center p-8 max-h-[60vh] overflow-auto">
+                      <img
+                        src={previewAttachmentUrl}
+                        alt="Attachment preview"
+                        className="max-w-full max-h-full object-contain"
+                        onError={(e) => {
+                          e.currentTarget.style.display = "none";
+                          e.currentTarget.nextElementSibling?.classList.remove(
+                            "hidden",
+                          );
+                        }}
+                      />
+                      <div className="hidden text-center text-muted-foreground">
+                        <AlertCircle className="h-12 w-12 mx-auto mb-2" />
+                        <p>Could not load image preview</p>
+                      </div>
+                    </div>
+                  ) : previewAttachmentUrl.match(/\.pdf(\?|$)/i) ? (
+                    <div className="w-full h-[60vh]">
+                      <iframe
+                        src={previewAttachmentUrl}
+                        className="w-full h-full border-0"
+                        title="PDF Preview"
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <div className="p-4 bg-muted rounded-full mb-4">
+                        <Paperclip className="h-12 w-12 text-muted-foreground" />
+                      </div>
+                      <p className="text-lg font-medium mb-2">
+                        Preview Not Available
+                      </p>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        This file type cannot be previewed directly in the
+                        browser.
+                      </p>
+                      <Button
+                        variant="default"
+                        onClick={() =>
+                          window.open(previewAttachmentUrl, "_blank")
+                        }
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Open in New Tab to View
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-xs text-muted-foreground break-all">
+                  <strong>URL:</strong> {previewAttachmentUrl}
+                </p>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowAttachmentPreview(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Email Client Preview Modal */}
       <EmailClientPreview
         isOpen={showClientPreview}
@@ -2871,4 +3270,104 @@ function createGmailPreviewWrapper(htmlContent: string): string {
   ${htmlContent}
 </body>
 </html>`;
+}
+
+/**
+ * Extract filename from a URL for personalized attachments
+ * Tries to get the filename from the URL path, falls back to a shortened URL display
+ */
+function getFilenameFromUrl(url: string): string {
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split("/");
+    const lastPart = pathParts[pathParts.length - 1];
+
+    // If the last part looks like a filename with extension
+    if (lastPart && /\.[a-zA-Z0-9]{2,5}$/.test(lastPart)) {
+      const decoded = decodeURIComponent(lastPart);
+      // Truncate if too long
+      if (decoded.length > 30) {
+        const ext = decoded.substring(decoded.lastIndexOf("."));
+        return decoded.substring(0, 25) + "..." + ext;
+      }
+      return decoded;
+    }
+
+    // For Google Drive/Docs links, show service name
+    if (url.includes("drive.google.com") || url.includes("docs.google.com")) {
+      return "Google Drive File";
+    }
+    if (url.includes("dropbox.com") || url.includes("dropboxusercontent.com")) {
+      return "Dropbox File";
+    }
+    if (
+      url.includes("onedrive.live.com") ||
+      url.includes("sharepoint.com") ||
+      url.includes("1drv.ms")
+    ) {
+      return "OneDrive File";
+    }
+
+    // Fallback: show truncated domain + path
+    const host = urlObj.hostname.replace("www.", "");
+    const truncatedPath =
+      urlObj.pathname.length > 15
+        ? urlObj.pathname.substring(0, 12) + "..."
+        : urlObj.pathname;
+    return `${host}${truncatedPath}`;
+  } catch {
+    // If URL parsing fails, show truncated URL
+    if (url.length > 30) {
+      return url.substring(0, 27) + "...";
+    }
+    return url;
+  }
+}
+
+/**
+ * Format file size in a human-readable format
+ */
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
+
+/**
+ * Convert a Google Drive/Docs URL to a preview-able embed URL
+ */
+function getGooglePreviewUrl(url: string): string {
+  // Google Drive file URLs
+  const driveMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (driveMatch) {
+    return `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+  }
+
+  // Google Docs
+  const docMatch = url.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
+  if (docMatch) {
+    return `https://docs.google.com/document/d/${docMatch[1]}/preview`;
+  }
+
+  // Google Sheets
+  const sheetMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (sheetMatch) {
+    return `https://docs.google.com/spreadsheets/d/${sheetMatch[1]}/preview`;
+  }
+
+  // Google Slides
+  const slideMatch = url.match(/\/presentation\/d\/([a-zA-Z0-9_-]+)/);
+  if (slideMatch) {
+    return `https://docs.google.com/presentation/d/${slideMatch[1]}/preview`;
+  }
+
+  // Already a preview URL or fallback
+  if (url.includes("/preview")) {
+    return url;
+  }
+
+  // Use Google's document viewer for other URLs
+  return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
 }

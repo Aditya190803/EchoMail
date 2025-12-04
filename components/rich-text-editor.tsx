@@ -261,10 +261,10 @@ export function RichTextEditor({
             .replace(/<!--\[if[^\]]*\]>[\s\S]*?<!\[endif\]-->/gi, "")
             .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
             .replace(/class="Mso[^"]*"/gi, "")
-            // Clean up excessive whitespace between tags
-            .replace(/>\s{2,}</g, "> <")
-            // Keep formatting but remove excessive line breaks
-            .replace(/(<br\s*\/?>\s*){3,}/gi, "<br><br>")
+            // Remove mso-* styles but keep other inline styles
+            .replace(/mso-[^;:"]+:[^;:"]+;?/gi, "")
+            // Keep formatting but remove excessive line breaks (more than 3)
+            .replace(/(<br\s*\/?>\s*){4,}/gi, "<br><br><br>")
             .trim();
 
           // If the HTML was cleaned up, insert cleaned content
@@ -281,7 +281,7 @@ export function RichTextEditor({
         // Handle pasted text content with proper UTF-8 encoding
         const text = event.clipboardData?.getData("text/plain") || "";
         if (text && !htmlData) {
-          // Normalize and sanitize pasted text
+          // Normalize and sanitize pasted text (keep whitespace structure)
           const sanitized = text
             .normalize("NFC")
             .replace(/[\u2018\u2019]/g, "'")
@@ -289,16 +289,25 @@ export function RichTextEditor({
             .replace(/[\u2013\u2014]/g, "-")
             .replace(/[\u2026]/g, "...")
             .replace(/\r\n/g, "\n")
-            .replace(/\n{3,}/g, "\n\n")
-            .trim();
+            .replace(/\n{5,}/g, "\n\n\n\n"); // Only limit extremely excessive blank lines (5+)
 
-          // Convert to paragraphs for better formatting
-          if (sanitized.includes("\n\n")) {
-            const paragraphs = sanitized
-              .split("\n\n")
-              .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
-              .join("");
-            editor?.commands.insertContent(paragraphs);
+          // Convert to paragraphs - preserve line breaks properly
+          if (sanitized.includes("\n")) {
+            // Split by double newlines for paragraph breaks
+            const paragraphs = sanitized.split(/\n\n/).map((paragraph) => {
+              // Preserve empty paragraphs for spacing
+              if (paragraph.trim() === "") {
+                return "<p><br></p>";
+              }
+              // Within each paragraph, convert single newlines to <br>
+              // Don't trim lines to preserve intentional indentation
+              const withBreaks = paragraph
+                .split("\n")
+                .map((line) => line || "<br>") // Preserve empty lines as <br>
+                .join("<br>");
+              return `<p>${withBreaks}</p>`;
+            });
+            editor?.commands.insertContent(paragraphs.join(""));
             return true;
           }
         }
