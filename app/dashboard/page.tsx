@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Navbar } from "@/components/navbar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Mail,
   Send,
@@ -23,10 +31,35 @@ import {
   Zap,
   Target,
   BarChart3,
+  Eye,
+  Copy,
+  Download,
+  FileText,
+  ExternalLink,
+  Paperclip,
+  Search,
 } from "lucide-react";
 import Link from "next/link";
 import { campaignsService, EmailCampaign } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
+import { toast } from "sonner";
+
+// Helper to get authenticated attachment URL
+const getAttachmentUrl = (attachment: {
+  fileUrl?: string;
+  appwrite_file_id?: string;
+}) => {
+  if (attachment.appwrite_file_id) {
+    return `/api/appwrite/attachments/${attachment.appwrite_file_id}`;
+  }
+  if (attachment.fileUrl) {
+    const match = attachment.fileUrl.match(/\/files\/([^\/]+)\//);
+    if (match && match[1]) {
+      return `/api/appwrite/attachments/${match[1]}`;
+    }
+  }
+  return attachment.fileUrl || "#";
+};
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -34,6 +67,12 @@ export default function DashboardPage() {
   const [emailHistory, setEmailHistory] = useState<EmailCampaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  const [selectedCampaign, setSelectedCampaign] =
+    useState<EmailCampaign | null>(null);
+  const [recipientSearch, setRecipientSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<
+    "all" | "success" | "failed"
+  >("all");
 
   useEffect(() => {
     setIsMounted(true);
@@ -49,6 +88,103 @@ export default function DashboardPage() {
     } catch {
       return "Invalid date";
     }
+  };
+
+  // Helper function to safely get recipients as array
+  const getRecipientsArray = (recipients: any): string[] => {
+    if (Array.isArray(recipients)) {
+      return recipients;
+    }
+    if (typeof recipients === "string") {
+      return recipients
+        .split(",")
+        .map((email) => email.trim())
+        .filter((email) => email);
+    }
+    return [];
+  };
+
+  const copyEmailList = async (emails: string[]) => {
+    try {
+      await navigator.clipboard.writeText(emails.join(", "));
+      toast.success("Email list copied!");
+    } catch (err) {
+      componentLogger.error(
+        "Failed to copy emails",
+        err instanceof Error ? err : undefined,
+      );
+      toast.error("Failed to copy");
+    }
+  };
+
+  const downloadEmailList = (emails: string[], campaignSubject: string) => {
+    const csvContent = emails.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${campaignSubject.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_recipients.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    toast.success("Recipients exported!");
+  };
+
+  const duplicateCampaign = (campaign: EmailCampaign) => {
+    const duplicateData = {
+      subject: `${campaign.subject} (Copy)`,
+      content: campaign.content || "",
+      recipients: getRecipientsArray(campaign.recipients),
+      attachments: campaign.attachments || [],
+    };
+    sessionStorage.setItem("duplicateCampaign", JSON.stringify(duplicateData));
+    toast.success("Campaign data copied! Redirecting to compose...");
+    router.push("/compose");
+  };
+
+  const exportCampaignResults = (campaign: EmailCampaign) => {
+    const headers = ["Email", "Status", "Error Message", "Sent At"];
+    const rows: string[][] = [];
+
+    if (campaign.send_results && campaign.send_results.length > 0) {
+      campaign.send_results.forEach((result: any) => {
+        rows.push([
+          result.email || "",
+          result.success ? "Sent" : "Failed",
+          result.error || "",
+          result.timestamp || campaign.created_at || "",
+        ]);
+      });
+    } else {
+      getRecipientsArray(campaign.recipients).forEach((email) => {
+        rows.push([email, "Unknown", "", campaign.created_at || ""]);
+      });
+    }
+
+    const csvContent = [
+      `# Campaign: ${campaign.subject}`,
+      `# Sent: ${formatDate(campaign.created_at)}`,
+      `# Total Recipients: ${getRecipientsArray(campaign.recipients).length}`,
+      `# Successful: ${campaign.sent}`,
+      `# Failed: ${campaign.failed}`,
+      "",
+      headers.join(","),
+      ...rows.map((row) =>
+        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `campaign_results_${campaign.subject.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    toast.success("Campaign results exported!");
   };
 
   useEffect(() => {
@@ -454,8 +590,8 @@ export default function DashboardPage() {
                             {c.send_results.filter(
                               (r: any) => r.status !== "success" && r.error,
                             ).length > 3 && (
-                              <Link
-                                href="/history"
+                              <button
+                                onClick={() => setSelectedCampaign(c)}
                                 className="text-xs text-primary hover:underline"
                               >
                                 View all{" "}
@@ -465,11 +601,23 @@ export default function DashboardPage() {
                                   ).length
                                 }{" "}
                                 failures →
-                              </Link>
+                              </button>
                             )}
                           </div>
                         </div>
                       )}
+                    {/* View Details Button */}
+                    <div className="mt-4 pt-3 border-t">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => setSelectedCampaign(c)}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Details
+                      </Button>
+                    </div>
                   </div>
                 ))}
                 {emailHistory.length > 5 && (
@@ -487,6 +635,352 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </main>
+
+      {/* Full Campaign Details Modal */}
+      <Dialog
+        open={!!selectedCampaign}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedCampaign(null);
+            setRecipientSearch("");
+            setFilterStatus("all");
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="flex items-center gap-2">
+                  <Mail className="h-5 w-5 text-primary" />
+                  Campaign Details
+                </DialogTitle>
+                <DialogDescription>
+                  Full details and delivery information for this campaign
+                </DialogDescription>
+              </div>
+              {selectedCampaign && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => exportCampaignResults(selectedCampaign)}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Export Results
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      duplicateCampaign(selectedCampaign);
+                      setSelectedCampaign(null);
+                    }}
+                  >
+                    <Copy className="h-4 w-4 mr-2" />
+                    Duplicate
+                  </Button>
+                </div>
+              )}
+            </div>
+          </DialogHeader>
+
+          {selectedCampaign && (
+            <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+              {/* Campaign Header */}
+              <div className="bg-gradient-to-br from-primary/10 to-accent/10 rounded-xl p-5 space-y-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold">
+                      {selectedCampaign.subject}
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Sent on {formatDate(selectedCampaign.created_at)}
+                    </p>
+                  </div>
+                  <Badge
+                    variant={
+                      selectedCampaign.status === "completed"
+                        ? "success"
+                        : selectedCampaign.status === "sending"
+                          ? "warning"
+                          : "destructive"
+                    }
+                    className="capitalize"
+                  >
+                    {selectedCampaign.status}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-4 gap-3">
+                  <div className="bg-background rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-primary">
+                      {getRecipientsArray(selectedCampaign.recipients).length}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Total</div>
+                  </div>
+                  <div className="bg-background rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-success">
+                      {selectedCampaign.sent}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Sent</div>
+                  </div>
+                  <div className="bg-background rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-destructive">
+                      {selectedCampaign.failed}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Failed</div>
+                  </div>
+                  <div className="bg-background rounded-lg p-3 text-center">
+                    <div className="text-2xl font-bold text-secondary">
+                      {selectedCampaign.attachments?.length || 0}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Files</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Email Content */}
+              <div className="space-y-2">
+                <h4 className="font-medium flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                  Email Content
+                </h4>
+                <div className="bg-muted/50 border rounded-lg p-4 max-h-64 overflow-y-auto">
+                  {selectedCampaign.content ? (
+                    <div
+                      className="prose prose-sm max-w-none dark:prose-invert"
+                      dangerouslySetInnerHTML={{
+                        __html: selectedCampaign.content,
+                      }}
+                    />
+                  ) : (
+                    <p className="text-muted-foreground text-sm italic">
+                      No content preview available
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Attachments */}
+              {selectedCampaign.attachments &&
+                selectedCampaign.attachments.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Paperclip className="h-4 w-4 text-muted-foreground" />
+                      Attachments ({selectedCampaign.attachments.length})
+                    </h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedCampaign.attachments.map((attachment, index) => (
+                        <div
+                          key={index}
+                          className="bg-muted/50 border rounded-lg p-3 flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <FileText className="h-4 w-4 text-primary flex-shrink-0" />
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium truncate">
+                                {attachment.fileName}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {(attachment.fileSize / 1024 / 1024).toFixed(2)}{" "}
+                                MB
+                              </div>
+                            </div>
+                          </div>
+                          <Button variant="outline" size="icon-sm" asChild>
+                            <a
+                              href={getAttachmentUrl(attachment)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {/* Recipients */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    Recipients (
+                    {getRecipientsArray(selectedCampaign.recipients).length})
+                  </h4>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        copyEmailList(
+                          getRecipientsArray(selectedCampaign.recipients),
+                        )
+                      }
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        downloadEmailList(
+                          getRecipientsArray(selectedCampaign.recipients),
+                          selectedCampaign.subject,
+                        )
+                      }
+                    >
+                      <Download className="h-3 w-3 mr-1" />
+                      Export
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Search and Filter */}
+                <div className="flex gap-2">
+                  <Input
+                    icon={<Search className="h-4 w-4" />}
+                    placeholder="Search recipients..."
+                    value={recipientSearch}
+                    onChange={(e) => setRecipientSearch(e.target.value)}
+                    className="flex-1"
+                  />
+                  {selectedCampaign.send_results && (
+                    <div className="flex gap-1">
+                      <Button
+                        variant={filterStatus === "all" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setFilterStatus("all")}
+                      >
+                        All
+                      </Button>
+                      <Button
+                        variant={
+                          filterStatus === "success" ? "success" : "outline"
+                        }
+                        size="sm"
+                        onClick={() => setFilterStatus("success")}
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Sent
+                      </Button>
+                      <Button
+                        variant={
+                          filterStatus === "failed" ? "destructive" : "outline"
+                        }
+                        size="sm"
+                        onClick={() => setFilterStatus("failed")}
+                      >
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Failed
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Recipients List */}
+                <div className="bg-muted/50 border rounded-lg max-h-64 overflow-y-auto">
+                  {selectedCampaign.send_results &&
+                  selectedCampaign.send_results.length > 0 ? (
+                    <div className="divide-y divide-border">
+                      {selectedCampaign.send_results
+                        .filter((result: any) => {
+                          const email = result.email || "";
+                          const matchesSearch = email
+                            .toLowerCase()
+                            .includes(recipientSearch.toLowerCase());
+                          const matchesFilter =
+                            filterStatus === "all" ||
+                            (filterStatus === "success" &&
+                              result.status === "success") ||
+                            (filterStatus === "failed" &&
+                              result.status !== "success");
+                          return matchesSearch && matchesFilter;
+                        })
+                        .map((result: any, index: number) => (
+                          <div
+                            key={index}
+                            className="p-3 flex items-center justify-between hover:bg-muted/50"
+                          >
+                            <div className="flex items-center gap-3">
+                              {result.status === "success" ? (
+                                <CheckCircle className="h-4 w-4 text-success" />
+                              ) : (
+                                <XCircle className="h-4 w-4 text-destructive" />
+                              )}
+                              <div>
+                                <div className="text-sm font-medium">
+                                  {result.email}
+                                </div>
+                                {result.error && (
+                                  <div className="text-xs text-destructive">
+                                    {result.error}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <Badge
+                              variant={
+                                result.status === "success"
+                                  ? "success"
+                                  : "destructive"
+                              }
+                            >
+                              {result.status === "success"
+                                ? "Delivered"
+                                : "Failed"}
+                            </Badge>
+                          </div>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="p-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {getRecipientsArray(selectedCampaign.recipients)
+                          .filter((email) =>
+                            email
+                              .toLowerCase()
+                              .includes(recipientSearch.toLowerCase()),
+                          )
+                          .map((email, index) => (
+                            <div
+                              key={index}
+                              className="bg-background rounded-lg p-2 text-sm truncate border"
+                            >
+                              {email}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {recipientSearch &&
+                  (selectedCampaign.send_results
+                    ? selectedCampaign.send_results.filter((r: any) =>
+                        r.email
+                          ?.toLowerCase()
+                          .includes(recipientSearch.toLowerCase()),
+                      ).length === 0
+                    : getRecipientsArray(selectedCampaign.recipients).filter(
+                        (e) =>
+                          e
+                            .toLowerCase()
+                            .includes(recipientSearch.toLowerCase()),
+                      ).length === 0) && (
+                    <p className="text-center text-muted-foreground text-sm py-2">
+                      No recipients found matching "{recipientSearch}"
+                    </p>
+                  )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
