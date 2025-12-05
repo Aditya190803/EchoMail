@@ -146,7 +146,24 @@ export async function preBuildEmailTemplate(
 
   // Build the MIME body parts (everything that stays constant)
   const sanitizedHtmlBody = sanitizeEmailHTML(htmlBody);
-  const formattedHtmlBody = formatEmailHTML(sanitizedHtmlBody);
+  const zeroMarginCss =
+    '<style type="text/css">html,body{margin:0!important;padding:0!important;width:100%!important;}table{border-collapse:collapse!important;border-spacing:0!important;}p{margin:0!important;padding:0!important;}*{margin:0!important;padding:0!important;}</style>';
+
+  const formattedHtmlBody = [
+    "<!doctype html>",
+    "<html>",
+    "<head>",
+    zeroMarginCss,
+    "</head>",
+    '<body style="margin:0;padding:0;width:100%!important;">',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;border:0;border-collapse:collapse;border-spacing:0;mso-table-lspace:0pt;mso-table-rspace:0pt;width:100%!important;">',
+    '<tr><td style="margin:0;padding:0;border:0;">',
+    sanitizedHtmlBody,
+    "</td></tr>",
+    "</table>",
+    "</body>",
+    "</html>",
+  ].join("");
 
   const mixedBoundary = "----=_Part_" + Math.random().toString(36).substr(2, 9);
   const altBoundary = "----=_Alt_" + Math.random().toString(36).substr(2, 9);
@@ -165,6 +182,9 @@ export async function preBuildEmailTemplate(
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
+  const encodedPlainText = encodeQuotedPrintable(plainText);
+  const encodedHtmlBody = encodeQuotedPrintable(formattedHtmlBody);
+
   const encodedSubject = encodeSubject(subject);
 
   let bodyParts: string[];
@@ -180,13 +200,13 @@ export async function preBuildEmailTemplate(
       `Content-Type: text/plain; charset="UTF-8"`,
       `Content-Transfer-Encoding: quoted-printable`,
       "",
-      plainText,
+      encodedPlainText,
       "",
       `--${altBoundary}`,
       `Content-Type: text/html; charset="UTF-8"`,
       `Content-Transfer-Encoding: quoted-printable`,
       "",
-      formattedHtmlBody,
+      encodedHtmlBody,
       "",
       `--${altBoundary}--`,
     ];
@@ -225,19 +245,19 @@ export async function preBuildEmailTemplate(
       `Content-Type: text/plain; charset="UTF-8"`,
       `Content-Transfer-Encoding: quoted-printable`,
       "",
-      plainText,
+      encodedPlainText,
       "",
       `--${altBoundary}`,
       `Content-Type: text/html; charset="UTF-8"`,
       `Content-Transfer-Encoding: quoted-printable`,
       "",
-      formattedHtmlBody,
+      encodedHtmlBody,
       "",
       `--${altBoundary}--`,
     ];
   }
 
-  const bodyString = bodyParts.join("\n");
+  const bodyString = bodyParts.join("\r\n");
 
   cachedEmailTemplate = {
     fromEmail,
@@ -274,7 +294,7 @@ export async function sendEmailWithTemplate(
     `Subject: ${cachedEmailTemplate.subject}`,
     `MIME-Version: 1.0`,
     cachedEmailTemplate.bodyParts,
-  ].join("\n");
+  ].join("\r\n");
 
   // Encode for Gmail API
   const encodedEmail = Buffer.from(email, "utf8")
@@ -337,6 +357,69 @@ function sanitizeText(text: string): string {
     .normalize("NFC")
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201C\u201D]/g, '"');
+}
+
+// RFC 2045 quoted-printable encoder to keep long HTML lines intact for email clients
+export function encodeQuotedPrintable(input: string): string {
+  if (!input) return "";
+
+  const safeChar = (byte: number): boolean => {
+    return (
+      (byte >= 33 && byte <= 60) || // printable ASCII before '='
+      (byte >= 62 && byte <= 126)
+    );
+  };
+
+  const toHex = (byte: number): string => {
+    return "=" + byte.toString(16).toUpperCase().padStart(2, "0");
+  };
+
+  const encodeLine = (line: string): string => {
+    const bytes = Buffer.from(line, "utf8");
+    let encoded = "";
+    let currentLength = 0;
+
+    const lastNonWhitespaceIndex = (() => {
+      for (let j = bytes.length - 1; j >= 0; j--) {
+        if (bytes[j] !== 0x20 && bytes[j] !== 0x09) {
+          return j;
+        }
+      }
+      return -1;
+    })();
+
+    const pushChunk = (chunk: string) => {
+      if (currentLength + chunk.length > 75) {
+        encoded += "=\r\n";
+        currentLength = 0;
+      }
+
+      encoded += chunk;
+      currentLength += chunk.length;
+    };
+
+    for (let i = 0; i < bytes.length; i++) {
+      const byte = bytes[i];
+      const isSpaceOrTab = byte === 0x20 || byte === 0x09;
+      const isTrailingWhitespace = i > lastNonWhitespaceIndex;
+
+      if (!isSpaceOrTab && safeChar(byte) && byte !== 0x3d) {
+        pushChunk(String.fromCharCode(byte));
+        continue;
+      }
+
+      if (isSpaceOrTab && !isTrailingWhitespace) {
+        pushChunk(String.fromCharCode(byte));
+        continue;
+      }
+
+      pushChunk(toHex(byte));
+    }
+
+    return encoded;
+  };
+
+  return input.replace(/\r\n/g, "\n").split("\n").map(encodeLine).join("\r\n");
 }
 
 // Helper function to validate and sanitize email addresses
@@ -512,9 +595,26 @@ export async function sendEmailViaAPI(
   // Properly encode the subject line to handle UTF-8 characters
   const encodedSubject = encodeSubject(subject);
 
-  // Sanitize and format the HTML body to match Gmail's native format
+  // Sanitize and preserve authoring-time formatting
   const sanitizedHtmlBody = sanitizeEmailHTML(htmlBody);
-  const formattedHtmlBody = formatEmailHTML(sanitizedHtmlBody);
+  const zeroMarginCss =
+    '<style type="text/css">html,body{margin:0!important;padding:0!important;width:100%!important;}table{border-collapse:collapse!important;border-spacing:0!important;}p{margin:0!important;padding:0!important;}*{margin:0!important;padding:0!important;}</style>';
+
+  const formattedHtmlBody = [
+    "<!doctype html>",
+    "<html>",
+    "<head>",
+    zeroMarginCss,
+    "</head>",
+    '<body style="margin:0;padding:0;">',
+    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;border:0;border-collapse:collapse;border-spacing:0;mso-table-lspace:0pt;mso-table-rspace:0pt;width:100%;">',
+    '<tr><td style="margin:0;padding:0;border:0;">',
+    sanitizedHtmlBody,
+    "</td></tr>",
+    "</table>",
+    "</body>",
+    "</html>",
+  ].join("");
 
   // Build email in Gmail's native format
   // Gmail sends emails with multipart/alternative (text + html) wrapped in multipart/mixed if attachments
@@ -535,6 +635,9 @@ export async function sendEmailViaAPI(
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
+  const encodedPlainText = encodeQuotedPrintable(plainText);
+  const encodedHtmlBody = encodeQuotedPrintable(formattedHtmlBody);
+
   let email: string[];
 
   if (attachments && attachments.length > 0) {
@@ -553,13 +656,13 @@ export async function sendEmailViaAPI(
       `Content-Type: text/plain; charset="UTF-8"`,
       `Content-Transfer-Encoding: quoted-printable`,
       "",
-      plainText,
+      encodedPlainText,
       "",
       `--${altBoundary}`,
       `Content-Type: text/html; charset="UTF-8"`,
       `Content-Transfer-Encoding: quoted-printable`,
       "",
-      formattedHtmlBody,
+      encodedHtmlBody,
       "",
       `--${altBoundary}--`,
     ];
@@ -618,20 +721,20 @@ export async function sendEmailViaAPI(
       `Content-Type: text/plain; charset="UTF-8"`,
       `Content-Transfer-Encoding: quoted-printable`,
       "",
-      plainText,
+      encodedPlainText,
       "",
       `--${altBoundary}`,
       `Content-Type: text/html; charset="UTF-8"`,
       `Content-Transfer-Encoding: quoted-printable`,
       "",
-      formattedHtmlBody,
+      encodedHtmlBody,
       "",
       `--${altBoundary}--`,
     ];
   }
 
   // Explicitly encode as UTF-8 to handle international characters properly
-  const encodedEmail = Buffer.from(email.join("\n"), "utf8")
+  const encodedEmail = Buffer.from(email.join("\r\n"), "utf8")
     .toString("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
