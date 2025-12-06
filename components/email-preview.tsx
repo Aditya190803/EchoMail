@@ -301,7 +301,7 @@ function createGmailPreviewWrapper(htmlContent: string): string {
     h4 { font-size: 1em; font-weight: bold; margin: 1em 0; }
     
     /* Paragraphs and divs */
-    p, div { margin: 0.5em 0; word-wrap: break-word; overflow-wrap: break-word; }
+    p, div { margin: 0; padding: 0 0 0.5em 0; line-height: 1.5; word-wrap: break-word; overflow-wrap: break-word; }
     
     /* Lists */
     ul, ol { padding-left: 1.5em; margin: 0.5em 0; }

@@ -12,6 +12,30 @@ type MJML2HTMLFunction = (
   options?: Record<string, unknown>,
 ) => MJMLResult;
 
+// Shared typography defaults so editor, preview, and sent mail match
+const BASE_LINE_HEIGHT = 1.5;
+const BASE_FONT_FAMILY = "Arial, sans-serif";
+const BASE_FONT_SIZE = "14px";
+
+// Safely appends inline styles while preserving any existing style attribute
+function applyInlineStyle(attrs: string, style: string): string {
+  const trimmed = attrs || "";
+
+  // If there's already a style attribute, append to it
+  const styleMatch = trimmed.match(/\sstyle="([^"]*)"/i);
+  if (styleMatch) {
+    const existing = styleMatch[1].trim();
+    const combined = existing
+      ? `${existing}${existing.endsWith(";") ? " " : "; "}${style}`
+      : style;
+    return trimmed.replace(styleMatch[0], ` style="${combined}"`);
+  }
+
+  // Otherwise, just add a style attribute
+  const needsSpace = trimmed && !/^\s/.test(trimmed) ? " " : "";
+  return `${trimmed}${needsSpace}style="${style}"`;
+}
+
 // MJML import only on server side
 let mjml2html: MJML2HTMLFunction | null = null;
 if (typeof window === "undefined") {
@@ -51,15 +75,24 @@ export function formatEmailHTML(htmlContent: string): string {
 function formatAsGmailNative(htmlContent: string): string {
   let processedContent = htmlContent;
 
+  const paragraphStyle = `margin: 0; padding: 0 0 0.5em 0; line-height: ${BASE_LINE_HEIGHT};`;
+  const spacerStyle = `margin: 0; padding: 0; line-height: ${BASE_LINE_HEIGHT}; min-height: ${BASE_LINE_HEIGHT}em;`;
+
   // Convert editor classes and tags to Gmail-compatible inline styles
   processedContent = processedContent
     // Convert <p> tags to Gmail-style divs with proper spacing
-    .replace(/<p([^>]*)>/gi, '<div$1 style="margin: 0.5em 0;">')
+    .replace(
+      /<p([^>]*)>/gi,
+      (_match, attrs) => `<div${applyInlineStyle(attrs, paragraphStyle)}>`,
+    )
     .replace(/<\/p>/gi, "</div>")
 
-    // Ensure empty lines become <div><br></div> like Gmail does
-    .replace(/<div><\/div>/gi, "<div><br></div>")
-    .replace(/<div>\s*<\/div>/gi, "<div><br></div>")
+    // Normalize empty lines so they keep their own vertical space (no margin collapse)
+    .replace(
+      /<div([^>]*)>\s*(?:<br\s*\/?>(?:\s*&nbsp;)?\s*)*<\/div>/gi,
+      (_match, attrs) =>
+        `<div${applyInlineStyle(attrs, spacerStyle)}>&nbsp;</div>`,
+    )
 
     // Style headings
     .replace(
@@ -156,7 +189,7 @@ function formatAsGmailNative(htmlContent: string): string {
     .trim();
 
   // Gmail's native email format - wrapped in dir="ltr" div
-  return `<div dir="ltr" style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #222222;">${processedContent}</div>`;
+  return `<div dir="ltr" style="font-family: ${BASE_FONT_FAMILY}; font-size: ${BASE_FONT_SIZE}; line-height: ${BASE_LINE_HEIGHT}; color: #222222;">${processedContent}</div>`;
 }
 
 /**
