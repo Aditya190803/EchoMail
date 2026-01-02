@@ -98,16 +98,10 @@ body {
   outline: none;
 }
 
+/* Remove paragraph margins - line breaks are controlled by <br> tags */
 .ProseMirror p {
-  margin: 0.5em 0;
-}
-
-.ProseMirror p:first-child {
-  margin-top: 0;
-}
-
-.ProseMirror p:last-child {
-  margin-bottom: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .ProseMirror p:empty {
@@ -115,20 +109,25 @@ body {
 }
 
 .ProseMirror p:empty::before {
-  content: '';
+  content: "";
   display: inline-block;
 }
 
 /* Reduce excessive spacing between elements */
-.ProseMirror h1, .ProseMirror h2, .ProseMirror h3 {
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3 {
   margin: 0.8em 0 0.4em 0;
 }
 
-.ProseMirror h1:first-child, .ProseMirror h2:first-child, .ProseMirror h3:first-child {
+.ProseMirror h1:first-child,
+.ProseMirror h2:first-child,
+.ProseMirror h3:first-child {
   margin-top: 0;
 }
 
-.ProseMirror ul, .ProseMirror ol {
+.ProseMirror ul,
+.ProseMirror ol {
   margin: 0.5em 0;
   padding-left: 1.5em;
 }
