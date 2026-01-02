@@ -1,0 +1,451 @@
+/**
+ * Email Formatting Utilities
+ *
+ * Shared utility functions for email formatting.
+ * Contains emoji conversion, HTML sanitization, and validation.
+ */
+
+import type { EmojiMap, ValidationResult } from "./types";
+
+// ============================================================================
+// EMOJI HANDLING
+// ============================================================================
+
+/**
+ * Common emoji name to Unicode character mapping
+ * Used as fallback when parsing emoji images with named sources
+ */
+export const EMOJI_NAME_MAP: EmojiMap = {
+  // Faces
+  smile: "😊",
+  grin: "😀",
+  laugh: "😂",
+  joy: "😂",
+  wink: "😉",
+  blush: "😊",
+  heart_eyes: "😍",
+  love: "😍",
+  cool: "😎",
+  sunglasses: "😎",
+  thinking: "🤔",
+  neutral: "😐",
+  expressionless: "😑",
+  unamused: "😒",
+  sweat: "😅",
+  worried: "😟",
+  cry: "😢",
+  sob: "😭",
+  angry: "😠",
+  rage: "😡",
+  scream: "😱",
+  flushed: "😳",
+  dizzy: "😵",
+  mask: "😷",
+  clown: "🤡",
+  poop: "💩",
+  ghost: "👻",
+  skull: "💀",
+  alien: "👽",
+  robot: "🤖",
+  cat: "🐱",
+  dog: "🐶",
+  monkey: "🐵",
+
+  // Gestures
+  "thumbs-up": "👍",
+  thumbsup: "👍",
+  "+1": "👍",
+  "thumbs-down": "👎",
+  thumbsdown: "👎",
+  "-1": "👎",
+  clap: "👏",
+  wave: "👋",
+  ok: "👌",
+  ok_hand: "👌",
+  point_up: "☝️",
+  point_down: "👇",
+  point_left: "👈",
+  point_right: "👉",
+  raised_hands: "🙌",
+  pray: "🙏",
+  handshake: "🤝",
+  muscle: "💪",
+  fist: "✊",
+
+  // Hearts & Symbols
+  heart: "❤️",
+  red_heart: "❤️",
+  orange_heart: "🧡",
+  yellow_heart: "💛",
+  green_heart: "💚",
+  blue_heart: "💙",
+  purple_heart: "💜",
+  black_heart: "🖤",
+  white_heart: "🤍",
+  broken_heart: "💔",
+  sparkling_heart: "💖",
+  heartbeat: "💓",
+  heartpulse: "💗",
+  two_hearts: "💕",
+  star: "⭐",
+  stars: "🌟",
+  sparkles: "✨",
+
+  // Objects
+  fire: "🔥",
+  flame: "🔥",
+  check: "✅",
+  checkmark: "✅",
+  white_check_mark: "✅",
+  cross: "❌",
+  x: "❌",
+  warning: "⚠️",
+  info: "ℹ️",
+  question: "❓",
+  exclamation: "❗",
+  rocket: "🚀",
+  email: "📧",
+  mail: "📧",
+  envelope: "✉️",
+  party: "🎉",
+  tada: "🎉",
+  confetti: "🎊",
+  balloon: "🎈",
+  gift: "🎁",
+  trophy: "🏆",
+  medal: "🏅",
+  crown: "👑",
+  gem: "💎",
+  money: "💰",
+  moneybag: "💰",
+  dollar: "💵",
+  bulb: "💡",
+  idea: "💡",
+  book: "📖",
+  books: "📚",
+  pencil: "✏️",
+  memo: "📝",
+  calendar: "📅",
+  clock: "🕐",
+  hourglass: "⏳",
+  phone: "📱",
+  computer: "💻",
+  keyboard: "⌨️",
+
+  // Nature
+  sun: "☀️",
+  sunny: "☀️",
+  moon: "🌙",
+  cloud: "☁️",
+  rain: "🌧️",
+  rainbow: "🌈",
+  snowflake: "❄️",
+  zap: "⚡",
+  lightning: "⚡",
+  earth: "🌍",
+  globe: "🌎",
+  tree: "🌳",
+  flower: "🌸",
+  rose: "🌹",
+
+  // Food
+  coffee: "☕",
+  tea: "🍵",
+  beer: "🍺",
+  wine: "🍷",
+  pizza: "🍕",
+  burger: "🍔",
+  fries: "🍟",
+  cake: "🎂",
+  cookie: "🍪",
+  apple: "🍎",
+  banana: "🍌",
+};
+
+/**
+ * Pre-compiled regex patterns for emoji conversion
+ * Compiled once at module load for performance
+ */
+const EMOJI_PATTERNS = {
+  // Emoji images with alt text and emoji class
+  altWithClass: /<img[^>]*alt="([^"]*)"[^>]*class="[^"]*emoji[^"]*"[^>]*>/gi,
+  classWithAlt: /<img[^>]*class="[^"]*emoji[^"]*"[^>]*alt="([^"]*)"[^>]*>/gi,
+
+  // Emoji images with data-emoji attribute
+  dataEmoji: /<img[^>]*data-emoji="([^"]*)"[^>]*>/gi,
+  dataEmojiWithAlt: /<img[^>]*data-emoji="[^"]*"[^>]*alt="([^"]*)"[^>]*>/gi,
+  altWithDataEmoji: /<img[^>]*alt="([^"]*)"[^>]*data-emoji="[^"]*"[^>]*>/gi,
+
+  // TipTap editor emoji images (emoji in src path)
+  srcEmojiWithAlt: /<img[^>]*src="[^"]*emoji[^"]*"[^>]*alt="([^"]*)"[^>]*>/gi,
+  altWithSrcEmoji: /<img[^>]*alt="([^"]*)"[^>]*src="[^"]*emoji[^"]*"[^>]*>/gi,
+
+  // Unicode code point in filename (e.g., /1f600.png)
+  unicodeInPath:
+    /<img[^>]*src="[^"]*[/\\]([0-9a-f]{4,6})\.(?:png|svg|gif)"[^>]*>/gi,
+
+  // Unicode with 'u' prefix in filename (e.g., /u1f600.png)
+  unicodeWithPrefix:
+    /<img[^>]*src="[^"]*\/u([0-9a-f]{4,6})\.(?:png|svg|gif)"[^>]*>/gi,
+
+  // Named emoji in path (e.g., /emoji/smile.png)
+  namedEmoji:
+    /<img[^>]*src="[^"]*emoji[^"]*[/\\]([^"\/\\]+)\.(?:png|svg|gif)"[^>]*>/gi,
+
+  // Fallback: Remove any remaining emoji images
+  emojiClassOnly: /<img[^>]*class="[^"]*emoji[^"]*"[^>]*>/gi,
+  emojiInTag: /<img[^>]*emoji[^>]*>/gi,
+  emojiInSrc: /<img[^>]*src="[^"]*emoji[^"]*"[^>]*>/gi,
+} as const;
+
+/**
+ * Converts emoji images to Unicode text characters
+ *
+ * This is the single source of truth for emoji conversion.
+ * Handles various emoji image formats from different editors.
+ *
+ * @param html - HTML string potentially containing emoji images
+ * @returns HTML with emoji images converted to Unicode text
+ */
+export function convertEmojisToUnicode(html: string): string {
+  if (!html) return "";
+
+  let result = html;
+
+  // 1. Convert emoji images with alt text (most common case)
+  result = result
+    .replace(EMOJI_PATTERNS.altWithClass, "$1")
+    .replace(EMOJI_PATTERNS.classWithAlt, "$1");
+
+  // 2. Convert images with data-emoji attribute
+  result = result
+    .replace(EMOJI_PATTERNS.dataEmojiWithAlt, "$1")
+    .replace(EMOJI_PATTERNS.altWithDataEmoji, "$1")
+    .replace(EMOJI_PATTERNS.dataEmoji, "$1");
+
+  // 3. Convert TipTap editor emoji images
+  result = result
+    .replace(EMOJI_PATTERNS.srcEmojiWithAlt, "$1")
+    .replace(EMOJI_PATTERNS.altWithSrcEmoji, "$1");
+
+  // 4. Convert Unicode code points in filenames
+  result = result
+    .replace(EMOJI_PATTERNS.unicodeInPath, (_match, unicode) => {
+      try {
+        return String.fromCodePoint(parseInt(unicode, 16));
+      } catch {
+        return "";
+      }
+    })
+    .replace(EMOJI_PATTERNS.unicodeWithPrefix, (_match, unicode) => {
+      try {
+        return String.fromCodePoint(parseInt(unicode, 16));
+      } catch {
+        return "";
+      }
+    });
+
+  // 5. Convert named emojis using lookup map
+  result = result.replace(
+    EMOJI_PATTERNS.namedEmoji,
+    (_match, emojiName: string) => {
+      const normalizedName = emojiName.toLowerCase().replace(/[-_]/g, "_");
+      return (
+        EMOJI_NAME_MAP[normalizedName] ||
+        EMOJI_NAME_MAP[emojiName.toLowerCase()] ||
+        ""
+      );
+    },
+  );
+
+  // 6. Remove any remaining emoji images that couldn't be converted
+  result = result
+    .replace(EMOJI_PATTERNS.emojiClassOnly, "")
+    .replace(EMOJI_PATTERNS.emojiInTag, "")
+    .replace(EMOJI_PATTERNS.emojiInSrc, "");
+
+  return result;
+}
+
+// ============================================================================
+// HTML SANITIZATION
+// ============================================================================
+
+/**
+ * Pre-compiled regex patterns for HTML sanitization
+ */
+const SANITIZE_PATTERNS = {
+  // Security: Remove dangerous content
+  scriptTags: /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+  eventHandlers: /\s(on\w+)=["'][^"']*["']/gi,
+  javascriptUrls: /\sjavascript:[^"\s>]*/gi,
+
+  // Editor-specific classes to remove
+  editorClasses: /class="editor-[^"]*"/gi,
+  proseMirrorClasses: /class="ProseMirror[^"]*"/gi,
+  codeBlockClass: /class="code-block"/gi,
+  blockquoteClass: /class="blockquote"/gi,
+  hrClass: /class="hr"/gi,
+  emailTableClass: /class="email-table"/gi,
+  selectedCellClass: /class="selectedCell"/gi,
+  proseClasses: /class="[^"]*(?:prose|max-w-none)[^"]*"/gi,
+
+  // Gmail-forwarded complex tables
+  gmailTableClasses: /class="[^"]*m_[0-9]+[^"]*"/gi,
+
+  // Whitespace cleanup
+  multipleSpaces: /[ \t]+/g,
+  excessiveNewlines: /\n\s*\n\s*\n+/g,
+} as const;
+
+/**
+ * Sanitizes HTML content for email safety
+ *
+ * Removes dangerous content (scripts, event handlers) and
+ * editor-specific classes that won't work in email clients.
+ *
+ * @param html - HTML content to sanitize
+ * @returns Sanitized HTML safe for email
+ */
+export function sanitizeHTML(html: string): string {
+  if (!html) return "";
+
+  let result = html;
+
+  // 1. Remove dangerous content (security)
+  result = result
+    .replace(SANITIZE_PATTERNS.scriptTags, "")
+    .replace(SANITIZE_PATTERNS.eventHandlers, "")
+    .replace(SANITIZE_PATTERNS.javascriptUrls, "");
+
+  // 2. Remove editor-specific classes
+  result = result
+    .replace(SANITIZE_PATTERNS.editorClasses, "")
+    .replace(SANITIZE_PATTERNS.proseMirrorClasses, "")
+    .replace(SANITIZE_PATTERNS.codeBlockClass, "")
+    .replace(SANITIZE_PATTERNS.blockquoteClass, "")
+    .replace(SANITIZE_PATTERNS.hrClass, "")
+    .replace(SANITIZE_PATTERNS.emailTableClass, "")
+    .replace(SANITIZE_PATTERNS.selectedCellClass, "")
+    .replace(SANITIZE_PATTERNS.proseClasses, "");
+
+  // 3. Handle Gmail-forwarded complex tables
+  if (result.includes("m_") && result.includes("<table")) {
+    result = simplifyComplexTables(result);
+  }
+
+  // 4. Clean up whitespace
+  result = result
+    .replace(SANITIZE_PATTERNS.multipleSpaces, " ")
+    .replace(SANITIZE_PATTERNS.excessiveNewlines, "\n\n")
+    .trim();
+
+  return result;
+}
+
+/**
+ * Simplifies complex Gmail-forwarded table structures to divs
+ */
+function simplifyComplexTables(html: string): string {
+  return html
+    .replace(/<td[^>]*class="[^"]*m_[0-9]+[^"]*"[^>]*>/gi, "<div>")
+    .replace(/<\/td>/gi, "</div>")
+    .replace(/<table[^>]*class="[^"]*m_[0-9]+[^"]*"[^>]*>/gi, "<div>")
+    .replace(/<\/table>/gi, "</div>")
+    .replace(/<tbody[^>]*>/gi, "")
+    .replace(/<\/tbody>/gi, "")
+    .replace(/<tr[^>]*>/gi, "<div>")
+    .replace(/<\/tr>/gi, "</div>")
+    .replace(SANITIZE_PATTERNS.gmailTableClasses, "")
+    .replace(/<div>\s*<div>/gi, "<div>")
+    .replace(/<\/div>\s*<\/div>/gi, "</div>");
+}
+
+// ============================================================================
+// VALIDATION
+// ============================================================================
+
+/**
+ * Validates email HTML content
+ *
+ * Checks for security issues, empty content, and other problems
+ * that would prevent the email from being sent properly.
+ *
+ * @param html - HTML content to validate
+ * @returns Validation result with errors and warnings
+ */
+export function validateEmailContent(html: string): ValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // Check for empty content
+  if (!html || html.trim() === "") {
+    errors.push("Email content is empty");
+    return { isValid: false, errors, warnings };
+  }
+
+  // Check for dangerous content
+  if (/<script/i.test(html)) {
+    errors.push("Script tags are not allowed in email content");
+  }
+
+  if (/javascript:/i.test(html)) {
+    errors.push("JavaScript URLs are not allowed in email content");
+  }
+
+  if (/\son\w+\s*=/i.test(html)) {
+    warnings.push("Event handlers will be removed from email content");
+  }
+
+  // Check for potential rendering issues
+  if (/<iframe/i.test(html)) {
+    warnings.push("Iframes are not supported in most email clients");
+  }
+
+  if (/<form/i.test(html)) {
+    warnings.push("Forms are not supported in most email clients");
+  }
+
+  if (/<video|<audio/i.test(html)) {
+    warnings.push(
+      "Video and audio elements are not supported in most email clients",
+    );
+  }
+
+  // Check for excessive size
+  if (html.length > 100000) {
+    warnings.push(
+      "Email content is very large and may be truncated by some email clients",
+    );
+  }
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+    warnings,
+  };
+}
+
+// ============================================================================
+// LEGACY ALIASES (for backward compatibility during migration)
+// ============================================================================
+
+/**
+ * @deprecated Use convertEmojisToUnicode instead
+ */
+export const convertEmojiImagesToText = convertEmojisToUnicode;
+
+/**
+ * @deprecated Use convertEmojisToUnicode instead
+ */
+export const cleanupEmojiImages = convertEmojisToUnicode;
+
+/**
+ * @deprecated Use sanitizeHTML instead
+ */
+export const sanitizeEmailHTML = sanitizeHTML;
+
+/**
+ * @deprecated Use sanitizeHTML instead
+ */
+export const sanitizeBasicHTML = sanitizeHTML;
