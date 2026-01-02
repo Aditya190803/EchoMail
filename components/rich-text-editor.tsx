@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cleanupEmojiImages } from "@/lib/email-formatter-client";
+import { convertEmojisToUnicode } from "@/lib/email-formatting/client";
 import {
   Bold,
   Italic,
@@ -210,9 +210,13 @@ export function RichTextEditor({
         types: ["heading", "paragraph"],
       }),
       Link.configure({
-        openOnClick: false,
+        openOnClick: false, // Don't open on regular click (allows editing)
+        autolink: true, // Automatically detect and convert URLs to links
+        linkOnPaste: true, // Convert pasted URLs to links
         HTMLAttributes: {
           class: "text-blue-600 underline cursor-pointer",
+          target: "_blank",
+          rel: "noopener noreferrer nofollow",
         },
       }),
       Image.configure({
@@ -248,68 +252,135 @@ export function RichTextEditor({
           "font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #222222; word-spacing: normal; letter-spacing: normal;",
       },
       handlePaste: (view, event) => {
-        // Handle pasted HTML content
         const htmlData = event.clipboardData?.getData("text/html") || "";
-        if (htmlData) {
-          // Clean up emoji images in pasted HTML
-          let cleanedHtml = cleanupEmojiImages(htmlData);
+        const textData = event.clipboardData?.getData("text/plain") || "";
 
-          // Preserve important formatting but clean up messy HTML
+        // Handle HTML content (from Gmail, other rich sources)
+        if (htmlData) {
+          // Clean up emoji images in pasted HTML, but preserve all other formatting
+          let cleanedHtml = convertEmojisToUnicode(htmlData);
+
+          // Clean up HTML while preserving formatting
           cleanedHtml = cleanedHtml
+            // Remove everything before the body content (meta tags, style, head, etc.)
+            .replace(/^[\s\S]*?<body[^>]*>/i, "")
+            .replace(/<\/body>[\s\S]*$/i, "")
             // Remove Word/Office specific tags
             .replace(/<o:p[^>]*>[\s\S]*?<\/o:p>/gi, "")
-            .replace(/<!--\[if[^\]]*\]>[\s\S]*?<!\[endif\]-->/gi, "")
+            .replace(/<!--[\s\S]*?-->/g, "") // Remove all HTML comments
             .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+            .replace(/<meta[^>]*>/gi, "")
             .replace(/class="Mso[^"]*"/gi, "")
             // Remove mso-* styles but keep other inline styles
             .replace(/mso-[^;:"]+:[^;:"]+;?/gi, "")
-            // Keep formatting but remove excessive line breaks (more than 3)
-            .replace(/(<br\s*\/?>\s*){4,}/gi, "<br><br><br>")
+            // Remove Gmail-specific wrapper classes but keep the content
+            .replace(/class="gmail_[^"]*"/gi, "")
+
+            // CRITICAL: Remove Gmail's layout tables (they use tables for email layout)
+            // This must happen before other processing
+            .replace(/<table[^>]*>[\s\S]*?<tbody[^>]*>/gi, "")
+            .replace(/<\/tbody>[\s\S]*?<\/table>/gi, "")
+            .replace(/<\/?table[^>]*>/gi, "")
+            .replace(/<\/?tbody[^>]*>/gi, "")
+            .replace(/<\/?thead[^>]*>/gi, "")
+            .replace(/<\/?tfoot[^>]*>/gi, "")
+            .replace(/<\/?tr[^>]*>/gi, "")
+            .replace(/<\/?td[^>]*>/gi, "")
+            .replace(/<\/?th[^>]*>/gi, "")
+
+            // IMPORTANT: Remove ALL trailing <br> tags inside divs/paragraphs BEFORE converting boundaries
+            // Gmail often adds <br><br> at end of lines which would create extra newlines
+            .replace(/(<br\s*\/?>\s*)+<\/div>/gi, "</div>")
+            .replace(/(<br\s*\/?>\s*)+<\/p>/gi, "</p>")
+
+            // Also handle <p><br></p> which Gmail uses for blank lines - convert to single marker
+            .replace(/<p[^>]*>\s*(<br\s*\/?>\s*)+<\/p>/gi, "{{BLANK_LINE}}")
+
+            // Convert Gmail's div-based structure to line breaks
+            // Gmail wraps each line in <div>content</div>
+            .replace(/<\/div>\s*<div[^>]*>/gi, "\n")
+            .replace(/<div[^>]*>\s*<\/div>/gi, "\n")
+            .replace(/<\/?div[^>]*>/gi, "")
+
+            // Convert <p> tags to line breaks
+            .replace(/<\/p>\s*<p[^>]*>/gi, "\n")
+            .replace(/<\/?p[^>]*>/gi, "")
+
+            // Convert blank line markers to double newline
+            .replace(/\{\{BLANK_LINE\}\}/g, "\n")
+
+            // Convert remaining <br> to newlines (for mid-line breaks like Shift+Enter)
+            .replace(/<br\s*\/?>/gi, "\n")
+
+            // Clean up whitespace-only lines that create extra spacing
+            .replace(/\n\s+\n/g, "\n\n")
+
+            // Normalize multiple newlines - STRICT: only allow double for intentional blank lines
+            .replace(/\n{2,}/g, "\n\n")
+            // Remove leading/trailing newlines
+            .replace(/^\n+/, "")
+            .replace(/\n+$/, "")
+
+            // Ensure links have proper attributes
+            .replace(/<a\s+([^>]*href="[^"]*"[^>]*)>/gi, (match, attrs) => {
+              if (!attrs.includes("target=")) {
+                attrs += ' target="_blank"';
+              }
+              if (!attrs.includes("rel=")) {
+                attrs += ' rel="noopener noreferrer nofollow"';
+              }
+              return `<a ${attrs}>`;
+            })
             .trim();
 
-          // If the HTML was cleaned up, insert cleaned content
-          if (cleanedHtml && cleanedHtml !== htmlData) {
-            editor?.commands.insertContent(cleanedHtml, {
-              parseOptions: {
-                preserveWhitespace: "full",
-              },
-            });
-            return true; // Prevent default paste behavior
+          if (cleanedHtml) {
+            // Convert newlines back to TipTap-compatible structure
+            // Use insertContentAt to insert at cursor position
+            const lines = cleanedHtml.split("\n");
+
+            if (lines.length === 1) {
+              // Single line - just insert the content inline
+              editor?.commands.insertContent(cleanedHtml);
+            } else {
+              // Multiple lines - insert with proper line break handling
+              // Join with hard breaks for TipTap
+              const content = lines
+                .map((line, index) => {
+                  if (index === lines.length - 1) {
+                    return line;
+                  }
+                  return line + "<br>";
+                })
+                .join("");
+
+              editor?.commands.insertContent(content);
+            }
+            return true;
           }
         }
 
-        // Handle pasted text content with proper UTF-8 encoding
-        const text = event.clipboardData?.getData("text/plain") || "";
-        if (text && !htmlData) {
-          // Normalize and sanitize pasted text (keep whitespace structure)
-          const sanitized = text
+        // Handle plain text pasting (no HTML available)
+        if (textData && !htmlData) {
+          const sanitized = textData
             .normalize("NFC")
             .replace(/[\u2018\u2019]/g, "'")
             .replace(/[\u201C\u201D]/g, '"')
             .replace(/[\u2013\u2014]/g, "-")
             .replace(/[\u2026]/g, "...")
-            .replace(/\r\n/g, "\n")
-            .replace(/\n{5,}/g, "\n\n\n\n"); // Only limit extremely excessive blank lines (5+)
+            .replace(/\r\n/g, "\n");
 
-          // Convert to paragraphs - preserve line breaks properly
-          if (sanitized.includes("\n")) {
-            // Split by double newlines for paragraph breaks
-            const paragraphs = sanitized.split(/\n\n/).map((paragraph) => {
-              // Preserve empty paragraphs for spacing
-              if (paragraph.trim() === "") {
-                return "<p><br></p>";
+          const lines = sanitized.split("\n");
+          const content = lines
+            .map((line, index) => {
+              if (index === lines.length - 1) {
+                return line;
               }
-              // Within each paragraph, convert single newlines to <br>
-              // Don't trim lines to preserve intentional indentation
-              const withBreaks = paragraph
-                .split("\n")
-                .map((line) => line || "<br>") // Preserve empty lines as <br>
-                .join("<br>");
-              return `<p>${withBreaks}</p>`;
-            });
-            editor?.commands.insertContent(paragraphs.join(""));
-            return true;
-          }
+              return line + "<br>";
+            })
+            .join("");
+
+          editor?.commands.insertContent(content);
+          return true;
         }
 
         return false;
