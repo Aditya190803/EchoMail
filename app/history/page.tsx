@@ -45,7 +45,7 @@ import { campaignsService, EmailCampaign } from "@/lib/appwrite";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { componentLogger } from "@/lib/client-logger";
-import { getEmailPreviewHTML } from "@/lib/email-formatter-client";
+import { getEmailPreview } from "@/lib/email-formatting/client";
 
 interface HistoryData {
   totalCampaigns: number;
@@ -218,9 +218,7 @@ export default function HistoryPage() {
 
       setIsLoadingPreview(true);
       try {
-        const formattedHtml = await getEmailPreviewHTML(
-          selectedCampaign.content,
-        );
+        const formattedHtml = await getEmailPreview(selectedCampaign.content);
         setFormattedPreviewHtml(createGmailPreviewWrapper(formattedHtml));
       } catch (error) {
         componentLogger.error(

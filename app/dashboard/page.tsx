@@ -43,7 +43,7 @@ import {
 import Link from "next/link";
 import { campaignsService, EmailCampaign } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
-import { getEmailPreviewHTML } from "@/lib/email-formatter-client";
+import { getEmailPreview } from "@/lib/email-formatting/client";
 import { toast } from "sonner";
 
 // Helper to get authenticated attachment URL
@@ -211,9 +211,7 @@ export default function DashboardPage() {
 
       setIsLoadingPreview(true);
       try {
-        const formattedHtml = await getEmailPreviewHTML(
-          selectedCampaign.content,
-        );
+        const formattedHtml = await getEmailPreview(selectedCampaign.content);
         setFormattedPreviewHtml(createGmailPreviewWrapper(formattedHtml));
       } catch (error) {
         componentLogger.error(

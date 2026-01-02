@@ -1,4 +1,4 @@
-import { formatEmailHTML, sanitizeEmailHTML } from "./email-formatter";
+import { formatForEmail, sanitizeHTML } from "./email-formatting";
 import { serverStorageService } from "./appwrite-server";
 import { emailLogger } from "./logger";
 
@@ -145,7 +145,7 @@ export async function preBuildEmailTemplate(
   const fromEmail = userProfile.emailAddress;
 
   // Build the MIME body parts (everything that stays constant)
-  const sanitizedHtmlBody = sanitizeEmailHTML(htmlBody);
+  const sanitizedHtmlBody = sanitizeHTML(htmlBody);
   const zeroMarginCss =
     '<style type="text/css">html,body{margin:0!important;padding:0!important;width:100%!important;}table{border-collapse:collapse!important;border-spacing:0!important;}p{margin:0!important;padding:0!important;}*{margin:0!important;padding:0!important;}</style>';
 
@@ -596,7 +596,7 @@ export async function sendEmailViaAPI(
   const encodedSubject = encodeSubject(subject);
 
   // Sanitize and preserve authoring-time formatting
-  const sanitizedHtmlBody = sanitizeEmailHTML(htmlBody);
+  const sanitizedHtmlBody = sanitizeHTML(htmlBody);
   const zeroMarginCss =
     '<style type="text/css">html,body{margin:0!important;padding:0!important;width:100%!important;}table{border-collapse:collapse!important;border-spacing:0!important;}p{margin:0!important;padding:0!important;}*{margin:0!important;padding:0!important;}</style>';
 

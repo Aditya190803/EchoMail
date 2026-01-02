@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  formatEmailHTML,
-  convertEmojiImagesToText,
-} from "@/lib/email-formatter";
+import { formatForEmail, convertEmojisToUnicode } from "@/lib/email-formatting";
 import { apiLogger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
@@ -18,10 +15,10 @@ export async function POST(request: NextRequest) {
 
     // Test emoji conversion first
     const originalContent = htmlContent;
-    const contentWithTextEmojis = convertEmojiImagesToText(htmlContent);
+    const contentWithTextEmojis = convertEmojisToUnicode(htmlContent);
 
-    // Format with MJML (server-side)
-    const formattedHTML = formatEmailHTML(htmlContent);
+    // Format for email
+    const formattedHTML = formatForEmail(htmlContent);
 
     return NextResponse.json({
       success: true,
@@ -37,9 +34,6 @@ export async function POST(request: NextRequest) {
         emojiImagesRemoved:
           !contentWithTextEmojis.includes("<img") ||
           !contentWithTextEmojis.includes("emoji"),
-        isMjmlCompiled:
-          formattedHTML.includes("mj-") ||
-          formattedHTML.length > originalContent.length * 2,
       },
     });
   } catch (error) {

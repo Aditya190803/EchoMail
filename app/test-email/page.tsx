@@ -9,7 +9,7 @@ import {
   config,
   testAppwriteConnection,
 } from "@/lib/appwrite";
-import { convertEmojiImagesToText } from "@/lib/email-formatter-client";
+import { convertEmojisToUnicode } from "@/lib/email-formatting/client";
 import Link from "next/link";
 
 export default function TestEmailPage() {
@@ -289,7 +289,7 @@ The email will now render with proper spacing and consistent typography across a
     } catch (error) {
       // Fallback to client-side testing
       const originalWithEmojis = sampleHTML;
-      const convertedEmojis = convertEmojiImagesToText(sampleHTML);
+      const convertedEmojis = convertEmojisToUnicode(sampleHTML);
       const hasEmojiImages =
         originalWithEmojis.includes("<img") &&
         originalWithEmojis.includes("emoji");

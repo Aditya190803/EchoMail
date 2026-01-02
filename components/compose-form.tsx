@@ -36,7 +36,7 @@ import {
 } from "@/lib/appwrite";
 import { useEmailSend } from "@/hooks/useEmailSend";
 import { detectPdfColumn, isPdfUrl } from "@/lib/attachment-fetcher";
-import { getEmailPreviewHTML } from "@/lib/email-formatter-client";
+import { getEmailPreview } from "@/lib/email-formatting/client";
 import { toast } from "sonner";
 import type { CSVRow } from "@/types/email";
 import {
@@ -989,7 +989,7 @@ export function ComposeForm() {
       setIsLoadingPreview(true);
 
       try {
-        const formattedHtml = await getEmailPreviewHTML(preview.content);
+        const formattedHtml = await getEmailPreview(preview.content);
         // Wrap in Gmail-like preview wrapper
         const wrappedHtml = createGmailPreviewWrapper(formattedHtml);
         setFormattedPreviewHtml(wrappedHtml);

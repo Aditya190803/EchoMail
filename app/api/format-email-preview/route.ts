@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { formatEmailHTML } from "@/lib/email-formatter";
+import { formatForEmail } from "@/lib/email-formatting";
 import { apiLogger } from "@/lib/logger";
 
-// App Router configuration for faster processing
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -17,28 +16,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Debug: Log if content contains emoji images
-    const hasEmojiImages =
-      htmlContent.includes("<img") &&
-      (htmlContent.includes("emoji") ||
-        htmlContent.includes("data-emoji") ||
-        htmlContent.match(/<img[^>]*alt="[^"]*"/gi));
-
-    const formattedHTML = formatEmailHTML(htmlContent);
+    const formattedHTML = formatForEmail(htmlContent);
 
     return NextResponse.json({
       success: true,
       formattedHTML,
       originalLength: htmlContent.length,
       formattedLength: formattedHTML.length,
-      debug: {
-        hadEmojiImages: hasEmojiImages,
-        originalSnippet: htmlContent.substring(0, 200),
-        processedSnippet: formattedHTML.substring(
-          formattedHTML.indexOf("<body>") + 6,
-          formattedHTML.indexOf("<body>") + 206,
-        ),
-      },
     });
   } catch (error) {
     apiLogger.error(
