@@ -1,6 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { Button } from "../components/ui/button";
 import { Mail, Send, Loader2, Plus, Trash2 } from "lucide-react";
+
+import { Button } from "../components/ui/button";
+
+import type { Meta, StoryObj } from "@storybook/react";
 
 /**
  * The Button component is a versatile interactive element used for triggering actions.

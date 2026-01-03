@@ -1,14 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+
 import {
   Monitor,
   Smartphone,
@@ -18,6 +11,15 @@ import {
   X,
   Loader2,
 } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 
 interface EmailClientPreviewProps {
   subject: string;
@@ -146,7 +148,9 @@ export function EmailClientPreview({
   const [deviceType, setDeviceType] = useState<DeviceType>("desktop");
   const [isLoading, setIsLoading] = useState(false);
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return null;
+  }
 
   const clientConfig = EMAIL_CLIENTS[selectedClient];
   const deviceConfig = DEVICE_SIZES[deviceType];

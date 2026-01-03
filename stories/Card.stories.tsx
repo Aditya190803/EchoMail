@@ -1,4 +1,7 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import { Mail, Users, Calendar, CheckCircle } from "lucide-react";
+
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
 import {
   Card,
   CardContent,
@@ -7,9 +10,8 @@ import {
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { Badge } from "../components/ui/badge";
-import { Mail, Users, Calendar, CheckCircle } from "lucide-react";
+
+import type { Meta, StoryObj } from "@storybook/react";
 
 /**
  * Cards are flexible containers for displaying content and actions on a single topic.

@@ -1,6 +1,8 @@
-import type { Meta, StoryObj } from "@storybook/react";
-import { Badge } from "../components/ui/badge";
 import { CheckCircle, Clock, XCircle, AlertCircle, Send } from "lucide-react";
+
+import { Badge } from "../components/ui/badge";
+
+import type { Meta, StoryObj } from "@storybook/react";
 
 /**
  * Badges are small status descriptors for UI elements.

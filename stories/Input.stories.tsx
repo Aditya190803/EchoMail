@@ -1,8 +1,11 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import { useState } from "react";
+
+import { Mail, Search as SearchIcon, Lock, Eye, EyeOff } from "lucide-react";
+
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { Mail, Search as SearchIcon, Lock, Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+
+import type { Meta, StoryObj } from "@storybook/react";
 
 /**
  * Input component for text entry. Supports various types and states.

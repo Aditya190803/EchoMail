@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Mail, Heart } from "lucide-react";
+
+import { Mail } from "lucide-react";
 
 export function Footer() {
   const currentYear = new Date().getFullYear();
@@ -101,11 +102,6 @@ export function Footer() {
         <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
             © {currentYear} EchoMail. All rights reserved.
-          </p>
-          <p className="text-sm text-muted-foreground flex items-center gap-1">
-            Made with{" "}
-            <Heart className="h-4 w-4 text-destructive fill-destructive" /> for
-            privacy-first email campaigns
           </p>
         </div>
       </div>

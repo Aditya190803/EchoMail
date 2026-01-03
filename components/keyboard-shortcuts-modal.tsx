@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+
+import { Keyboard } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,8 +13,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Keyboard } from "lucide-react";
 
 interface ShortcutCategory {
   name: string;
@@ -24,13 +26,12 @@ const KEYBOARD_SHORTCUTS: ShortcutCategory[] = [
   {
     name: "Navigation",
     shortcuts: [
-      { keys: ["Ctrl/⌘", "K"], description: "Open command palette" },
+      { keys: ["Ctrl/⌘", "Shift", "N"], description: "New Campaign" },
+      { keys: ["Ctrl/⌘", "Shift", "H"], description: "Go to Dashboard" },
+      { keys: ["Ctrl/⌘", "Shift", "C"], description: "Go to Contacts" },
+      { keys: ["Ctrl/⌘", "Shift", "A"], description: "Go to Analytics" },
       { keys: ["Ctrl/⌘", "/"], description: "Show keyboard shortcuts" },
-      { keys: ["G", "C"], description: "Go to Compose" },
-      { keys: ["G", "D"], description: "Go to Dashboard" },
-      { keys: ["G", "T"], description: "Go to Templates" },
-      { keys: ["G", "H"], description: "Go to History" },
-      { keys: ["G", "S"], description: "Go to Settings" },
+      { keys: ["Shift", "?"], description: "Show keyboard shortcuts" },
     ],
   },
   {

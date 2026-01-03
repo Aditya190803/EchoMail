@@ -1,29 +1,25 @@
 "use client";
 
 import type React from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
-import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import TextAlign from "@tiptap/extension-text-align";
-import Link from "@tiptap/extension-link";
-import Image from "@tiptap/extension-image";
-import Underline from "@tiptap/extension-underline";
-import { TextStyle } from "@tiptap/extension-text-style";
 import Color from "@tiptap/extension-color";
 import Highlight from "@tiptap/extension-highlight";
+import Image from "@tiptap/extension-image";
+import Link from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
 import {
   Table,
   TableRow,
   TableCell,
   TableHeader,
 } from "@tiptap/extension-table";
-import Placeholder from "@tiptap/extension-placeholder";
+import TextAlign from "@tiptap/extension-text-align";
+import { TextStyle } from "@tiptap/extension-text-style";
 import Typography from "@tiptap/extension-typography";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { convertEmojisToUnicode } from "@/lib/email-formatting/client";
+import Underline from "@tiptap/extension-underline";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
 import {
   Bold,
   Italic,
@@ -50,13 +46,18 @@ import {
   Trash2,
   ChevronDown,
 } from "lucide-react";
-import { useState, useCallback, useEffect, useRef } from "react";
+
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { convertEmojisToUnicode } from "@/lib/email-formatting/client";
 
 interface RichTextEditorProps {
   content: string;
@@ -1072,7 +1073,9 @@ export function RichTextEditor({
                 className="text-xs h-8"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
-                  if (file) handleImageUpload(file);
+                  if (file) {
+                    handleImageUpload(file);
+                  }
                 }}
               />
             </div>

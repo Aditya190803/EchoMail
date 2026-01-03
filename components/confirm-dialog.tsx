@@ -1,5 +1,8 @@
 "use client";
 
+import type { ReactNode } from "react";
+import { useState, useCallback, createContext, useContext } from "react";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -10,13 +13,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  useState,
-  useCallback,
-  createContext,
-  useContext,
-  ReactNode,
-} from "react";
 
 /**
  * Confirmation dialog options

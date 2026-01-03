@@ -1,13 +1,21 @@
 "use client";
 
 import type React from "react";
+import { useState, useCallback } from "react";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Upload, X } from "lucide-react";
+import { Upload, X, AlertTriangle } from "lucide-react";
 import Papa from "papaparse";
+
+import { Button } from "@/components/ui/button";
 import { csvLogger } from "@/lib/client-logger";
 import type { CSVRow } from "@/types/email";
+
+// Maximum file size in bytes (10MB)
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+// Maximum number of rows to process at once
+const MAX_ROWS = 50000;
+// Chunk size for processing large files
+const CHUNK_SIZE = 1000;
 
 interface CSVUploadProps {
   onDataLoad: (data: CSVRow[]) => void;
@@ -17,9 +25,77 @@ interface CSVUploadProps {
 export function CSVUpload({ onDataLoad, csvData }: CSVUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [warning, setWarning] = useState<string | null>(null);
+
+  const processChunk = useCallback(
+    (
+      rows: CSVRow[],
+      emailKey: string,
+      accumulatedRows: CSVRow[],
+      onComplete: (validRows: CSVRow[]) => void,
+    ) => {
+      // Process rows in chunks to avoid blocking the main thread
+      const processNextChunk = (startIndex: number) => {
+        const endIndex = Math.min(startIndex + CHUNK_SIZE, rows.length);
+
+        for (let i = startIndex; i < endIndex; i++) {
+          const row = rows[i];
+          if (!row || typeof row !== "object") {
+            continue;
+          }
+
+          // Create normalized row with 'email' key
+          const normalizedRow: CSVRow = { ...row };
+          if (emailKey !== "email" && row[emailKey as keyof CSVRow]) {
+            normalizedRow.email = row[emailKey as keyof CSVRow] as string;
+          }
+          // Ensure email field exists
+          if (!normalizedRow.email) {
+            normalizedRow.email = "";
+          }
+
+          const email = normalizedRow.email;
+          if (
+            email &&
+            typeof email === "string" &&
+            email.trim().length > 0 &&
+            email.includes("@")
+          ) {
+            accumulatedRows.push(normalizedRow);
+          }
+        }
+
+        setProgress(Math.round((endIndex / rows.length) * 100));
+
+        if (endIndex < rows.length) {
+          // Schedule next chunk with requestAnimationFrame to keep UI responsive
+          requestAnimationFrame(() => processNextChunk(endIndex));
+        } else {
+          onComplete(accumulatedRows);
+        }
+      };
+
+      processNextChunk(0);
+    },
+    [],
+  );
 
   const handleFileUpload = (file: File) => {
     setError(null);
+    setWarning(null);
+    setProgress(0);
+
+    // Check file size
+    if (file.size > MAX_FILE_SIZE) {
+      setError(
+        `File too large. Maximum size is ${MAX_FILE_SIZE / 1024 / 1024}MB. Your file is ${(file.size / 1024 / 1024).toFixed(2)}MB.`,
+      );
+      return;
+    }
+
+    setIsProcessing(true);
 
     Papa.parse(file, {
       complete: (results) => {
@@ -94,44 +170,41 @@ export function CSVUpload({ onDataLoad, csvData }: CSVUploadProps) {
 
           csvLogger.debug("Found email column", { emailKey });
 
-          // Normalize the data to use 'email' as the key and validate
-          const validRows = data
-            .map((row) => {
-              if (!row || typeof row !== "object") return null;
-
-              // Create normalized row with 'email' key
-              const normalizedRow: CSVRow = { email: "", ...row };
-              if (emailKey !== "email" && row[emailKey]) {
-                normalizedRow.email = row[emailKey];
-              }
-
-              return normalizedRow;
-            })
-            .filter((row) => {
-              if (!row) return false;
-              const email = row.email;
-              return (
-                email &&
-                typeof email === "string" &&
-                email.trim().length > 0 &&
-                email.includes("@")
-              );
-            }) as CSVRow[];
-
-          csvLogger.debug("Valid CSV rows", { count: validRows.length });
-
-          if (validRows.length === 0) {
-            setError(
-              `No valid email addresses found. Found column "${emailKey}" but no valid email addresses. Make sure emails contain @ symbol.`,
+          // Check row count and warn if large
+          if (data.length > MAX_ROWS) {
+            setWarning(
+              `Large file detected. Processing first ${MAX_ROWS.toLocaleString()} rows only.`,
             );
-            return;
+            data.length = MAX_ROWS;
           }
 
-          onDataLoad(validRows);
-          csvLogger.info(`Successfully loaded contacts from CSV`, {
-            count: validRows.length,
-          });
+          // Use chunked processing for better memory management
+          const accumulatedRows: CSVRow[] = [];
+          processChunk(
+            data as CSVRow[],
+            emailKey,
+            accumulatedRows,
+            (validRows) => {
+              setIsProcessing(false);
+              setProgress(100);
+
+              csvLogger.debug("Valid CSV rows", { count: validRows.length });
+
+              if (validRows.length === 0) {
+                setError(
+                  `No valid email addresses found. Found column "${emailKey}" but no valid email addresses. Make sure emails contain @ symbol.`,
+                );
+                return;
+              }
+
+              onDataLoad(validRows);
+              csvLogger.info(`Successfully loaded contacts from CSV`, {
+                count: validRows.length,
+              });
+            },
+          );
         } catch (err) {
+          setIsProcessing(false);
           csvLogger.error(
             "Error processing CSV",
             err instanceof Error ? err : undefined,
@@ -142,6 +215,7 @@ export function CSVUpload({ onDataLoad, csvData }: CSVUploadProps) {
       header: true,
       skipEmptyLines: true,
       error: (error) => {
+        setIsProcessing(false);
         csvLogger.error(
           "Papa Parse error",
           error instanceof Error ? error : undefined,
@@ -186,13 +260,49 @@ export function CSVUpload({ onDataLoad, csvData }: CSVUploadProps) {
         </div>
       )}
 
+      {warning && (
+        <div className="mb-3 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-start gap-2">
+          <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs text-yellow-600 dark:text-yellow-400">
+              {warning}
+            </p>
+            <button
+              onClick={() => setWarning(null)}
+              className="text-xs text-yellow-500 dark:text-yellow-400 underline mt-1"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isProcessing && (
+        <div className="mb-3 p-2 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-blue-600 dark:text-blue-400">
+              Processing CSV...
+            </p>
+            <span className="text-xs text-blue-600 dark:text-blue-400">
+              {progress}%
+            </span>
+          </div>
+          <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-1.5">
+            <div
+              className="bg-blue-600 dark:bg-blue-400 h-1.5 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {csvData.length === 0 ? (
         <div
           className={`border-2 border-dashed rounded-lg p-3 text-center transition-colors ${
             isDragging
               ? "border-blue-400 bg-blue-50 dark:bg-blue-900/30"
               : "border-gray-300 dark:border-gray-600"
-          }`}
+          } ${isProcessing ? "opacity-50 pointer-events-none" : ""}`}
           onDragOver={(e) => {
             e.preventDefault();
             setIsDragging(true);
@@ -205,16 +315,21 @@ export function CSVUpload({ onDataLoad, csvData }: CSVUploadProps) {
           <p className="text-[10px] text-gray-600 dark:text-gray-400 mb-2">
             Drag and drop your CSV file here, or click to browse
           </p>
+          <p className="text-[10px] text-gray-500 dark:text-gray-500 mb-2">
+            Max file size: {MAX_FILE_SIZE / 1024 / 1024}MB • Max rows:{" "}
+            {MAX_ROWS.toLocaleString()}
+          </p>
           <input
             type="file"
             accept=".csv"
             onChange={handleFileInput}
             className="hidden"
             id="csv-upload"
+            disabled={isProcessing}
           />
-          <Button asChild size="sm" className="h-7">
+          <Button asChild size="sm" className="h-7" disabled={isProcessing}>
             <label htmlFor="csv-upload" className="cursor-pointer text-xs">
-              Choose File
+              {isProcessing ? "Processing..." : "Choose File"}
             </label>
           </Button>
         </div>

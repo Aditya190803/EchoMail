@@ -1,13 +1,15 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Eye, Send, X, Paperclip, Loader2, CheckCircle2 } from "lucide-react";
-import type { PersonalizedEmail } from "@/types/email";
 import { useState, useEffect } from "react";
+
+import { Eye, Send, X, Paperclip, Loader2, CheckCircle2 } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { componentLogger } from "@/lib/client-logger";
+import type { PersonalizedEmail } from "@/types/email";
 
 interface EmailPreviewProps {
   emails: PersonalizedEmail[];
@@ -138,6 +140,16 @@ export function EmailPreview({
         </CardHeader>
 
         <CardContent className="space-y-3 p-4">
+          {/* Email rendering disclaimer */}
+          <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800 text-xs">
+            <p className="text-amber-800 dark:text-amber-200">
+              <strong>Note:</strong> This preview approximates how your email
+              will appear. Actual rendering may vary across different email
+              clients (Gmail, Outlook, Apple Mail, etc.) due to their unique
+              HTML/CSS support.
+            </p>
+          </div>
+
           {loadingPreviews && (
             <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl mb-4 border border-blue-100 dark:border-blue-800">
               <div className="flex items-center gap-3 mb-3">

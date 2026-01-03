@@ -1,44 +1,9 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useSession } from "next-auth/react";
+
 import { useRouter, useSearchParams } from "next/navigation";
-import { useBeforeUnload } from "@/hooks/useBeforeUnload";
-import { componentLogger } from "@/lib/client-logger";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RichTextEditor } from "@/components/rich-text-editor";
-import { CSVUpload } from "@/components/csv-upload";
-import { EmailClientPreview } from "@/components/email-client-preview";
-import {
-  contactsService,
-  campaignsService,
-  templatesService,
-  contactGroupsService,
-  draftEmailsService,
-  signaturesService,
-  unsubscribesService,
-  type EmailTemplate,
-  type ContactGroup,
-  type EmailSignature,
-} from "@/lib/appwrite";
-import { useEmailSend } from "@/hooks/useEmailSend";
-import { detectPdfColumn, isPdfUrl } from "@/lib/attachment-fetcher";
-import { getEmailPreview } from "@/lib/email-formatting/client";
-import { toast } from "sonner";
-import type { CSVRow } from "@/types/email";
+
 import {
   Send,
   Paperclip,
@@ -71,6 +36,23 @@ import {
   Monitor,
   Smartphone,
 } from "lucide-react";
+import { useSession } from "next-auth/react";
+import { toast } from "sonner";
+
+import {
+  LazyRichTextEditor,
+  LazyCSVUpload,
+  LazyEmailClientPreview,
+} from "@/components/lazy-components";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -80,6 +62,29 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
+import { useEmailSend } from "@/hooks/useEmailSend";
+import {
+  contactsService,
+  campaignsService,
+  templatesService,
+  contactGroupsService,
+  draftEmailsService,
+  signaturesService,
+  unsubscribesService,
+  type EmailTemplate,
+  type ContactGroup,
+  type EmailSignature,
+} from "@/lib/appwrite";
+import { detectPdfColumn, isPdfUrl } from "@/lib/attachment-fetcher";
+import { componentLogger } from "@/lib/client-logger";
+import { getEmailPreview } from "@/lib/email-formatting/client";
+import type { CSVRow } from "@/types/email";
 
 // Draft storage key
 const DRAFT_STORAGE_KEY = "echomail_draft";
@@ -171,7 +176,9 @@ export function ComposeForm() {
 
   // Sync toggle with pdfColumn state
   useEffect(() => {
-    if (pdfColumn) setShowPersonalizedAttachments(true);
+    if (pdfColumn) {
+      setShowPersonalizedAttachments(true);
+    }
   }, [pdfColumn]);
 
   // Preview state
@@ -495,7 +502,9 @@ export function ComposeForm() {
   // Load contacts, groups, and signatures
   useEffect(() => {
     const loadContactsGroupsAndSignatures = async () => {
-      if (!session?.user?.email) return;
+      if (!session?.user?.email) {
+        return;
+      }
 
       try {
         const [contactsResponse, groupsResponse, signaturesResponse] =
@@ -528,7 +537,9 @@ export function ComposeForm() {
 
   // Load templates
   const loadTemplates = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {
+      return;
+    }
 
     setIsLoadingTemplates(true);
     try {
@@ -564,9 +575,15 @@ export function ComposeForm() {
   const getTimeAgo = (date: Date): string => {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
 
-    if (seconds < 60) return "just now";
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+    if (seconds < 60) {
+      return "just now";
+    }
+    if (seconds < 3600) {
+      return `${Math.floor(seconds / 60)} minutes ago`;
+    }
+    if (seconds < 86400) {
+      return `${Math.floor(seconds / 3600)} hours ago`;
+    }
     return `${Math.floor(seconds / 86400)} days ago`;
   };
 
@@ -639,7 +656,9 @@ export function ComposeForm() {
   // - Large files (>=5MB): Upload to Appwrite in background
   // - Update state when ready
   const handleFileUpload = async (files: FileList) => {
-    if (!files.length) return;
+    if (!files.length) {
+      return;
+    }
 
     // Immediately add files as "processing" state
     const processingAttachments: any[] = [];
@@ -826,7 +845,9 @@ export function ComposeForm() {
   // Toggle group selection
   const toggleGroup = (groupId: string) => {
     const group = groups.find((g) => g.$id === groupId);
-    if (!group) return;
+    if (!group) {
+      return;
+    }
 
     const newSelectedGroups = new Set(selectedGroups);
     const newSelectedContacts = new Set(selectedContacts);
@@ -899,7 +920,9 @@ export function ComposeForm() {
 
     // Add to CSV data for personalization
     const data: Record<string, string> = { email };
-    if (name) data.name = name;
+    if (name) {
+      data.name = name;
+    }
     setCsvData((prev) => [...prev, data]);
     if (csvHeaders.length === 0) {
       setCsvHeaders(["email", "name"]);
@@ -983,7 +1006,9 @@ export function ComposeForm() {
   // Load formatted preview HTML when preview tab is active
   useEffect(() => {
     const loadFormattedPreview = async () => {
-      if (activeTab !== "preview") return;
+      if (activeTab !== "preview") {
+        return;
+      }
 
       const preview = getPersonalizedContent(previewRecipientIndex);
       setIsLoadingPreview(true);
@@ -1020,15 +1045,21 @@ export function ComposeForm() {
   // Fetch personalized attachment metadata when preview tab is active
   useEffect(() => {
     const fetchAttachmentMetadata = async () => {
-      if (activeTab !== "preview" || !pdfColumn) return;
+      if (activeTab !== "preview" || !pdfColumn) {
+        return;
+      }
 
       const preview = getPersonalizedContent(previewRecipientIndex);
       const attachmentUrl = preview.data?.[pdfColumn];
 
-      if (!attachmentUrl || !isPdfUrl(String(attachmentUrl))) return;
+      if (!attachmentUrl || !isPdfUrl(String(attachmentUrl))) {
+        return;
+      }
 
       // Check if we already have metadata for this recipient
-      if (personalizedAttachmentMetadata[preview.email]) return;
+      if (personalizedAttachmentMetadata[preview.email]) {
+        return;
+      }
 
       setIsLoadingAttachmentMetadata(true);
 
@@ -1583,7 +1614,9 @@ export function ComposeForm() {
                 open={showTemplateDialog}
                 onOpenChange={(open) => {
                   setShowTemplateDialog(open);
-                  if (open) loadTemplates();
+                  if (open) {
+                    loadTemplates();
+                  }
                 }}
               >
                 <DialogTrigger asChild>
@@ -1737,7 +1770,7 @@ export function ComposeForm() {
 
           <div className="space-y-2">
             <Label>Email Body</Label>
-            <RichTextEditor
+            <LazyRichTextEditor
               content={content}
               onChange={setContent}
               placeholder="Compose your email..."
@@ -1852,8 +1885,9 @@ export function ComposeForm() {
                 checked={showPersonalizedAttachments}
                 onCheckedChange={(checked) => {
                   setShowPersonalizedAttachments(checked);
-                  if (!checked) setPdfColumn(null);
-                  else if (csvHeaders.length > 0 && !pdfColumn) {
+                  if (!checked) {
+                    setPdfColumn(null);
+                  } else if (csvHeaders.length > 0 && !pdfColumn) {
                     // Try to auto-detect or default to first
                     const detected = detectPdfColumn(csvHeaders);
                     setPdfColumn(detected || csvHeaders[0]);
@@ -2093,7 +2127,7 @@ export function ComposeForm() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <CSVUpload onDataLoad={handleCsvData} csvData={csvData} />
+              <LazyCSVUpload onDataLoad={handleCsvData} csvData={csvData} />
               {csvData.length > 0 && (
                 <div className="mt-4 space-y-3">
                   <Badge variant="success">{csvData.length} rows loaded</Badge>
@@ -3132,7 +3166,7 @@ export function ComposeForm() {
       </Dialog>
 
       {/* Email Client Preview Modal */}
-      <EmailClientPreview
+      <LazyEmailClientPreview
         isOpen={showClientPreview}
         onClose={() => setShowClientPreview(false)}
         subject={subject}
@@ -3328,7 +3362,9 @@ function getFilenameFromUrl(url: string): string {
  * Format file size in a human-readable format
  */
 function formatFileSize(bytes: number): string {
-  if (bytes === 0) return "0 B";
+  if (bytes === 0) {
+    return "0 B";
+  }
   const k = 1024;
   const sizes = ["B", "KB", "MB", "GB"];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
