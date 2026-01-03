@@ -1,32 +1,10 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Navbar } from "@/components/navbar";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+
+import { useRouter } from "next/navigation";
+
+import { format } from "date-fns";
 import {
   UserX,
   Plus,
@@ -38,9 +16,34 @@ import {
   ArrowLeft,
   UserCheck,
 } from "lucide-react";
-import { unsubscribesService, type Unsubscribe } from "@/lib/appwrite";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { format } from "date-fns";
+
+import { Navbar } from "@/components/navbar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { unsubscribesService, type Unsubscribe } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 
 export default function UnsubscribesPage() {
@@ -65,7 +68,7 @@ export default function UnsubscribesPage() {
   }, [status, router]);
 
   const fetchUnsubscribes = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     setIsLoading(true);
     try {
@@ -82,12 +85,12 @@ export default function UnsubscribesPage() {
   }, [session?.user?.email]);
 
   useEffect(() => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
     fetchUnsubscribes();
   }, [session?.user?.email, fetchUnsubscribes]);
 
   const addUnsubscribe = async () => {
-    if (!session?.user?.email || !newEmail.trim()) return;
+    if (!session?.user?.email || !newEmail.trim()) {return;}
 
     // Validate email
     if (!newEmail.includes("@")) {
@@ -159,7 +162,7 @@ export default function UnsubscribesPage() {
 
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !session?.user?.email) return;
+    if (!file || !session?.user?.email) {return;}
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -223,7 +226,7 @@ export default function UnsubscribesPage() {
     );
   }
 
-  if (status === "unauthenticated") return null;
+  if (status === "unauthenticated") {return null;}
 
   const filteredUnsubscribes = unsubscribes.filter((u) =>
     u.email.toLowerCase().includes(searchTerm.toLowerCase()),

@@ -1,12 +1,10 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { AuthButton } from "@/components/auth-button";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+
 import {
   Mail,
   Users,
@@ -21,8 +19,15 @@ import {
   Globe,
   Lock,
 } from "lucide-react";
-import Link from "next/link";
+import { useSession } from "next-auth/react";
+
+import { AuthButton } from "@/components/auth-button";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+
+
 
 const features = [
   {

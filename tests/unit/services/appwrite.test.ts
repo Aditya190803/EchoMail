@@ -292,7 +292,7 @@ describe('Contact Groups Service', () => {
         json: async () => ({ $id: 'g1', name: 'Test', contact_ids: ['c1', 'c2'] }),
       })
 
-      const result = await contactGroupsService.addContacts('g1', ['c2'])
+      const _result = await contactGroupsService.addContacts('g1', ['c2'])
 
       expect(mockFetch).toHaveBeenCalledTimes(2)
     })

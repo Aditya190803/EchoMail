@@ -3,6 +3,7 @@
  * Tests keyboard shortcut functionality across the application
  */
 
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { test, expect } from "@playwright/test";
 
 test.describe("Keyboard Shortcuts", () => {
@@ -72,7 +73,7 @@ test.describe("Keyboard Shortcuts", () => {
     test("should have keyboard shortcuts button in UI", async ({ page }) => {
       await page.goto("/dashboard");
 
-      const shortcutsButton = page
+      const _shortcutsButton = page
         .getByRole("button", { name: /keyboard/i })
         .or(page.locator('[title*="keyboard"]'))
         .or(page.locator('[aria-label*="keyboard"]'));
@@ -306,7 +307,7 @@ test.describe("Keyboard Shortcuts", () => {
       await page.goto("/dashboard");
 
       // Get initial theme state
-      const html = page.locator("html");
+      const _html = page.locator("html");
 
       // Try Ctrl+Shift+T
       await page.keyboard.press("Control+Shift+t");

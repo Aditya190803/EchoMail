@@ -1,9 +1,7 @@
 "use client";
 
-import { useAuthGuard } from "@/hooks/useAuthGuard";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
+import Link from "next/link";
+
 import {
   PenSquare,
   Link2,
@@ -16,7 +14,13 @@ import {
   Users,
   FileText,
 } from "lucide-react";
-import Link from "next/link";
+
+import { Footer } from "@/components/footer";
+import { Navbar } from "@/components/navbar";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+
+
 
 const settingsCategories = [
   {
@@ -103,7 +107,7 @@ const settingsCategories = [
 ];
 
 export default function SettingsPage() {
-  const { status, isLoading, session } = useAuthGuard();
+  const { status: _status, isLoading, session } = useAuthGuard();
 
   if (isLoading) {
     return (

@@ -3,6 +3,7 @@
  * Tests keyboard navigation, screen reader support, and ARIA landmarks
  */
 
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { test, expect } from "@playwright/test";
 
 test.describe("Accessibility Features", () => {
@@ -14,7 +15,7 @@ test.describe("Accessibility Features", () => {
       await page.keyboard.press("Tab");
 
       // Check for skip link
-      const skipLink = page
+      const _skipLink = page
         .getByRole("link", { name: /skip to main content/i })
         .or(page.locator('a[href="#main-content"]'));
 
@@ -24,7 +25,7 @@ test.describe("Accessibility Features", () => {
     test("should have skip to navigation link", async ({ page }) => {
       await page.goto("/");
 
-      const skipNavLink = page
+      const _skipNavLink = page
         .getByRole("link", { name: /skip to navigation/i })
         .or(page.locator('a[href="#main-navigation"]'));
 
@@ -37,7 +38,7 @@ test.describe("Accessibility Features", () => {
       await page.goto("/");
 
       // The main content should have proper landmark
-      const mainContent = page
+      const _mainContent = page
         .locator("#main-content")
         .or(page.locator('[role="main"]'))
         .or(page.locator("main"));
@@ -50,7 +51,7 @@ test.describe("Accessibility Features", () => {
     test("should have main landmark", async ({ page }) => {
       await page.goto("/");
 
-      const main = page
+      const _main = page
         .getByRole("main")
         .or(page.locator("main"))
         .or(page.locator('[role="main"]'));
@@ -75,7 +76,7 @@ test.describe("Accessibility Features", () => {
       await page.goto("/dashboard");
 
       // Should have at least an h1
-      const h1 = page.locator("h1");
+      const _h1 = page.locator("h1");
 
       await expect(page.locator("body")).toBeVisible();
     });
@@ -102,7 +103,7 @@ test.describe("Accessibility Features", () => {
       await page.keyboard.press("Tab");
 
       // Some element should be focused
-      const focusedElement = page.locator(":focus");
+      const _focusedElement = page.locator(":focus");
       await expect(page.locator("body")).toBeVisible();
     });
 
@@ -110,7 +111,7 @@ test.describe("Accessibility Features", () => {
       await page.goto("/");
 
       // Find navigation links
-      const navLinks = page.locator("nav a, nav button");
+      const _navLinks = page.locator("nav a, nav button");
 
       await expect(page.locator("body")).toBeVisible();
     });
@@ -164,7 +165,7 @@ test.describe("Accessibility Features", () => {
       await page.keyboard.press("Tab");
 
       // Focus indicator should be visible (we check element is focused)
-      const focused = page.locator(":focus");
+      const _focused = page.locator(":focus");
       await expect(page.locator("body")).toBeVisible();
     });
 
@@ -247,7 +248,7 @@ test.describe("Accessibility Features", () => {
       await page.goto("/compose");
 
       // Check for live region
-      const liveRegion = page
+      const _liveRegion = page
         .locator("[aria-live]")
         .or(page.locator('[role="status"]'))
         .or(page.locator('[role="alert"]'));

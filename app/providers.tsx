@@ -1,12 +1,26 @@
 "use client";
 
+import { useEffect, type ReactNode } from "react";
+
 import { SessionProvider } from "next-auth/react";
-import type { ReactNode } from "react";
-import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "sonner";
+
+import { ThemeProvider } from "@/components/theme-provider";
+import { initGA4 } from "@/lib/analytics/ga4";
 import { QueryProvider } from "@/lib/query-client";
 
 export function Providers({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    // Initialize GA4 with the measurement ID from env
+    const measurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
+    if (measurementId) {
+      initGA4({
+        measurementId,
+        enabled: process.env.NODE_ENV === "production",
+      });
+    }
+  }, []);
+
   return (
     <ThemeProvider
       attribute="class"

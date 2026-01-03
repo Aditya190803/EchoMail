@@ -1,42 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useAuthGuard } from "@/hooks/useAuthGuard";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Navbar } from "@/components/navbar";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Pagination } from "@/components/pagination";
-import { usePagination } from "@/hooks/usePagination";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+
+import Link from "next/link";
+
 import {
   Users,
   Search,
@@ -57,13 +24,49 @@ import {
   RefreshCw,
   CloudDownload,
 } from "lucide-react";
-import Link from "next/link";
+import { toast } from "sonner";
+
+import { Navbar } from "@/components/navbar";
+import { Pagination } from "@/components/pagination";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { usePagination } from "@/hooks/usePagination";
 import {
   contactsService,
   contactGroupsService,
   type ContactGroup,
 } from "@/lib/appwrite";
-import { toast } from "sonner";
 import { componentLogger } from "@/lib/client-logger";
 
 const GROUP_COLORS = [
@@ -166,7 +169,7 @@ export default function ContactsPage() {
   }, []);
 
   const formatDate = (dateValue: string) => {
-    if (!isMounted) return "";
+    if (!isMounted) {return "";}
     try {
       return new Date(dateValue).toLocaleDateString("en-US", {
         month: "short",
@@ -180,7 +183,7 @@ export default function ContactsPage() {
 
   // Fetch contacts function
   const fetchContacts = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     try {
       const response = await contactsService.listByUser(session.user.email);
@@ -219,7 +222,7 @@ export default function ContactsPage() {
 
   // Fetch groups function
   const fetchGroups = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     try {
       const response = await contactGroupsService.listByUser(
@@ -236,7 +239,7 @@ export default function ContactsPage() {
 
   // Initial fetch and real-time subscription
   useEffect(() => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     // Initial fetch
     const loadData = async () => {
@@ -255,12 +258,12 @@ export default function ContactsPage() {
     );
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribe) {unsubscribe();}
     };
   }, [session?.user?.email, fetchContacts, fetchGroups]);
 
   const addContact = async () => {
-    if (!session?.user?.email || !newContact.email.trim()) return;
+    if (!session?.user?.email || !newContact.email.trim()) {return;}
 
     // Create an optimistic contact with a temporary ID
     const tempId = `temp-${Date.now()}`;
@@ -307,7 +310,7 @@ export default function ContactsPage() {
   };
 
   const updateContact = async () => {
-    if (!editingContact?.$id) return;
+    if (!editingContact?.$id) {return;}
 
     // Store the previous state for rollback
     const previousContacts = [...contacts];
@@ -353,7 +356,7 @@ export default function ContactsPage() {
   const deleteContact = async (contactId: string) => {
     // Store the contact for potential rollback
     const contactToDelete = contacts.find((c) => c.$id === contactId);
-    if (!contactToDelete) return;
+    if (!contactToDelete) {return;}
 
     // Optimistically remove from UI
     setContacts((prev) => prev.filter((c) => c.$id !== contactId));
@@ -375,7 +378,7 @@ export default function ContactsPage() {
 
   // Group functions
   const createGroup = async () => {
-    if (!session?.user?.email || !newGroup.name.trim()) return;
+    if (!session?.user?.email || !newGroup.name.trim()) {return;}
 
     setIsLoading(true);
     try {
@@ -402,7 +405,7 @@ export default function ContactsPage() {
   };
 
   const updateGroup = async () => {
-    if (!editingGroup?.$id) return;
+    if (!editingGroup?.$id) {return;}
 
     setIsLoading(true);
     try {
@@ -517,7 +520,7 @@ export default function ContactsPage() {
   };
 
   const importSelectedGmailContacts = async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     const contactsToImport = gmailContacts.filter((c) =>
       selectedGmailContacts.has(c.email),
@@ -647,7 +650,7 @@ export default function ContactsPage() {
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
-    if (!file || !session?.user?.email) return;
+    if (!file || !session?.user?.email) {return;}
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -789,7 +792,7 @@ export default function ContactsPage() {
     );
   }
 
-  if (status === "unauthenticated") return null;
+  if (status === "unauthenticated") {return null;}
 
   return (
     <div className="min-h-screen bg-background">

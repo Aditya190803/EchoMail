@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
+
+import Link from "next/link";
+
 import { useSession, signIn } from "next-auth/react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   campaignsService,
   config,
   testAppwriteConnection,
 } from "@/lib/appwrite";
 import { convertEmojisToUnicode } from "@/lib/email-formatting/client";
-import Link from "next/link";
 
 export default function TestEmailPage() {
   const { data: session } = useSession();

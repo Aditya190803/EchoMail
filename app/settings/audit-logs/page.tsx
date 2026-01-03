@@ -1,22 +1,10 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
+import { useRouter } from "next/navigation";
+
+import { format } from "date-fns";
 import {
   FileText,
   Search,
@@ -38,7 +26,22 @@ import {
   Send,
   Eye,
 } from "lucide-react";
-import { format } from "date-fns";
+import { useSession } from "next-auth/react";
+
+import { Footer } from "@/components/footer";
+import { Navbar } from "@/components/navbar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { componentLogger } from "@/lib/client-logger";
 
 interface AuditLogEntry {
@@ -77,19 +80,19 @@ const actionColors: Record<string, string> = {
 
 function getActionColor(action: string): string {
   for (const [key, color] of Object.entries(actionColors)) {
-    if (action.includes(key)) return color;
+    if (action.includes(key)) {return color;}
   }
   return "default";
 }
 
 function getActionIcon(action: string) {
-  if (action.includes("create") || action.includes("invite")) return Plus;
-  if (action.includes("update") || action.includes("change")) return Edit;
-  if (action.includes("delete") || action.includes("remove")) return Trash2;
-  if (action.includes("send")) return Send;
-  if (action.includes("login") || action.includes("logout")) return LogIn;
-  if (action.includes("export")) return Download;
-  if (action.includes("consent")) return Shield;
+  if (action.includes("create") || action.includes("invite")) {return Plus;}
+  if (action.includes("update") || action.includes("change")) {return Edit;}
+  if (action.includes("delete") || action.includes("remove")) {return Trash2;}
+  if (action.includes("send")) {return Send;}
+  if (action.includes("login") || action.includes("logout")) {return LogIn;}
+  if (action.includes("export")) {return Download;}
+  if (action.includes("consent")) {return Shield;}
   return Activity;
 }
 
@@ -129,9 +132,9 @@ export default function AuditLogsPage() {
         offset: (page * limit).toString(),
       });
 
-      if (filters.action) params.append("action", filters.action);
+      if (filters.action) {params.append("action", filters.action);}
       if (filters.resource_type)
-        params.append("resource_type", filters.resource_type);
+        {params.append("resource_type", filters.resource_type);}
 
       const response = await fetch(`/api/gdpr/audit-logs?${params}`);
       const data = await response.json();

@@ -1,31 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuthGuard } from "@/hooks/useAuthGuard";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+
+import Link from "next/link";
+
 import {
   Shield,
   Download,
@@ -37,8 +15,33 @@ import {
   ExternalLink,
   Eye,
 } from "lucide-react";
-import Link from "next/link";
 import { toast } from "sonner";
+
+import { Footer } from "@/components/footer";
+import { Navbar } from "@/components/navbar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { componentLogger } from "@/lib/client-logger";
 
 interface ConsentRecord {

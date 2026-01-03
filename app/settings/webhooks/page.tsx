@@ -1,45 +1,10 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Navbar } from "@/components/navbar";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
+import { useRouter } from "next/navigation";
+
+import { formatDistanceToNow } from "date-fns";
 import {
   Webhook,
   Plus,
@@ -62,9 +27,47 @@ import {
   Copy,
   CheckCircle,
 } from "lucide-react";
-import { webhooksService, type Webhook as WebhookType } from "@/lib/appwrite";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+
+import { Navbar } from "@/components/navbar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { webhooksService, type Webhook as WebhookType } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 
 const EVENT_TYPES = [
@@ -134,7 +137,7 @@ export default function WebhooksPage() {
   }, [status, router]);
 
   const fetchWebhooks = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     try {
       const response = await webhooksService.listByUser(session.user.email);
@@ -149,7 +152,7 @@ export default function WebhooksPage() {
   }, [session?.user?.email]);
 
   useEffect(() => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
     fetchWebhooks();
   }, [session?.user?.email, fetchWebhooks]);
 
@@ -178,7 +181,7 @@ export default function WebhooksPage() {
   };
 
   const toggleEditEvent = (event: WebhookType["events"][number]) => {
-    if (!editingWebhook) return;
+    if (!editingWebhook) {return;}
     setEditingWebhook((prev) =>
       prev
         ? {
@@ -198,7 +201,7 @@ export default function WebhooksPage() {
       !newWebhook.url.trim() ||
       newWebhook.events.length === 0
     )
-      return;
+      {return;}
 
     // Validate URL
     try {
@@ -234,7 +237,7 @@ export default function WebhooksPage() {
   };
 
   const updateWebhook = async () => {
-    if (!editingWebhook?.$id) return;
+    if (!editingWebhook?.$id) {return;}
 
     setIsLoading(true);
     try {
@@ -299,7 +302,7 @@ export default function WebhooksPage() {
     );
   }
 
-  if (status === "unauthenticated") return null;
+  if (status === "unauthenticated") {return null;}
 
   return (
     <div className="min-h-screen bg-background">

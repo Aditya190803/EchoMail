@@ -1,8 +1,10 @@
 /**
  * Unit tests for API routes
  */
-
+import { getServerSession } from 'next-auth'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+import { databases, ID } from '@/lib/appwrite-server'
 
 // Mock next-auth
 vi.mock('next-auth', () => ({
@@ -33,9 +35,6 @@ vi.mock('@/lib/appwrite-server', () => ({
     unique: vi.fn(() => 'unique-id'),
   },
 }))
-
-import { getServerSession } from 'next-auth'
-import { databases, ID } from '@/lib/appwrite-server'
 
 describe('API Routes - Authentication', () => {
   beforeEach(() => {

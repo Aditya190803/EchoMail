@@ -3,8 +3,10 @@
  * Tests CSV import, Google Contacts import, and export features
  */
 
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import _path from "path";
+
 import { test, expect } from "@playwright/test";
-import path from "path";
 
 test.describe("Contact Import/Export", () => {
   test.beforeEach(async ({ page }) => {
@@ -86,12 +88,12 @@ test.describe("Contact Import/Export", () => {
 
   test("should have CSV import functionality", async ({ page }) => {
     // Look for import button
-    const importButton = page
+    const _importButton = page
       .getByRole("button", { name: /import|csv/i })
       .or(page.getByText(/import csv/i));
 
     // File input should be available
-    const fileInput = page
+    const _fileInput = page
       .locator('input[type="file"][accept*="csv"]')
       .or(page.locator('input[type="file"]'));
 
@@ -124,7 +126,7 @@ test.describe("Contact Import/Export", () => {
 
   test("should display contacts in grid or list view", async ({ page }) => {
     // Look for contacts grid or list
-    const contactsList = page
+    const _contactsList = page
       .locator('[data-testid="contacts-list"]')
       .or(page.locator(".contact-card"))
       .or(page.getByText(/no contacts/i));
@@ -180,7 +182,7 @@ test.describe("Contact Groups", () => {
 
   test("should filter contacts by group", async ({ page }) => {
     // Look for group filter buttons
-    const groupFilter = page
+    const _groupFilter = page
       .getByRole("button", { name: /all contacts/i })
       .or(page.locator('[data-testid="group-filter"]'));
 
@@ -190,7 +192,7 @@ test.describe("Contact Groups", () => {
   test("should add contact to group", async ({ page }) => {
     // This would require a contact to exist
     // Look for add to group option in contact menu
-    const contactMenu = page
+    const _contactMenu = page
       .locator('[data-testid="contact-menu"]')
       .or(page.getByRole("button", { name: /more/i }));
 
@@ -211,7 +213,7 @@ test.describe("Contact Management Actions", () => {
       await deleteButton.first().click();
 
       // Confirmation dialog should appear
-      const confirmDialog = page
+      const _confirmDialog = page
         .locator('[role="alertdialog"]')
         .or(page.getByText(/are you sure/i));
 
@@ -233,7 +235,7 @@ test.describe("Contact Management Actions", () => {
 
   test("should link contacts to compose page", async ({ page }) => {
     // Look for compose/email action
-    const composeLink = page
+    const _composeLink = page
       .getByRole("link", { name: /compose|email/i })
       .or(page.getByRole("button", { name: /compose|send email/i }));
 
@@ -246,7 +248,7 @@ test.describe("Contact CSV Upload Edge Cases", () => {
     await page.goto("/contacts");
 
     // Attempting to import empty CSV should be handled
-    const fileInput = page.locator('input[type="file"]');
+    const _fileInput = page.locator('input[type="file"]');
 
     await expect(page.locator("body")).toBeVisible();
   });

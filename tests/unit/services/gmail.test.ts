@@ -2,7 +2,8 @@
  * Unit tests for Gmail/email sending utilities
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
 import { replacePlaceholders } from "@/lib/gmail";
 
 // Mock the fetch API
@@ -173,7 +174,7 @@ describe("Attachment handling", () => {
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       };
 
-      Object.entries(mimeTypes).forEach(([filename, expectedType]) => {
+      Object.entries(mimeTypes).forEach(([_filename, expectedType]) => {
         expect(expectedType).toBeDefined();
         expect(typeof expectedType).toBe("string");
       });

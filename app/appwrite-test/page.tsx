@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { testAppwriteConnection } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
@@ -36,7 +37,7 @@ export default function AppwriteTestPage() {
   };
 
   const addTestDocument = async () => {
-    if (!testMessage.trim()) return;
+    if (!testMessage.trim()) {return;}
 
     setIsLoading(true);
     try {

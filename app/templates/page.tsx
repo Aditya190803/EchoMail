@@ -1,42 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useAuthGuard } from "@/hooks/useAuthGuard";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Navbar } from "@/components/navbar";
-import { Skeleton } from "@/components/ui/skeleton";
-import { RichTextEditor } from "@/components/rich-text-editor";
-import { usePagination } from "@/hooks/usePagination";
-import { PaginationControls } from "@/components/pagination";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
 import {
   FileText,
   Plus,
@@ -49,14 +14,52 @@ import {
   Clock,
   Sparkles,
 } from "lucide-react";
+import { History, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
+
+import { Navbar } from "@/components/navbar";
+import { PaginationControls } from "@/components/pagination";
+import { RichTextEditor } from "@/components/rich-text-editor";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { usePagination } from "@/hooks/usePagination";
 import {
   templatesService,
   type EmailTemplate,
   type TemplateVersion,
 } from "@/lib/appwrite";
-import { toast } from "sonner";
 import { componentLogger } from "@/lib/client-logger";
-import { History, RotateCcw } from "lucide-react";
+
 
 const TEMPLATE_CATEGORIES = [
   { value: "marketing", label: "Marketing", color: "bg-blue-500" },
@@ -251,7 +254,7 @@ export default function TemplatesPage() {
   }, []);
 
   const formatDate = (dateValue: string) => {
-    if (!isMounted) return "";
+    if (!isMounted) {return "";}
     try {
       return new Date(dateValue).toLocaleDateString("en-US", {
         month: "short",
@@ -265,7 +268,7 @@ export default function TemplatesPage() {
 
   // Fetch templates
   const fetchTemplates = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     try {
       const response = await templatesService.listByUser(session.user.email);
@@ -292,7 +295,7 @@ export default function TemplatesPage() {
 
   // Initial fetch and real-time subscription
   useEffect(() => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     const loadData = async () => {
       await fetchTemplates();
@@ -306,7 +309,7 @@ export default function TemplatesPage() {
     );
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribe) {unsubscribe();}
     };
   }, [session?.user?.email, fetchTemplates]);
 
@@ -316,7 +319,7 @@ export default function TemplatesPage() {
       !newTemplate.name.trim() ||
       !newTemplate.subject.trim()
     )
-      return;
+      {return;}
 
     // Create an optimistic template with a temporary ID
     const tempId = `temp-${Date.now()}`;
@@ -362,7 +365,7 @@ export default function TemplatesPage() {
   const addDefaultTemplate = async (
     defaultTemplate: (typeof DEFAULT_TEMPLATES)[0],
   ) => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     try {
       await templatesService.create({
@@ -386,7 +389,7 @@ export default function TemplatesPage() {
 
   // Add all default templates
   const addAllDefaultTemplates = async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     setIsLoading(true);
     try {
@@ -452,7 +455,7 @@ export default function TemplatesPage() {
   };
 
   const updateTemplate = async () => {
-    if (!editingTemplate?.$id) return;
+    if (!editingTemplate?.$id) {return;}
 
     setIsLoading(true);
     try {
@@ -486,7 +489,7 @@ export default function TemplatesPage() {
   const deleteTemplate = async (templateId: string) => {
     // Store for potential rollback
     const templateToDelete = templates.find((t) => t.$id === templateId);
-    if (!templateToDelete) return;
+    if (!templateToDelete) {return;}
 
     // Optimistically remove from UI
     setTemplates((prev) => prev.filter((t) => t.$id !== templateId));
@@ -507,7 +510,7 @@ export default function TemplatesPage() {
   };
 
   const duplicateTemplate = async (template: EmailTemplate) => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     try {
       await templatesService.create({
@@ -544,7 +547,7 @@ export default function TemplatesPage() {
 
   // Fetch version history for a template
   const fetchVersions = async (template: EmailTemplate) => {
-    if (!template.$id) return;
+    if (!template.$id) {return;}
 
     setIsLoadingVersions(true);
     setVersioningTemplate(template);
@@ -566,7 +569,7 @@ export default function TemplatesPage() {
 
   // Restore a previous version
   const restoreVersion = async (version: TemplateVersion) => {
-    if (!versioningTemplate?.$id) return;
+    if (!versioningTemplate?.$id) {return;}
 
     setIsLoading(true);
     try {
@@ -667,7 +670,7 @@ export default function TemplatesPage() {
     );
   }
 
-  if (status === "unauthenticated") return null;
+  if (status === "unauthenticated") {return null;}
 
   return (
     <div className="min-h-screen bg-background">

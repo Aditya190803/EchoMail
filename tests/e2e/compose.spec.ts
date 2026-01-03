@@ -48,7 +48,7 @@ test.describe('Compose Email', () => {
       await sendButton.click()
       
       // Should show validation error or prevent submission
-      const errorMessage = page.getByText(/required|empty|enter/i)
+      const _errorMessage = page.getByText(/required|empty|enter/i)
       // Either shows error or button is disabled
     }
   })
@@ -60,7 +60,7 @@ test.describe('CSV Upload', () => {
   })
 
   test('should have file upload input', async ({ page }) => {
-    const fileInput = page.locator('input[type="file"]')
+    const _fileInput = page.locator('input[type="file"]')
       .or(page.getByText(/upload|csv|import/i))
     
     // File upload should be available

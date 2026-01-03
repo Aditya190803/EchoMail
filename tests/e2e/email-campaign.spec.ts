@@ -108,7 +108,7 @@ test.describe("Campaign Sending Process", () => {
     }
 
     // Check for progress indicator component
-    const progressIndicator = page
+    const _progressIndicator = page
       .locator('[data-testid="progress"]')
       .or(page.locator('[role="progressbar"]'))
       .or(page.getByText(/sending|progress/i));
@@ -139,7 +139,7 @@ test.describe("Campaign History After Sending", () => {
     await page.goto("/history");
 
     // Look for stats cards or metrics
-    const statsSection = page
+    const _statsSection = page
       .locator('[data-testid="stats"]')
       .or(page.getByText(/total|sent|delivered|campaigns/i));
 
@@ -150,7 +150,7 @@ test.describe("Campaign History After Sending", () => {
     await page.goto("/history");
 
     // Look for campaign list or empty state
-    const campaignList = page
+    const _campaignList = page
       .locator('[data-testid="campaign-list"]')
       .or(page.locator(".campaign-item"))
       .or(page.getByText(/sent campaigns|no campaigns|no emails/i));
@@ -162,7 +162,7 @@ test.describe("Campaign History After Sending", () => {
     await page.goto("/history");
 
     // Look for export button
-    const exportButton = page
+    const _exportButton = page
       .getByRole("button", { name: /export/i })
       .or(page.getByText(/export/i));
 
@@ -192,7 +192,7 @@ test.describe("Dashboard Campaign Overview", () => {
     await expect(page.locator("body")).toBeVisible();
 
     // Check for stats section
-    const statsCards = page
+    const _statsCards = page
       .locator('[data-testid="stats"]')
       .or(page.getByText(/total sent|success rate|campaigns/i));
 
@@ -203,7 +203,7 @@ test.describe("Dashboard Campaign Overview", () => {
     await page.goto("/dashboard");
 
     // Look for quick action buttons
-    const newCampaignButton = page
+    const _newCampaignButton = page
       .getByRole("button", { name: /new|create|compose/i })
       .or(page.getByRole("link", { name: /new|create|compose/i }));
 
@@ -214,7 +214,7 @@ test.describe("Dashboard Campaign Overview", () => {
     await page.goto("/dashboard");
 
     // Look for recent campaigns section
-    const recentSection = page
+    const _recentSection = page
       .getByText(/recent/i)
       .or(page.locator('[data-testid="recent-campaigns"]'));
 

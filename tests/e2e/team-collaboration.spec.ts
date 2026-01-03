@@ -3,6 +3,7 @@
  * Tests team management, member invitations, and permissions
  */
 
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { test, expect } from "@playwright/test";
 
 test.describe("Team Collaboration", () => {
@@ -16,7 +17,7 @@ test.describe("Team Collaboration", () => {
 
   test("should show team creation option", async ({ page }) => {
     // Look for create team button
-    const createTeamButton = page
+    const _createTeamButton = page
       .getByRole("button", { name: /create team|new team/i })
       .or(page.getByText(/create team/i));
 
@@ -25,7 +26,7 @@ test.describe("Team Collaboration", () => {
 
   test("should display current team members", async ({ page }) => {
     // Look for team members list or empty state
-    const membersList = page
+    const _membersList = page
       .locator('[data-testid="team-members"]')
       .or(page.getByText(/members|no team/i));
 
@@ -59,14 +60,14 @@ test.describe("Team Member Management", () => {
 
   test("should show member roles", async ({ page }) => {
     // Look for role indicators
-    const roleIndicator = page.getByText(/admin|member|owner|editor/i);
+    const _roleIndicator = page.getByText(/admin|member|owner|editor/i);
 
     await expect(page.locator("body")).toBeVisible();
   });
 
   test("should allow changing member role", async ({ page }) => {
     // Look for role dropdown or selector
-    const roleSelector = page
+    const _roleSelector = page
       .locator('[data-testid="role-selector"]')
       .or(page.getByRole("combobox", { name: /role/i }));
 
@@ -81,7 +82,7 @@ test.describe("Team Member Management", () => {
       await removeButton.first().click();
 
       // Confirmation should appear
-      const confirmDialog = page.locator('[role="alertdialog"]');
+      const _confirmDialog = page.locator('[role="alertdialog"]');
       await expect(page.locator("body")).toBeVisible();
     }
   });
@@ -114,7 +115,7 @@ test.describe("Team Settings", () => {
 
   test("should show team permissions", async ({ page }) => {
     // Look for permissions section
-    const permissionsSection = page
+    const _permissionsSection = page
       .getByText(/permissions/i)
       .or(page.locator('[data-testid="team-permissions"]'));
 
@@ -152,7 +153,7 @@ test.describe("Team Invitations", () => {
 
   test("should show pending invitations", async ({ page }) => {
     // Look for pending invitations section
-    const pendingSection = page
+    const _pendingSection = page
       .getByText(/pending/i)
       .or(page.locator('[data-testid="pending-invitations"]'));
 
@@ -201,7 +202,7 @@ test.describe("Team Collaboration Features", () => {
     await page.goto("/templates");
 
     // Look for shared indicator
-    const sharedIndicator = page.getByText(/shared|team/i);
+    const _sharedIndicator = page.getByText(/shared|team/i);
 
     await expect(page.locator("body")).toBeVisible();
   });
@@ -211,7 +212,7 @@ test.describe("Team Collaboration Features", () => {
     await page.goto("/contacts");
 
     // Look for shared indicator
-    const sharedIndicator = page.getByText(/shared|team/i);
+    const _sharedIndicator = page.getByText(/shared|team/i);
 
     await expect(page.locator("body")).toBeVisible();
   });
@@ -224,7 +225,7 @@ test.describe("Team Activity", () => {
 
   test("should show team activity log", async ({ page }) => {
     // Look for activity log or audit section
-    const activitySection = page
+    const _activitySection = page
       .getByText(/activity|audit|log/i)
       .or(page.locator('[data-testid="team-activity"]'));
 
@@ -233,7 +234,7 @@ test.describe("Team Activity", () => {
 
   test("should filter activity by member", async ({ page }) => {
     // Look for member filter
-    const memberFilter = page
+    const _memberFilter = page
       .locator('[data-testid="member-filter"]')
       .or(page.getByRole("combobox", { name: /member/i }));
 
@@ -242,7 +243,7 @@ test.describe("Team Activity", () => {
 
   test("should filter activity by date", async ({ page }) => {
     // Look for date filter
-    const dateFilter = page
+    const _dateFilter = page
       .locator('[data-testid="date-filter"]')
       .or(page.getByRole("button", { name: /date/i }));
 

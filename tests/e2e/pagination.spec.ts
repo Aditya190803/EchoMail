@@ -3,6 +3,7 @@
  * Tests pagination functionality across different pages
  */
 
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { test, expect } from "@playwright/test";
 
 test.describe("Pagination", () => {
@@ -65,7 +66,7 @@ test.describe("Pagination", () => {
     test("should have first page button", async ({ page }) => {
       await page.goto("/contacts");
 
-      const firstButton = page
+      const _firstButton = page
         .getByRole("button", { name: /first/i })
         .or(page.locator('[aria-label*="first"]'));
 
@@ -75,7 +76,7 @@ test.describe("Pagination", () => {
     test("should have last page button", async ({ page }) => {
       await page.goto("/contacts");
 
-      const lastButton = page
+      const _lastButton = page
         .getByRole("button", { name: /last/i })
         .or(page.locator('[aria-label*="last"]'));
 
@@ -141,7 +142,7 @@ test.describe("Pagination", () => {
     test("should have page size selector", async ({ page }) => {
       await page.goto("/contacts");
 
-      const pageSizeSelector = page
+      const _pageSizeSelector = page
         .getByRole("combobox")
         .or(page.locator("select"))
         .or(page.getByText(/items per page/i));
@@ -158,7 +159,7 @@ test.describe("Pagination", () => {
         await selector.click();
 
         // Should show options like 10, 25, 50, 100
-        const option10 = page
+        const _option10 = page
           .getByRole("option", { name: "10" })
           .or(page.getByText("10"));
         const option25 = page
@@ -195,7 +196,7 @@ test.describe("Pagination", () => {
       await page.goto("/contacts");
 
       // Look for page number buttons
-      const pageNumbers = page
+      const _pageNumbers = page
         .locator("button")
         .filter({ hasText: /^[1-9][0-9]*$/ });
 
@@ -206,7 +207,7 @@ test.describe("Pagination", () => {
       await page.goto("/contacts");
 
       // Current page should have different style
-      const currentPage = page
+      const _currentPage = page
         .locator('[aria-current="page"]')
         .or(page.locator("button.bg-primary"));
 
@@ -231,7 +232,7 @@ test.describe("Pagination", () => {
       await page.goto("/contacts");
 
       // If there are many pages, should show ellipsis
-      const ellipsis = page
+      const _ellipsis = page
         .getByText("...")
         .or(page.locator(".text-muted-foreground").filter({ hasText: "..." }));
 
@@ -243,7 +244,7 @@ test.describe("Pagination", () => {
     test("should show item count information", async ({ page }) => {
       await page.goto("/contacts");
 
-      const itemCount = page
+      const _itemCount = page
         .getByText(/showing.*\d+.*of.*\d+/i)
         .or(page.getByText(/\d+ to \d+ of \d+/i));
 
@@ -339,7 +340,7 @@ test.describe("Pagination", () => {
     test("should have proper aria-current on active page", async ({ page }) => {
       await page.goto("/contacts");
 
-      const currentPage = page.locator('[aria-current="page"]');
+      const _currentPage = page.locator('[aria-current="page"]');
 
       await expect(page.locator("body")).toBeVisible();
     });

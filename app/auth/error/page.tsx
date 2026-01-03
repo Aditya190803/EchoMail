@@ -1,11 +1,16 @@
 "use client"
 
-import { useSearchParams, useRouter } from "next/navigation"
-import Link from "next/link"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { AlertTriangle, Home, Settings, RefreshCw } from "lucide-react"
 import { useEffect, useState } from "react"
+
+import Link from "next/link"
+import { useSearchParams, useRouter } from "next/navigation"
+
+import { AlertTriangle, Home, Settings, RefreshCw } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+
 
 export default function AuthError() {
   const searchParams = useSearchParams()
@@ -83,7 +88,7 @@ export default function AuthError() {
         <Card className="w-full max-w-md">
           <CardContent className="flex items-center justify-center p-8">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4" />
               <p className="text-gray-600">Loading...</p>
             </div>
           </CardContent>

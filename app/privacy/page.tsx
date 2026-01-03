@@ -1,10 +1,14 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { ArrowLeft, Shield, Eye, Lock, Database, UserCheck, Mail } from "lucide-react"
 import Link from "next/link"
+
+import { ArrowLeft, Shield, Eye, Lock, Database, UserCheck, Mail } from "lucide-react"
+
+import { ThemeToggle } from "@/components/theme-toggle"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+
 
 export default function PrivacyPolicyPage() {
   return (
@@ -100,19 +104,19 @@ export default function PrivacyPolicyPage() {
                 </div>
                 <ul className="space-y-2 text-muted-foreground">
                   <li className="flex items-start gap-3">
-                    <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></span>
+                    <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0" />
                     To send emails through your Gmail account as requested
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></span>
+                    <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0" />
                     To personalize email content based on your recipient data
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></span>
+                    <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0" />
                     To provide email delivery reports and analytics
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></span>
+                    <span className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0" />
                     To improve our service quality and user experience
                   </li>
                 </ul>

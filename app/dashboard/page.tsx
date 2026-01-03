@@ -1,21 +1,10 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Navbar } from "@/components/navbar";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+
 import {
   Mail,
   Send,
@@ -40,11 +29,27 @@ import {
   Search,
   Loader2,
 } from "lucide-react";
-import Link from "next/link";
-import { campaignsService, EmailCampaign } from "@/lib/appwrite";
+import { useSession } from "next-auth/react";
+import { toast } from "sonner";
+
+import { Navbar } from "@/components/navbar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { EmailCampaign } from "@/lib/appwrite";
+import { campaignsService } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 import { getEmailPreview } from "@/lib/email-formatting/client";
-import { toast } from "sonner";
+
 
 // Helper to get authenticated attachment URL
 const getAttachmentUrl = (attachment: {
@@ -231,7 +236,7 @@ export default function DashboardPage() {
 
   // Fetch campaigns function
   const fetchCampaigns = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     try {
       const response = await campaignsService.listByUser(session.user.email);
@@ -252,7 +257,7 @@ export default function DashboardPage() {
 
   // Initial fetch and real-time subscription
   useEffect(() => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     // Initial fetch
     fetchCampaigns();
@@ -267,7 +272,7 @@ export default function DashboardPage() {
     );
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribe) {unsubscribe();}
     };
   }, [session?.user?.email, fetchCampaigns]);
 
@@ -345,7 +350,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (status === "unauthenticated") return null;
+  if (status === "unauthenticated") {return null;}
 
   const totalSent = emailHistory.reduce((sum, c) => sum + c.sent, 0);
   const totalRecipients = emailHistory.reduce(

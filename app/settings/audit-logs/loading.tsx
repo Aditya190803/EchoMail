@@ -1,7 +1,7 @@
-import { Skeleton } from "@/components/ui/skeleton"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
+import { Navbar } from "@/components/navbar"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function AuditLogsLoading() {
   return (

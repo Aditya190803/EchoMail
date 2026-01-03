@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+
 import { useSession, signIn, signOut } from "next-auth/react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function AuthTestPage() {
   const { data: session, status: _status } = useSession();

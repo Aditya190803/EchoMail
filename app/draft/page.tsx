@@ -1,35 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useAuthGuard } from "@/hooks/useAuthGuard";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Navbar } from "@/components/navbar";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
+import Link from "next/link";
+
+import { format, formatDistanceToNow, isPast } from "date-fns";
 import {
   Clock,
   Calendar,
@@ -52,10 +27,38 @@ import {
   Copy,
   Paperclip,
 } from "lucide-react";
-import Link from "next/link";
-import { draftEmailsService, type DraftEmail } from "@/lib/appwrite";
 import { toast } from "sonner";
-import { format, formatDistanceToNow, isPast } from "date-fns";
+
+import { Navbar } from "@/components/navbar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { draftEmailsService, type DraftEmail } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 
 export default function DraftPage() {
@@ -74,7 +77,7 @@ export default function DraftPage() {
   }, []);
 
   const fetchDraftEmails = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     setIsLoading(true);
     try {
@@ -91,7 +94,7 @@ export default function DraftPage() {
   }, [session?.user?.email]);
 
   useEffect(() => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     fetchDraftEmails();
 
@@ -101,7 +104,7 @@ export default function DraftPage() {
     );
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribe) {unsubscribe();}
     };
   }, [session?.user?.email, fetchDraftEmails]);
 
@@ -201,7 +204,7 @@ export default function DraftPage() {
   };
 
   const sendNow = async (email: DraftEmail) => {
-    if (!email.$id) return;
+    if (!email.$id) {return;}
 
     setSendingId(email.$id);
 
@@ -263,7 +266,7 @@ export default function DraftPage() {
 
   // Duplicate a draft email
   const duplicateDraftEmail = async (email: DraftEmail) => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     try {
       await draftEmailsService.create({
@@ -290,7 +293,7 @@ export default function DraftPage() {
 
   // Retry a failed draft
   const retryFailedDraft = async (email: DraftEmail) => {
-    if (!email.$id) return;
+    if (!email.$id) {return;}
 
     // Reset status to pending and try sending again
     try {
@@ -429,7 +432,7 @@ export default function DraftPage() {
     );
   }
 
-  if (status === "unauthenticated") return null;
+  if (status === "unauthenticated") {return null;}
 
   const pendingEmails = draftEmails.filter((e) => e.status === "pending");
   const completedEmails = draftEmails.filter((e) =>

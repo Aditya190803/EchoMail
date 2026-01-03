@@ -1,12 +1,15 @@
 import type React from "react";
+
 import "./globals.css";
-import type { Metadata, Viewport } from "next";
-import { Providers } from "./providers";
 import { ErrorBoundary } from "@/components/error-boundary";
+
+import { Providers } from "./providers";
+
+import type { Metadata, Viewport } from "next";
 
 // System font stack - no external network dependency
 const fontClassName = "font-sans";
-const fontVariable = "";
+const _fontVariable = "";
 
 export const metadata: Metadata = {
   title: "EchoMail - Professional Email Campaigns",

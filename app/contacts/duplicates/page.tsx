@@ -1,22 +1,9 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Navbar } from "@/components/navbar";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+
+import { useRouter } from "next/navigation";
+
 import {
   Users,
   Search,
@@ -29,8 +16,24 @@ import {
   Phone,
   RefreshCw,
 } from "lucide-react";
-import { contactsService } from "@/lib/appwrite";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
+
+import { Navbar } from "@/components/navbar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { contactsService } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 
 interface Contact {
@@ -72,7 +75,7 @@ export default function DuplicatesPage() {
   }, [status, router]);
 
   const fetchContacts = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     setIsLoading(true);
     try {
@@ -122,7 +125,7 @@ export default function DuplicatesPage() {
   };
 
   useEffect(() => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
     fetchContacts();
   }, [session?.user?.email, fetchContacts]);
 
@@ -138,7 +141,7 @@ export default function DuplicatesPage() {
   };
 
   const mergeDuplicates = async () => {
-    if (!selectedGroup || !primaryContact) return;
+    if (!selectedGroup || !primaryContact) {return;}
 
     setIsProcessing(true);
     try {
@@ -195,7 +198,7 @@ export default function DuplicatesPage() {
   };
 
   const autoMergeAll = async () => {
-    if (duplicates.length === 0) return;
+    if (duplicates.length === 0) {return;}
 
     setIsProcessing(true);
     let totalMerged = 0;
@@ -238,7 +241,7 @@ export default function DuplicatesPage() {
     );
   }
 
-  if (status === "unauthenticated") return null;
+  if (status === "unauthenticated") {return null;}
 
   const totalDuplicates = duplicates.reduce(
     (sum, group) => sum + group.contacts.length - 1,

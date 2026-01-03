@@ -1,24 +1,23 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Navbar } from "@/components/navbar";
-import { Skeleton } from "@/components/ui/skeleton";
-import { RichTextEditor } from "@/components/rich-text-editor";
+
+import { useRouter } from "next/navigation";
+
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogDescription,
-} from "@/components/ui/dialog";
+  Pen,
+  Plus,
+  Trash2,
+  Edit,
+  MoreVertical,
+  Star,
+  ArrowLeft,
+} from "lucide-react";
+import { useSession } from "next-auth/react";
+import { toast } from "sonner";
+
+import { Navbar } from "@/components/navbar";
+import { RichTextEditor } from "@/components/rich-text-editor";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,23 +29,27 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Pen,
-  Plus,
-  Trash2,
-  Edit,
-  MoreVertical,
-  Star,
-  ArrowLeft,
-} from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { signaturesService, type EmailSignature } from "@/lib/appwrite";
-import { toast } from "sonner";
 import { componentLogger } from "@/lib/client-logger";
 
 export default function SignaturesPage() {
@@ -77,7 +80,7 @@ export default function SignaturesPage() {
   }, [status, router]);
 
   const fetchSignatures = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     try {
       const response = await signaturesService.listByUser(session.user.email);
@@ -92,7 +95,7 @@ export default function SignaturesPage() {
   }, [session?.user?.email]);
 
   useEffect(() => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
     const loadData = async () => {
       await fetchSignatures();
       setIsLoadingData(false);
@@ -106,7 +109,7 @@ export default function SignaturesPage() {
       !newSignature.name.trim() ||
       !newSignature.content.trim()
     )
-      return;
+      {return;}
 
     setIsLoading(true);
     try {
@@ -131,7 +134,7 @@ export default function SignaturesPage() {
   };
 
   const updateSignature = async () => {
-    if (!editingSignature?.$id) return;
+    if (!editingSignature?.$id) {return;}
 
     setIsLoading(true);
     try {
@@ -170,7 +173,7 @@ export default function SignaturesPage() {
   };
 
   const setAsDefault = async (signatureId: string) => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     try {
       await signaturesService.setAsDefault(session.user.email, signatureId);
@@ -224,7 +227,7 @@ export default function SignaturesPage() {
     );
   }
 
-  if (status === "unauthenticated") return null;
+  if (status === "unauthenticated") {return null;}
 
   return (
     <div className="min-h-screen bg-background">

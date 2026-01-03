@@ -3,6 +3,7 @@
  * Tests template creation, editing, deletion, and usage
  */
 
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { test, expect } from "@playwright/test";
 
 test.describe("Template Management", () => {
@@ -74,7 +75,7 @@ test.describe("Template Management", () => {
 
   test("should display template categories", async ({ page }) => {
     // Look for category filters
-    const categoryFilter = page
+    const _categoryFilter = page
       .getByRole("button", { name: /all|marketing|newsletter|transactional/i })
       .or(page.locator('[data-testid="category-filter"]'));
 
@@ -95,7 +96,7 @@ test.describe("Template Management", () => {
 
   test("should display starter templates", async ({ page }) => {
     // Look for starter templates section
-    const starterSection = page
+    const _starterSection = page
       .getByText(/starter templates/i)
       .or(page.locator('[data-testid="starter-templates"]'));
 
@@ -176,7 +177,7 @@ test.describe("Template Actions", () => {
         await deleteOption.first().click();
 
         // Confirmation dialog should appear
-        const confirmDialog = page.locator('[role="alertdialog"]');
+        const _confirmDialog = page.locator('[role="alertdialog"]');
         await expect(page.locator("body")).toBeVisible();
       }
     }
@@ -190,7 +191,7 @@ test.describe("Starter Templates", () => {
 
   test("should display starter template cards", async ({ page }) => {
     // Look for starter template cards
-    const starterCards = page
+    const _starterCards = page
       .locator('[data-testid="starter-template"]')
       .or(page.getByText(/welcome email|thank you|meeting request/i));
 
@@ -220,7 +221,7 @@ test.describe("Starter Templates", () => {
 
   test("should show personalization placeholders info", async ({ page }) => {
     // Look for placeholder information
-    const placeholderInfo = page
+    const _placeholderInfo = page
       .getByText(/personalization|placeholder/i)
       .or(page.getByText(/\{\{name\}\}/i));
 
@@ -240,7 +241,7 @@ test.describe("Template Rich Text Editor", () => {
       await createButton.first().click();
 
       // Look for rich text editor
-      const editor = page
+      const _editor = page
         .locator('[contenteditable="true"]')
         .or(page.locator(".ProseMirror"));
 
@@ -255,10 +256,10 @@ test.describe("Template Rich Text Editor", () => {
       await createButton.first().click();
 
       // Look for formatting buttons
-      const boldButton = page
+      const _boldButton = page
         .getByRole("button", { name: /bold/i })
         .or(page.locator('[data-testid="bold-button"]'));
-      const italicButton = page
+      const _italicButton = page
         .getByRole("button", { name: /italic/i })
         .or(page.locator('[data-testid="italic-button"]'));
 

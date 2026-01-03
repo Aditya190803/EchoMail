@@ -1,15 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useSession } from "next-auth/react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  contactsService,
-  campaignsService,
-  testAppwriteConnection,
-} from "@/lib/appwrite";
+
 import {
   Database,
   CheckCircle,
@@ -18,6 +10,16 @@ import {
   Users,
   Mail,
 } from "lucide-react";
+import { useSession } from "next-auth/react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  contactsService,
+  campaignsService,
+  testAppwriteConnection,
+} from "@/lib/appwrite";
 
 export default function TestPage() {
   const { data: session } = useSession();

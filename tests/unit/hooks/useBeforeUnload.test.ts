@@ -2,8 +2,9 @@
  * Unit tests for useBeforeUnload hook
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 
 describe("useBeforeUnload Hook", () => {

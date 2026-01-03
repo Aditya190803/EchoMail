@@ -1,10 +1,14 @@
 "use client"
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { ThemeToggle } from "@/components/theme-toggle"
-import { ArrowLeft, FileText, Shield, AlertTriangle, Users, Mail, Gavel } from "lucide-react"
 import Link from "next/link"
+
+import { ArrowLeft, FileText, Shield, AlertTriangle, Users, Mail, Gavel } from "lucide-react"
+
+import { ThemeToggle } from "@/components/theme-toggle"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+
 
 export default function TermsOfServicePage() {
   return (
@@ -108,23 +112,23 @@ export default function TermsOfServicePage() {
                   <p className="text-muted-foreground">You agree to use EchoMail only for lawful purposes and in accordance with these Terms. You agree NOT to use the Service:</p>
                   <ul className="space-y-2 text-muted-foreground">
                     <li className="flex items-start gap-3">
-                      <span className="w-1.5 h-1.5 bg-destructive rounded-full mt-2 flex-shrink-0"></span>
+                      <span className="w-1.5 h-1.5 bg-destructive rounded-full mt-2 flex-shrink-0" />
                       To send spam, unsolicited emails, or emails to recipients who have not consented to receive them
                     </li>
                     <li className="flex items-start gap-3">
-                      <span className="w-1.5 h-1.5 bg-destructive rounded-full mt-2 flex-shrink-0"></span>
+                      <span className="w-1.5 h-1.5 bg-destructive rounded-full mt-2 flex-shrink-0" />
                       To send content that is illegal, harmful, threatening, abusive, or violates any laws
                     </li>
                     <li className="flex items-start gap-3">
-                      <span className="w-1.5 h-1.5 bg-destructive rounded-full mt-2 flex-shrink-0"></span>
+                      <span className="w-1.5 h-1.5 bg-destructive rounded-full mt-2 flex-shrink-0" />
                       To impersonate any person or entity or falsely represent your affiliation
                     </li>
                     <li className="flex items-start gap-3">
-                      <span className="w-1.5 h-1.5 bg-destructive rounded-full mt-2 flex-shrink-0"></span>
+                      <span className="w-1.5 h-1.5 bg-destructive rounded-full mt-2 flex-shrink-0" />
                       To violate any applicable anti-spam laws or regulations, including CAN-SPAM Act, GDPR, or CASL
                     </li>
                     <li className="flex items-start gap-3">
-                      <span className="w-1.5 h-1.5 bg-destructive rounded-full mt-2 flex-shrink-0"></span>
+                      <span className="w-1.5 h-1.5 bg-destructive rounded-full mt-2 flex-shrink-0" />
                       To send emails containing malware, viruses, or other harmful code
                     </li>
                   </ul>

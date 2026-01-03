@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { testAppwriteConnection } from "@/lib/appwrite";
+
+import Link from "next/link";
+
 import {
   Database,
   CheckCircle,
@@ -12,7 +11,13 @@ import {
   RefreshCw,
   ArrowLeft,
 } from "lucide-react";
-import Link from "next/link";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { testAppwriteConnection } from "@/lib/appwrite";
+
+
 
 export default function DebugPage() {
   const [appwriteStatus, setAppwriteStatus] = useState<

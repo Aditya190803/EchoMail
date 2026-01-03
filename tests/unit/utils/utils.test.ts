@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
+
 import { cn } from '@/lib/utils'
 
 describe('Utility Functions', () => {
@@ -98,7 +99,7 @@ describe('Email Validation Helpers', () => {
 
 describe('String Helpers', () => {
   const truncate = (str: string, maxLength: number): string => {
-    if (str.length <= maxLength) return str
+    if (str.length <= maxLength) {return str}
     return str.slice(0, maxLength - 3) + '...'
   }
 
@@ -125,9 +126,9 @@ describe('Date Helpers', () => {
     const diffHours = Math.floor(diffMins / 60)
     const diffDays = Math.floor(diffHours / 24)
 
-    if (diffDays > 0) return `${diffDays}d ago`
-    if (diffHours > 0) return `${diffHours}h ago`
-    if (diffMins > 0) return `${diffMins}m ago`
+    if (diffDays > 0) {return `${diffDays}d ago`}
+    if (diffHours > 0) {return `${diffHours}h ago`}
+    if (diffMins > 0) {return `${diffMins}m ago`}
     return 'just now'
   }
 

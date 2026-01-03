@@ -1,12 +1,15 @@
 "use client";
 
-import { signIn, getSession } from "next-auth/react";
 import { useEffect, useState } from "react";
+
 import { useRouter } from "next/navigation";
+
+import { Mail, ArrowRight } from "lucide-react";
+import { signIn, getSession } from "next-auth/react";
+
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, ArrowRight } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export default function SignIn() {
   const router = useRouter();
@@ -69,7 +72,7 @@ export default function SignIn() {
             >
               {isLoading ? (
                 <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
                   Signing in...
                 </div>
               ) : (

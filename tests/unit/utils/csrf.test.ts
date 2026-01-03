@@ -2,7 +2,8 @@
  * Unit tests for CSRF protection utilities
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
 import {
   validateCSRFToken,
   createCSRFCookie,

@@ -1,30 +1,9 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Navbar } from "@/components/navbar";
-import { Footer } from "@/components/footer";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+
+import { useRouter } from "next/navigation";
+
 import {
   Beaker,
   Plus,
@@ -41,9 +20,34 @@ import {
   Loader2,
   AlertTriangle,
 } from "lucide-react";
-import { abTestsService, ABTest, contactsService } from "@/lib/appwrite";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
+
+import { Footer } from "@/components/footer";
+import { Navbar } from "@/components/navbar";
 import { RichTextEditor } from "@/components/rich-text-editor";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
+import type { ABTest} from "@/lib/appwrite";
+import { abTestsService, contactsService } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 
 export default function ABTestingPage() {
@@ -73,7 +77,7 @@ export default function ABTestingPage() {
   }, [status, router]);
 
   const fetchTests = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     try {
       const response = await abTestsService.listByUser(session.user.email);
@@ -90,7 +94,7 @@ export default function ABTestingPage() {
   }, [session?.user?.email]);
 
   const fetchContacts = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     try {
       const response = await contactsService.listByUser(session.user.email);
@@ -119,7 +123,7 @@ export default function ABTestingPage() {
   };
 
   const handleCreateTest = async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
     if (!testName.trim()) {
       toast.error("Please enter a test name");
       return;
@@ -192,7 +196,7 @@ export default function ABTestingPage() {
   };
 
   const handleStartTest = async (test: ABTest) => {
-    if (!test.$id) return;
+    if (!test.$id) {return;}
 
     try {
       // Update status to running
@@ -256,7 +260,7 @@ export default function ABTestingPage() {
   };
 
   const handleCompleteTest = async (test: ABTest) => {
-    if (!test.$id) return;
+    if (!test.$id) {return;}
 
     try {
       await abTestsService.complete(test.$id);
@@ -309,7 +313,7 @@ export default function ABTestingPage() {
   };
 
   const calculateRate = (numerator: number, denominator: number) => {
-    if (denominator === 0) return "0%";
+    if (denominator === 0) {return "0%";}
     return `${((numerator / denominator) * 100).toFixed(1)}%`;
   };
 

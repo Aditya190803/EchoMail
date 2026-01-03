@@ -1,21 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useAuthGuard } from "@/hooks/useAuthGuard";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Navbar } from "@/components/navbar";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Pagination } from "@/components/pagination";
-import { usePagination } from "@/hooks/usePagination";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+
+import Link from "next/link";
+
 import {
   History,
   TrendingUp,
@@ -40,10 +28,26 @@ import {
   Percent,
   Loader2,
 } from "lucide-react";
-import Link from "next/link";
-import { campaignsService, EmailCampaign } from "@/lib/appwrite";
-import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+
+import { Navbar } from "@/components/navbar";
+import { Pagination } from "@/components/pagination";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { usePagination } from "@/hooks/usePagination";
+import type { EmailCampaign } from "@/lib/appwrite";
+import { campaignsService } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 import { getEmailPreview } from "@/lib/email-formatting/client";
 
@@ -125,7 +129,7 @@ export default function HistoryPage() {
 
   // Fetch campaigns and calculate history data
   const fetchHistory = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     try {
       const response = await campaignsService.listByUser(session.user.email);
@@ -189,7 +193,7 @@ export default function HistoryPage() {
 
   // Initial fetch and real-time subscription
   useEffect(() => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {return;}
 
     // Initial fetch
     fetchHistory();
@@ -204,7 +208,7 @@ export default function HistoryPage() {
     );
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribe) {unsubscribe();}
     };
   }, [session?.user?.email, fetchHistory]);
 
