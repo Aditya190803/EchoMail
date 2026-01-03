@@ -1,12 +1,53 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useAuthGuard } from "@/hooks/useAuthGuard";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+
+import Link from "next/link";
+
+import {
+  Calendar,
+  CheckCircle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Copy,
+  Download,
+  ExternalLink,
+  Eye,
+  FileText,
+  History,
+  Mail,
+  MousePointer2,
+  Paperclip,
+  Percent,
+  Plus,
+  Search,
+  Send,
+  Users,
+  XCircle,
+  BarChart3,
+} from "lucide-react";
+import { toast } from "sonner";
+
+import {
+  StatsCardWidget,
+  LineChartWidget,
+  ComparisonWidget,
+  HeatmapWidget,
+  RecentCampaignsWidget,
+  PieChartWidget,
+} from "@/components/analytics/dashboard-widgets";
 import { Navbar } from "@/components/navbar";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -15,33 +56,36 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  History,
-  TrendingUp,
-  TrendingDown,
-  Calendar,
-  Mail,
-  Users,
-  Send,
-  CheckCircle,
-  XCircle,
-  Activity,
-  ExternalLink,
-  FileText,
-  Download,
-  Plus,
-  ChevronDown,
-  ChevronUp,
-  Eye,
-  Paperclip,
-  Copy,
-  Search,
-  Percent,
-} from "lucide-react";
-import Link from "next/link";
-import { campaignsService, EmailCampaign } from "@/lib/appwrite";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { generateWeekOverWeekComparison } from "@/lib/analytics/comparison";
+import {
+  generateCSV,
+  generatePDF,
+  downloadFile,
+  calculateSummary,
+  transformCampaignToAnalytics,
+} from "@/lib/analytics/export";
+import { aggregateClickData } from "@/lib/analytics/heatmap";
+import type { EmailCampaign } from "@/lib/appwrite";
+import { campaignsService } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
+import { analyticsService } from "@/lib/services/analytics-service";
+import { cn, formatDate } from "@/lib/utils";
+import type {
+  CampaignAnalytics,
+  AnalyticsSummary,
+  ComparisonReport,
+  ClickHeatmapData,
+  TrackingEvent,
+} from "@/types/analytics";
 
 interface HistoryData {
   totalCampaigns: number;
@@ -79,8 +123,17 @@ const getAttachmentUrl = (attachment: {
 };
 
 export default function HistoryPage() {
-  const { session, status, isLoading } = useAuthGuard();
+  const { session, status, isLoading: _isLoading } = useAuthGuard();
   const [historyData, setHistoryData] = useState<HistoryData | null>(null);
+  const [analyticsCampaigns, setAnalyticsCampaigns] = useState<
+    CampaignAnalytics[]
+  >([]);
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [comparison, setComparison] = useState<ComparisonReport | null>(null);
+  const [heatmap, setHeatmap] = useState<ClickHeatmapData | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(
     new Set(),
   );
@@ -97,21 +150,50 @@ export default function HistoryPage() {
       return recipients;
     }
     if (typeof recipients === "string") {
-      return recipients
-        .split(",")
-        .map((email) => email.trim())
-        .filter((email) => email);
+      try {
+        return JSON.parse(recipients);
+      } catch {
+        return recipients
+          .split(",")
+          .map((email: string) => email.trim())
+          .filter((email: string) => email);
+      }
     }
     return [];
   };
 
   // Fetch campaigns and calculate history data
   const fetchHistory = useCallback(async () => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {
+      return;
+    }
 
     try {
-      const response = await campaignsService.listByUser(session.user.email);
-      const campaigns = response.documents;
+      const [campaignsResponse, eventsResponse] = await Promise.all([
+        campaignsService.listByUser(session.user.email),
+        analyticsService.listEvents({ limit: 1000 }),
+      ]);
+
+      const campaigns = campaignsResponse.documents;
+      const events = eventsResponse.documents as unknown as TrackingEvent[];
+
+      // Transform to analytics format
+      const transformed = campaigns.map((c) => {
+        const campaignEvents = events.filter((e) => e.campaign_id === c.$id);
+        return transformCampaignToAnalytics(c, {
+          opens: campaignEvents.filter((e) => e.event_type === "open").length,
+          clicks: campaignEvents.filter((e) => e.event_type === "click").length,
+        });
+      });
+
+      setAnalyticsCampaigns(transformed);
+      setSummary(calculateSummary(transformed));
+      setComparison(generateWeekOverWeekComparison(transformed));
+
+      // If there's a recent campaign, show its heatmap
+      if (transformed.length > 0) {
+        setHeatmap(aggregateClickData(events, transformed[0].id));
+      }
 
       const now = new Date();
       const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -169,7 +251,9 @@ export default function HistoryPage() {
 
   // Initial fetch and real-time subscription
   useEffect(() => {
-    if (!session?.user?.email) return;
+    if (!session?.user?.email) {
+      return;
+    }
 
     // Initial fetch
     fetchHistory();
@@ -184,7 +268,9 @@ export default function HistoryPage() {
     );
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, [session?.user?.email, fetchHistory]);
 
@@ -228,16 +314,55 @@ export default function HistoryPage() {
     toast.success("Recipients exported!");
   };
 
-  const formatDate = (value: string) => {
+  const handleExportCSV = () => {
+    if (!summary || analyticsCampaigns.length === 0) {
+      return;
+    }
+    const csv = generateCSV({
+      campaigns: analyticsCampaigns,
+      summary,
+      dateRange: {
+        start: new Date(
+          analyticsCampaigns[analyticsCampaigns.length - 1].createdAt,
+        ),
+        end: new Date(),
+      },
+    });
+    downloadFile(
+      csv,
+      `echomail-analytics-${new Date().toISOString().split("T")[0]}.csv`,
+      "text/csv",
+    );
+    toast.success("CSV report exported!");
+  };
+
+  const handleExportPDF = async () => {
+    if (!summary || analyticsCampaigns.length === 0) {
+      return;
+    }
+    setIsExporting(true);
     try {
-      const date = new Date(value);
-      return date.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
+      const pdf = await generatePDF({
+        campaigns: analyticsCampaigns,
+        summary,
+        dateRange: {
+          start: new Date(
+            analyticsCampaigns[analyticsCampaigns.length - 1].createdAt,
+          ),
+          end: new Date(),
+        },
       });
-    } catch {
-      return new Date().toLocaleDateString();
+      downloadFile(
+        pdf,
+        `echomail-analytics-${new Date().toISOString().split("T")[0]}.pdf`,
+        "application/pdf",
+      );
+      toast.success("PDF report exported!");
+    } catch (error) {
+      componentLogger.error("PDF export failed", error as Error);
+      toast.error("Failed to generate PDF report");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -322,400 +447,480 @@ export default function HistoryPage() {
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8 flex items-start justify-between">
+        <div className="mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-              Email History
+              Analytics & History
             </h1>
             <p className="text-muted-foreground">
-              View your sent campaigns and delivery status
+              Track your campaign performance and delivery metrics
             </p>
           </div>
-          <Button
-            variant="outline"
-            onClick={() => {
-              window.location.href = "/api/export-report";
-            }}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export Report
-          </Button>
-        </div>
-
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Mail className="h-5 w-5 text-primary" />
-                </div>
-              </div>
-              <div className="text-2xl font-bold">
-                {historyData.totalCampaigns}
-              </div>
-              <p className="text-sm text-muted-foreground">Total Campaigns</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-success/10 to-success/5 border-success/20">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2 bg-success/10 rounded-lg">
-                  <Percent className="h-5 w-5 text-success" />
-                </div>
-              </div>
-              <div className="text-2xl font-bold">
-                {historyData.successRate.toFixed(1)}%
-              </div>
-              <p className="text-sm text-muted-foreground">Delivery Rate</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-secondary/10 to-secondary/5 border-secondary/20">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2 bg-secondary/10 rounded-lg">
-                  <Send className="h-5 w-5 text-secondary" />
-                </div>
-              </div>
-              <div className="text-2xl font-bold">
-                {historyData.totalSent.toLocaleString()}
-              </div>
-              <p className="text-sm text-muted-foreground">Emails Delivered</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-accent/10 to-accent/5 border-accent/20">
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="p-2 bg-accent/10 rounded-lg">
-                  <Users className="h-5 w-5 text-accent" />
-                </div>
-              </div>
-              <div className="text-2xl font-bold">
-                {Math.round(historyData.averageRecipientsPerCampaign)}
-              </div>
-              <p className="text-sm text-muted-foreground">Avg Recipients</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Monthly Trend */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Activity className="h-4 w-4" />
-              Monthly Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">This Month</p>
-                <p className="text-2xl font-bold">
-                  {historyData.campaignsThisMonth} campaigns
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {historyData.monthlyTrend === "up" && (
-                  <Badge variant="success" className="flex items-center gap-1">
-                    <TrendingUp className="h-3 w-3" />+
-                    {historyData.campaignsThisMonth -
-                      historyData.campaignsLastMonth}{" "}
-                    from last month
-                  </Badge>
-                )}
-                {historyData.monthlyTrend === "down" && (
-                  <Badge
-                    variant="destructive"
-                    className="flex items-center gap-1"
-                  >
-                    <TrendingDown className="h-3 w-3" />
-                    {historyData.campaignsThisMonth -
-                      historyData.campaignsLastMonth}{" "}
-                    from last month
-                  </Badge>
-                )}
-                {historyData.monthlyTrend === "same" && (
-                  <Badge variant="secondary">Same as last month</Badge>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Sent Campaigns */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Sent Campaigns</h2>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setExpandedCampaigns(new Set())}
-              >
-                Collapse All
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setExpandedCampaigns(
-                    new Set(
-                      historyData?.recentCampaigns.map((c) => c.$id) || [],
-                    ),
-                  )
-                }
-              >
-                <Eye className="h-4 w-4 mr-2" />
-                Expand All
-              </Button>
-            </div>
+          <div className="flex gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={isExporting}>
+                  <Download className="h-4 w-4 mr-2" />
+                  {isExporting ? "Exporting..." : "Export Report"}
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleExportCSV}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Export as CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportPDF}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Export as PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button asChild>
+              <Link href="/compose">
+                <Plus className="h-4 w-4 mr-2" />
+                New Campaign
+              </Link>
+            </Button>
           </div>
-
-          {historyData.recentCampaigns.map((campaign) => {
-            const isExpanded = expandedCampaigns.has(campaign.$id);
-            return (
-              <Card key={campaign.$id} hover className="overflow-hidden">
-                <div className="p-5">
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold truncate mb-1">
-                        {campaign.subject}
-                      </h3>
-                      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3.5 w-3.5" />
-                          {formatDate(campaign.created_at)}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Users className="h-3.5 w-3.5" />
-                          {getRecipientsArray(campaign.recipients).length}{" "}
-                          recipients
-                        </span>
-                        {campaign.attachments &&
-                          campaign.attachments.length > 0 && (
-                            <span className="flex items-center gap-1">
-                              <Paperclip className="h-3.5 w-3.5" />
-                              {campaign.attachments.length} attachment
-                              {campaign.attachments.length > 1 ? "s" : ""}
-                            </span>
-                          )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant={
-                          campaign.status === "completed"
-                            ? "success"
-                            : campaign.status === "sending"
-                              ? "warning"
-                              : "destructive"
-                        }
-                        className="capitalize"
-                      >
-                        {campaign.status}
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => toggleCampaignExpansion(campaign.$id)}
-                      >
-                        {isExpanded ? (
-                          <ChevronUp className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 text-sm">
-                    <span className="flex items-center gap-1.5 text-success">
-                      <CheckCircle className="h-4 w-4" />
-                      {campaign.sent} delivered
-                    </span>
-                    {campaign.failed > 0 && (
-                      <span className="flex items-center gap-1.5 text-destructive">
-                        <XCircle className="h-4 w-4" />
-                        {campaign.failed} failed
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Expanded Details */}
-                {isExpanded && (
-                  <div className="border-t bg-muted/30 p-5 space-y-4">
-                    {/* Recipients */}
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-medium flex items-center gap-2">
-                          <Users className="h-4 w-4" />
-                          Recipients (
-                          {getRecipientsArray(campaign.recipients).length})
-                        </h4>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              copyEmailList(
-                                getRecipientsArray(campaign.recipients),
-                              )
-                            }
-                          >
-                            <Copy className="h-3 w-3 mr-1" />
-                            Copy
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              downloadEmailList(
-                                getRecipientsArray(campaign.recipients),
-                                campaign.subject,
-                              )
-                            }
-                          >
-                            <Download className="h-3 w-3 mr-1" />
-                            CSV
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="bg-background rounded-lg p-3 max-h-32 overflow-y-auto text-sm text-muted-foreground">
-                        {getRecipientsArray(campaign.recipients).join(", ") ||
-                          "No recipients"}
-                      </div>
-                    </div>
-
-                    {/* Email Content */}
-                    {campaign.content && (
-                      <div>
-                        <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
-                          <FileText className="h-4 w-4" />
-                          Email Content
-                        </h4>
-                        <div className="bg-background rounded-lg p-3 max-h-40 overflow-y-auto">
-                          <div
-                            className="text-sm prose prose-sm max-w-none dark:prose-invert"
-                            dangerouslySetInnerHTML={{
-                              __html: campaign.content,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Attachments */}
-                    {campaign.attachments &&
-                      campaign.attachments.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
-                            <Paperclip className="h-4 w-4" />
-                            Attachments
-                          </h4>
-                          <div className="space-y-2">
-                            {campaign.attachments.map((attachment, index) => (
-                              <div
-                                key={index}
-                                className="bg-background rounded-lg p-3 flex items-center justify-between"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <FileText className="h-4 w-4 text-muted-foreground" />
-                                  <div>
-                                    <div className="text-sm font-medium">
-                                      {attachment.fileName}
-                                    </div>
-                                    <div className="text-xs text-muted-foreground">
-                                      {(
-                                        attachment.fileSize /
-                                        1024 /
-                                        1024
-                                      ).toFixed(2)}{" "}
-                                      MB
-                                    </div>
-                                  </div>
-                                </div>
-                                <Button variant="outline" size="sm" asChild>
-                                  <a
-                                    href={getAttachmentUrl(attachment)}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                  >
-                                    <ExternalLink className="h-3 w-3 mr-1" />
-                                    View
-                                  </a>
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                    {/* Delivery Details */}
-                    {campaign.send_results &&
-                      campaign.send_results.length > 0 && (
-                        <div>
-                          <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
-                            <Activity className="h-4 w-4" />
-                            Delivery Details
-                          </h4>
-                          <div className="bg-background rounded-lg p-3 max-h-40 overflow-y-auto space-y-2">
-                            {campaign.send_results
-                              .slice(0, 10)
-                              .map((result: any, index: number) => (
-                                <div
-                                  key={index}
-                                  className="text-sm py-1 border-b border-border/50 last:border-0"
-                                >
-                                  <div className="flex items-center justify-between">
-                                    <span className="text-muted-foreground truncate flex-1 mr-2">
-                                      {result.email || "Unknown"}
-                                    </span>
-                                    <Badge
-                                      variant={
-                                        result.status === "success"
-                                          ? "success"
-                                          : "destructive"
-                                      }
-                                    >
-                                      {result.status === "success"
-                                        ? "Sent"
-                                        : "Failed"}
-                                    </Badge>
-                                  </div>
-                                  {result.status !== "success" &&
-                                    result.error && (
-                                      <div className="text-xs text-destructive mt-1 pl-1">
-                                        ⚠️ {result.error}
-                                      </div>
-                                    )}
-                                </div>
-                              ))}
-                            {campaign.send_results.length > 10 && (
-                              <p className="text-sm text-muted-foreground pt-2">
-                                And {campaign.send_results.length - 10} more...
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                    <Button
-                      className="w-full"
-                      onClick={() => setSelectedCampaign(campaign)}
-                    >
-                      <Eye className="h-4 w-4 mr-2" />
-                      View Full Details
-                    </Button>
-                  </div>
-                )}
-              </Card>
-            );
-          })}
         </div>
+
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="space-y-8"
+        >
+          <TabsList className="grid w-full max-w-md grid-cols-3">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+            <TabsTrigger value="tracking">Tracking</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="space-y-8">
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatsCardWidget
+                title="Total Campaigns"
+                value={historyData.totalCampaigns}
+                icon={<Mail className="h-5 w-5 text-primary" />}
+                trend={comparison?.changes.campaigns}
+              />
+              <StatsCardWidget
+                title="Delivery Rate"
+                value={`${historyData.successRate.toFixed(1)}%`}
+                icon={<Percent className="h-5 w-5 text-success" />}
+                trend={comparison?.changes.successRate}
+                gradientFrom="success/10"
+                gradientTo="success/5"
+              />
+              <StatsCardWidget
+                title="Emails Delivered"
+                value={historyData.totalSent}
+                icon={<Send className="h-5 w-5 text-secondary" />}
+                trend={comparison?.changes.sent}
+                gradientFrom="secondary/10"
+                gradientTo="secondary/5"
+              />
+              <StatsCardWidget
+                title="Open Rate"
+                value={
+                  summary?.averageOpenRate
+                    ? `${summary.averageOpenRate.toFixed(1)}%`
+                    : "N/A"
+                }
+                icon={<Eye className="h-5 w-5 text-accent" />}
+                trend={comparison?.changes.openRate}
+                gradientFrom="accent/10"
+                gradientTo="accent/5"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Activity Chart */}
+              <div className="lg:col-span-2">
+                <LineChartWidget
+                  title="Campaign Activity"
+                  data={analyticsCampaigns
+                    .slice(-10)
+                    .map((c) => ({
+                      name: formatDate(c.createdAt),
+                      value: c.sent,
+                    }))}
+                  size="large"
+                />
+              </div>
+
+              {/* Comparison Widget */}
+              <div>
+                {comparison && <ComparisonWidget report={comparison} />}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Recent Campaigns */}
+              <RecentCampaignsWidget
+                campaigns={analyticsCampaigns}
+                onViewCampaign={(id) => {
+                  const c = historyData.recentCampaigns.find(
+                    (rc) => rc.$id === id,
+                  );
+                  if (c) {
+                    setSelectedCampaign(c);
+                  }
+                }}
+              />
+
+              {/* Quick Stats */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    Performance Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        Delivery Success
+                      </span>
+                      <span className="font-medium">
+                        {historyData.successRate.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-success transition-all"
+                        style={{ width: `${historyData.successRate}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Open Rate</span>
+                      <span className="font-medium">
+                        {summary?.averageOpenRate?.toFixed(1) || 0}%
+                      </span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-accent transition-all"
+                        style={{ width: `${summary?.averageOpenRate || 0}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Click Rate</span>
+                      <span className="font-medium">
+                        {summary?.averageClickRate?.toFixed(1) || 0}%
+                      </span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all"
+                        style={{ width: `${summary?.averageClickRate || 0}%` }}
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="campaigns" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Sent Campaigns</h2>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setExpandedCampaigns(new Set())}
+                >
+                  Collapse All
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setExpandedCampaigns(
+                      new Set(
+                        historyData?.recentCampaigns.map((c) => c.$id) || [],
+                      ),
+                    )
+                  }
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  Expand All
+                </Button>
+              </div>
+            </div>
+
+            {historyData.recentCampaigns.map((campaign) => {
+              const isExpanded = expandedCampaigns.has(campaign.$id);
+              const analytics = analyticsCampaigns.find(
+                (a) => a.id === campaign.$id,
+              );
+
+              return (
+                <Card
+                  key={campaign.$id}
+                  className={cn(
+                    "transition-all duration-200",
+                    isExpanded ? "ring-1 ring-primary/20" : "hover:bg-muted/50",
+                  )}
+                >
+                  <CardContent className="p-0">
+                    <div
+                      className="p-4 sm:p-6 cursor-pointer flex items-center justify-between gap-4"
+                      onClick={() => toggleCampaignExpansion(campaign.$id)}
+                    >
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div
+                          className={cn(
+                            "p-2 rounded-full shrink-0",
+                            campaign.status === "completed"
+                              ? "bg-success/10 text-success"
+                              : "bg-warning/10 text-warning",
+                          )}
+                        >
+                          {campaign.status === "completed" ? (
+                            <CheckCircle2 className="h-5 w-5" />
+                          ) : (
+                            <Clock className="h-5 w-5" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="font-semibold truncate">
+                            {campaign.subject}
+                          </h3>
+                          <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {formatDate(campaign.created_at)}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Users className="h-3 w-3" />
+                              {
+                                getRecipientsArray(campaign.recipients).length
+                              }{" "}
+                              recipients
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 shrink-0">
+                        <div className="hidden sm:flex items-center gap-6 mr-4">
+                          <div className="text-center">
+                            <div className="text-sm font-bold">
+                              {analytics?.opens || 0}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                              Opens
+                            </div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-sm font-bold">
+                              {analytics?.clicks || 0}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                              Clicks
+                            </div>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="icon">
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {isExpanded && (
+                      <div className="px-4 sm:px-6 pb-6 pt-2 border-t bg-muted/30">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+                          <div className="space-y-4">
+                            <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                              Campaign Details
+                            </h4>
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">
+                                  Status
+                                </span>
+                                <Badge
+                                  variant={
+                                    campaign.status === "completed"
+                                      ? "success"
+                                      : "secondary"
+                                  }
+                                >
+                                  {campaign.status}
+                                </Badge>
+                              </div>
+                              <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">
+                                  Sent At
+                                </span>
+                                <span className="font-medium">
+                                  {new Date(
+                                    campaign.created_at,
+                                  ).toLocaleString()}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="md:col-span-2 space-y-4">
+                            <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                              Performance Metrics
+                            </h4>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                              <div className="p-3 bg-background rounded-lg border">
+                                <div className="text-xs text-muted-foreground mb-1">
+                                  Open Rate
+                                </div>
+                                <div className="text-lg font-bold">
+                                  {(analytics?.openRate || 0).toFixed(1)}%
+                                </div>
+                              </div>
+                              <div className="p-3 bg-background rounded-lg border">
+                                <div className="text-xs text-muted-foreground mb-1">
+                                  Click Rate
+                                </div>
+                                <div className="text-lg font-bold">
+                                  {(analytics?.clickRate || 0).toFixed(1)}%
+                                </div>
+                              </div>
+                              <div className="p-3 bg-background rounded-lg border">
+                                <div className="text-xs text-muted-foreground mb-1">
+                                  Delivered
+                                </div>
+                                <div className="text-lg font-bold">
+                                  {campaign.sent || 0}
+                                </div>
+                              </div>
+                              <div className="p-3 bg-background rounded-lg border">
+                                <div className="text-xs text-muted-foreground mb-1">
+                                  Bounced
+                                </div>
+                                <div className="text-lg font-bold">
+                                  {campaign.failed || 0}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 mt-6">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedCampaign(campaign)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            View Content
+                          </Button>
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={`/compose?templateId=${campaign.$id}`}>
+                              <Plus className="h-4 w-4 mr-2" />
+                              Reuse Template
+                            </Link>
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </TabsContent>
+
+          <TabsContent value="tracking" className="space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="lg:col-span-2">
+                {heatmap && (
+                  <HeatmapWidget
+                    links={heatmap.links}
+                    totalClicks={heatmap.totalClicks}
+                    title="Email Click Heatmap"
+                  />
+                )}
+              </div>
+              <div className="space-y-8">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      Tracking Overview
+                    </CardTitle>
+                    <CardDescription>
+                      Real-time engagement metrics across all campaigns
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-accent/10 rounded-lg">
+                          <Eye className="h-4 w-4 text-accent" />
+                        </div>
+                        <span className="text-sm font-medium">Total Opens</span>
+                      </div>
+                      <span className="text-lg font-bold">
+                        {summary?.totalOpens || 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                          <MousePointer2 className="h-4 w-4 text-primary" />
+                        </div>
+                        <span className="text-sm font-medium">
+                          Total Clicks
+                        </span>
+                      </div>
+                      <span className="text-lg font-bold">
+                        {summary?.totalClicks || 0}
+                      </span>
+                    </div>
+                    <div className="pt-4 border-t">
+                      <div className="text-xs text-muted-foreground mb-2">
+                        Engagement Score
+                      </div>
+                      <div className="flex items-end gap-2">
+                        <div className="text-3xl font-bold text-primary">
+                          {summary?.averageOpenRate
+                            ? (
+                                (summary.averageOpenRate +
+                                  (summary.averageClickRate || 0) * 2) /
+                                3
+                              ).toFixed(1)
+                            : "0.0"}
+                        </div>
+                        <div className="text-sm text-muted-foreground mb-1">
+                          / 100
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <PieChartWidget
+                  title="Device Distribution"
+                  data={[
+                    { name: "Desktop", value: 65, color: "#3b82f6" },
+                    { name: "Mobile", value: 30, color: "#10b981" },
+                    { name: "Tablet", value: 5, color: "#f59e0b" },
+                  ]}
+                />
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </main>
 
       {/* Full Campaign Details Modal */}
@@ -751,9 +956,7 @@ export default function HistoryPage() {
                     variant={
                       selectedCampaign.status === "completed"
                         ? "success"
-                        : selectedCampaign.status === "sending"
-                          ? "warning"
-                          : "destructive"
+                        : "secondary"
                     }
                     className="capitalize"
                   >
@@ -770,13 +973,13 @@ export default function HistoryPage() {
                   </div>
                   <div className="bg-background rounded-lg p-3 text-center">
                     <div className="text-2xl font-bold text-success">
-                      {selectedCampaign.sent}
+                      {selectedCampaign.sent || 0}
                     </div>
                     <div className="text-xs text-muted-foreground">Sent</div>
                   </div>
                   <div className="bg-background rounded-lg p-3 text-center">
                     <div className="text-2xl font-bold text-destructive">
-                      {selectedCampaign.failed}
+                      {selectedCampaign.failed || 0}
                     </div>
                     <div className="text-xs text-muted-foreground">Failed</div>
                   </div>
@@ -820,34 +1023,43 @@ export default function HistoryPage() {
                       Attachments ({selectedCampaign.attachments.length})
                     </h4>
                     <div className="grid grid-cols-2 gap-2">
-                      {selectedCampaign.attachments.map((attachment, index) => (
-                        <div
-                          key={index}
-                          className="bg-muted/50 border rounded-lg p-3 flex items-center justify-between"
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <FileText className="h-4 w-4 text-primary flex-shrink-0" />
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium truncate">
-                                {attachment.fileName}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {(attachment.fileSize / 1024 / 1024).toFixed(2)}{" "}
-                                MB
+                      {selectedCampaign.attachments.map(
+                        (attachment: any, index: number) => (
+                          <div
+                            key={index}
+                            className="bg-muted/50 border rounded-lg p-3 flex items-center justify-between"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <FileText className="h-4 w-4 text-primary flex-shrink-0" />
+                              <div className="min-w-0">
+                                <div className="text-sm font-medium truncate">
+                                  {attachment.fileName}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {(attachment.fileSize / 1024 / 1024).toFixed(
+                                    2,
+                                  )}{" "}
+                                  MB
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <Button variant="outline" size="icon-sm" asChild>
-                            <a
-                              href={getAttachmentUrl(attachment)}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              asChild
+                              className="h-8 w-8"
                             >
-                              <ExternalLink className="h-3 w-3" />
-                            </a>
-                          </Button>
-                        </div>
-                      ))}
+                              <a
+                                href={getAttachmentUrl(attachment)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            </Button>
+                          </div>
+                        ),
+                      )}
                     </div>
                   </div>
                 )}
@@ -891,13 +1103,15 @@ export default function HistoryPage() {
 
                 {/* Search and Filter */}
                 <div className="flex gap-2">
-                  <Input
-                    icon={<Search className="h-4 w-4" />}
-                    placeholder="Search recipients..."
-                    value={recipientSearch}
-                    onChange={(e) => setRecipientSearch(e.target.value)}
-                    className="flex-1"
-                  />
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search recipients..."
+                      value={recipientSearch}
+                      onChange={(e) => setRecipientSearch(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
                   {selectedCampaign.send_results && (
                     <div className="flex gap-1">
                       <Button
