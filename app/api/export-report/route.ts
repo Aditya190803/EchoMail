@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { databases, config, Query } from "@/lib/appwrite-server";
+import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 
 /**

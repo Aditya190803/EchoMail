@@ -1,8 +1,31 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
+import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
+import type { TemplateDocument } from "@/types/appwrite";
+
+// Extended type for template with version
+interface ExtendedTemplateDocument extends TemplateDocument {
+  version?: number;
+}
+
+// Type for template version document
+interface TemplateVersionDocument {
+  $id: string;
+  template_id: string;
+  version: number;
+  name: string;
+  subject: string;
+  content: string;
+  category?: string;
+  user_email: string;
+  created_at: string;
+  change_note?: string;
+}
 
 // GET /api/appwrite/templates/versions - List versions for a template
 export async function GET(request: NextRequest) {
@@ -24,13 +47,13 @@ export async function GET(request: NextRequest) {
     }
 
     // First verify the template belongs to this user
-    const template = await databases.getDocument(
+    const template = (await databases.getDocument(
       config.databaseId,
       config.templatesCollectionId,
       templateId,
-    );
+    )) as ExtendedTemplateDocument;
 
-    if ((template as any).user_email !== session.user.email) {
+    if (template.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -47,33 +70,43 @@ export async function GET(request: NextRequest) {
         ],
       );
 
-      const documents = response.documents.map((doc) => ({
+      const documents = (
+        response.documents as unknown as unknown as TemplateVersionDocument[]
+      ).map((doc) => ({
         $id: doc.$id,
-        template_id: (doc as any).template_id,
-        version: (doc as any).version,
-        name: (doc as any).name,
-        subject: (doc as any).subject,
-        content: (doc as any).content,
-        category: (doc as any).category,
-        user_email: (doc as any).user_email,
-        created_at: (doc as any).created_at,
-        change_note: (doc as any).change_note,
+        template_id: doc.template_id,
+        version: doc.version,
+        name: doc.name,
+        subject: doc.subject,
+        content: doc.content,
+        category: doc.category,
+        user_email: doc.user_email,
+        created_at: doc.created_at,
+        change_note: doc.change_note,
       }));
 
       return NextResponse.json({ total: response.total, documents });
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If collection doesn't exist yet, return empty
-      if (error.code === 404 || error.message?.includes("Collection")) {
+      const appwriteError = error as { code?: number; message?: string };
+      if (
+        appwriteError.code === 404 ||
+        appwriteError.message?.includes("Collection")
+      ) {
         return NextResponse.json({ total: 0, documents: [] });
       }
       throw error;
     }
-  } catch (error: any) {
-    apiLogger.error("Error fetching template versions", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch template versions" },
-      { status: 500 },
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "Failed to fetch template versions";
+    apiLogger.error(
+      "Error fetching template versions",
+      error instanceof Error ? error : undefined,
     );
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -97,26 +130,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify the template belongs to this user
-    const template = await databases.getDocument(
+    const template = (await databases.getDocument(
       config.databaseId,
       config.templatesCollectionId,
       templateId,
-    );
+    )) as ExtendedTemplateDocument;
 
-    if ((template as any).user_email !== session.user.email) {
+    if (template.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     // Handle restore action
     if (action === "restore" && versionId) {
       // Get the version to restore
-      const version = await databases.getDocument(
+      const version = (await databases.getDocument(
         config.databaseId,
         config.templateVersionsCollectionId,
         versionId,
-      );
+      )) as unknown as TemplateVersionDocument;
 
-      if ((version as any).template_id !== templateId) {
+      if (version.template_id !== templateId) {
         return NextResponse.json(
           { error: "Version does not belong to this template" },
           { status: 400 },
@@ -124,7 +157,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Save current state as a new version before restoring
-      const currentVersion = (template as any).version || 1;
+      const currentVersion = template.version || 1;
       await databases.createDocument(
         config.databaseId,
         config.templateVersionsCollectionId,
@@ -132,13 +165,13 @@ export async function POST(request: NextRequest) {
         {
           template_id: templateId,
           version: currentVersion,
-          name: (template as any).name,
-          subject: (template as any).subject,
-          content: (template as any).content,
-          category: (template as any).category,
+          name: template.name,
+          subject: template.subject,
+          content: template.content,
+          category: template.category,
           user_email: session.user.email,
           created_at: new Date().toISOString(),
-          change_note: `Auto-saved before restoring to version ${(version as any).version}`,
+          change_note: `Auto-saved before restoring to version ${version.version}`,
         },
       );
 
@@ -148,10 +181,10 @@ export async function POST(request: NextRequest) {
         config.templatesCollectionId,
         templateId,
         {
-          name: (version as any).name,
-          subject: (version as any).subject,
-          content: (version as any).content,
-          category: (version as any).category,
+          name: version.name,
+          subject: version.subject,
+          content: version.content,
+          category: version.category,
           version: currentVersion + 1,
           updated_at: new Date().toISOString(),
         },
@@ -161,7 +194,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle creating a new version (saving current state)
-    const currentVersion = (template as any).version || 0;
+    const currentVersion = template.version || 0;
     const newVersion = currentVersion + 1;
 
     // Create version record
@@ -172,10 +205,10 @@ export async function POST(request: NextRequest) {
       {
         template_id: templateId,
         version: currentVersion,
-        name: (template as any).name,
-        subject: (template as any).subject,
-        content: (template as any).content,
-        category: (template as any).category,
+        name: template.name,
+        subject: template.subject,
+        content: template.content,
+        category: template.category,
         user_email: session.user.email,
         created_at: new Date().toISOString(),
         change_note: changeNote || null,
@@ -193,11 +226,15 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json({ success: true, version: newVersion });
-  } catch (error: any) {
-    apiLogger.error("Error managing template version", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to manage template version" },
-      { status: 500 },
+  } catch (error: unknown) {
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : "Failed to manage template version";
+    apiLogger.error(
+      "Error managing template version",
+      error instanceof Error ? error : undefined,
     );
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

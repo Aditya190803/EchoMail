@@ -1,8 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
+import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
+import type { SignatureDocument } from "@/types/appwrite";
 
 // GET /api/appwrite/signatures - List signatures for the authenticated user
 export async function GET(request: NextRequest) {
@@ -34,24 +38,29 @@ export async function GET(request: NextRequest) {
       queries,
     );
 
-    const documents = response.documents.map((doc) => ({
+    const documents = (
+      response.documents as unknown as SignatureDocument[]
+    ).map((doc) => ({
       $id: doc.$id,
-      name: (doc as any).name || "",
-      content: (doc as any).content || "",
-      is_default: (doc as any).is_default || false,
-      user_email: (doc as any).user_email || "",
-      created_at: (doc as any).created_at || doc.$createdAt,
-      updated_at: (doc as any).updated_at || doc.$updatedAt,
+      name: doc.name || "",
+      content: doc.content || "",
+      is_default: doc.is_default || false,
+      user_email: doc.user_email || "",
+      created_at: doc.created_at || doc.$createdAt,
+      updated_at: doc.updated_at || doc.$updatedAt,
     }));
 
     return NextResponse.json({ total: response.total, documents });
-  } catch (error: any) {
+  } catch (error: unknown) {
     apiLogger.error(
       "Error fetching signatures",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to fetch signatures" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to fetch signatures",
+      },
       { status: 500 },
     );
   }
@@ -105,13 +114,16 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     apiLogger.error(
       "Error creating signature",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to create signature" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to create signature",
+      },
       { status: 500 },
     );
   }
@@ -137,13 +149,13 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verify ownership
-    const doc = await databases.getDocument(
+    const doc = (await databases.getDocument(
       config.databaseId,
       config.signaturesCollectionId,
       id,
-    );
+    )) as SignatureDocument;
 
-    if ((doc as any).user_email !== session.user.email) {
+    if (doc.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -170,11 +182,16 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const updateData: any = {};
-    if (name !== undefined) updateData.name = name;
-    if (content !== undefined) updateData.content = content;
-    if (is_default !== undefined || setAsDefault)
+    const updateData: Record<string, string | boolean> = {};
+    if (name !== undefined) {
+      updateData.name = name;
+    }
+    if (content !== undefined) {
+      updateData.content = content;
+    }
+    if (is_default !== undefined || setAsDefault) {
       updateData.is_default = is_default ?? true;
+    }
 
     const result = await databases.updateDocument(
       config.databaseId,
@@ -184,13 +201,16 @@ export async function PUT(request: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     apiLogger.error(
       "Error updating signature",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to update signature" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to update signature",
+      },
       { status: 500 },
     );
   }
@@ -216,13 +236,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify ownership
-    const doc = await databases.getDocument(
+    const doc = (await databases.getDocument(
       config.databaseId,
       config.signaturesCollectionId,
       signatureId,
-    );
+    )) as SignatureDocument;
 
-    if ((doc as any).user_email !== session.user.email) {
+    if (doc.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -233,13 +253,16 @@ export async function DELETE(request: NextRequest) {
     );
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     apiLogger.error(
       "Error deleting signature",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to delete signature" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to delete signature",
+      },
       { status: 500 },
     );
   }

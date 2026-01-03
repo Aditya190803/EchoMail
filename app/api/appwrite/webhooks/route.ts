@@ -1,8 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
+import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
+import type { WebhookDocument } from "@/types/appwrite";
+
+// Extended type for additional fields
+interface ExtendedWebhookDocument extends WebhookDocument {
+  last_triggered_at?: string;
+}
 
 // GET /api/appwrite/webhooks - List webhooks for the authenticated user
 export async function GET(_request: NextRequest) {
@@ -23,30 +32,35 @@ export async function GET(_request: NextRequest) {
       ],
     );
 
-    const documents = response.documents.map((doc) => ({
+    const documents = (
+      response.documents as unknown as ExtendedWebhookDocument[]
+    ).map((doc) => ({
       $id: doc.$id,
-      name: (doc as any).name || "",
-      url: (doc as any).url || "",
+      name: doc.name || "",
+      url: doc.url || "",
       events:
-        typeof (doc as any).events === "string"
-          ? JSON.parse((doc as any).events)
-          : (doc as any).events || [],
-      is_active: (doc as any).is_active ?? true,
-      secret: (doc as any).secret,
-      user_email: (doc as any).user_email || "",
-      created_at: (doc as any).created_at || doc.$createdAt,
-      updated_at: (doc as any).updated_at || doc.$updatedAt,
-      last_triggered_at: (doc as any).last_triggered_at,
+        typeof doc.events === "string"
+          ? JSON.parse(doc.events as unknown as string)
+          : doc.events || [],
+      is_active: doc.is_active ?? true,
+      secret: doc.secret,
+      user_email: doc.user_email || "",
+      created_at: doc.created_at || doc.$createdAt,
+      updated_at: doc.updated_at || doc.$updatedAt,
+      last_triggered_at: doc.last_triggered_at,
     }));
 
     return NextResponse.json({ total: response.total, documents });
-  } catch (error: any) {
+  } catch (error: unknown) {
     apiLogger.error(
       "Error fetching webhooks",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to fetch webhooks" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to fetch webhooks",
+      },
       { status: 500 },
     );
   }
@@ -81,13 +95,16 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     apiLogger.error(
       "Error creating webhook",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to create webhook" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to create webhook",
+      },
       { status: 500 },
     );
   }
@@ -114,24 +131,35 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verify ownership
-    const doc = await databases.getDocument(
+    const doc = (await databases.getDocument(
       config.databaseId,
       config.webhooksCollectionId,
       id,
-    );
+    )) as WebhookDocument;
 
-    if ((doc as any).user_email !== session.user.email) {
+    if (doc.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const updateData: any = {};
-    if (name !== undefined) updateData.name = name;
-    if (url !== undefined) updateData.url = url;
-    if (events !== undefined) updateData.events = JSON.stringify(events);
-    if (is_active !== undefined) updateData.is_active = is_active;
-    if (secret !== undefined) updateData.secret = secret;
-    if (updateLastTriggered)
+    const updateData: Record<string, string | boolean> = {};
+    if (name !== undefined) {
+      updateData.name = name;
+    }
+    if (url !== undefined) {
+      updateData.url = url;
+    }
+    if (events !== undefined) {
+      updateData.events = JSON.stringify(events);
+    }
+    if (is_active !== undefined) {
+      updateData.is_active = is_active;
+    }
+    if (secret !== undefined) {
+      updateData.secret = secret;
+    }
+    if (updateLastTriggered) {
       updateData.last_triggered_at = new Date().toISOString();
+    }
 
     const result = await databases.updateDocument(
       config.databaseId,
@@ -141,13 +169,16 @@ export async function PUT(request: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
+  } catch (error: unknown) {
     apiLogger.error(
       "Error updating webhook",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to update webhook" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to update webhook",
+      },
       { status: 500 },
     );
   }
@@ -173,13 +204,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify ownership
-    const doc = await databases.getDocument(
+    const doc = (await databases.getDocument(
       config.databaseId,
       config.webhooksCollectionId,
       webhookId,
-    );
+    )) as WebhookDocument;
 
-    if ((doc as any).user_email !== session.user.email) {
+    if (doc.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -190,13 +221,16 @@ export async function DELETE(request: NextRequest) {
     );
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     apiLogger.error(
       "Error deleting webhook",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to delete webhook" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to delete webhook",
+      },
       { status: 500 },
     );
   }

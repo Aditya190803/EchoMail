@@ -1,7 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { storage, config } from "@/lib/appwrite-server";
+import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/appwrite/attachments/[fileId] - Download/view an attachment
@@ -53,16 +56,26 @@ export async function GET(
         "Cache-Control": "private, max-age=3600",
       },
     });
-  } catch (error: any) {
-    apiLogger.error("Error fetching attachment", error);
+  } catch (error: unknown) {
+    const appwriteError = error as {
+      code?: number;
+      type?: string;
+      message?: string;
+    };
+    apiLogger.error(
+      "Error fetching attachment",
+      error instanceof Error ? error : undefined,
+    );
 
-    if (error.code === 404 || error.type === "storage_file_not_found") {
+    if (
+      appwriteError.code === 404 ||
+      appwriteError.type === "storage_file_not_found"
+    ) {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
 
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch attachment" },
-      { status: 500 },
-    );
+    const errorMessage =
+      error instanceof Error ? error.message : "Failed to fetch attachment";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

@@ -11,12 +11,13 @@
  * @module lib/repositories/contact-repository
  */
 
+import { contactsService, type Contact } from "@/lib/appwrite";
+
 import {
   type QueryOptions,
   type PaginatedResponse,
   type FilterOptions,
 } from "./base-repository";
-import { contactsService, type Contact } from "@/lib/appwrite";
 
 // Re-export Contact type with BaseEntity extension
 export type { Contact };
@@ -341,40 +342,56 @@ export class ContactRepository {
 
         switch (filter.operator) {
           case "eq":
-            if (value !== filter.value) return false;
+            if (value !== filter.value) {
+              return false;
+            }
             break;
           case "neq":
-            if (value === filter.value) return false;
+            if (value === filter.value) {
+              return false;
+            }
             break;
           case "gt":
-            if (typeof value !== "number" || value <= (filter.value as number))
+            if (
+              typeof value !== "number" ||
+              value <= (filter.value as number)
+            ) {
               return false;
+            }
             break;
           case "gte":
-            if (typeof value !== "number" || value < (filter.value as number))
+            if (typeof value !== "number" || value < (filter.value as number)) {
               return false;
+            }
             break;
           case "lt":
-            if (typeof value !== "number" || value >= (filter.value as number))
+            if (
+              typeof value !== "number" ||
+              value >= (filter.value as number)
+            ) {
               return false;
+            }
             break;
           case "lte":
-            if (typeof value !== "number" || value > (filter.value as number))
+            if (typeof value !== "number" || value > (filter.value as number)) {
               return false;
+            }
             break;
           case "contains":
             if (
               typeof value !== "string" ||
               !value.includes(filter.value as string)
-            )
+            ) {
               return false;
+            }
             break;
           case "startsWith":
             if (
               typeof value !== "string" ||
               !value.startsWith(filter.value as string)
-            )
+            ) {
               return false;
+            }
             break;
         }
       }
@@ -394,10 +411,12 @@ export class ContactRepository {
         const aVal = (a as unknown as Record<string, unknown>)[sort.field];
         const bVal = (b as unknown as Record<string, unknown>)[sort.field];
 
-        if (aVal === undefined || aVal === null)
+        if (aVal === undefined || aVal === null) {
           return sort.direction === "asc" ? 1 : -1;
-        if (bVal === undefined || bVal === null)
+        }
+        if (bVal === undefined || bVal === null) {
           return sort.direction === "asc" ? -1 : 1;
+        }
 
         const comparison = String(aVal).localeCompare(String(bVal));
         if (comparison !== 0) {

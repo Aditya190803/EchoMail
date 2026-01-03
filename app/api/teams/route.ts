@@ -1,7 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
+import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/teams - List teams the user is a member of
@@ -236,10 +239,15 @@ export async function PUT(request: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
-    if (name) updateData.name = name.trim();
-    if (description !== undefined)
+    if (name) {
+      updateData.name = name.trim();
+    }
+    if (description !== undefined) {
       updateData.description = description?.trim() || null;
-    if (settings) updateData.settings = JSON.stringify(settings);
+    }
+    if (settings) {
+      updateData.settings = JSON.stringify(settings);
+    }
 
     const team = await databases.updateDocument(
       config.databaseId,

@@ -1,5 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
+
+import { fetchFileFromUrl } from "@/lib/attachment-fetcher";
 import { authOptions } from "@/lib/auth";
 import {
   sendEmailViaAPI,
@@ -9,7 +12,6 @@ import {
   preBuildEmailTemplate,
   sendEmailWithTemplate,
 } from "@/lib/gmail";
-import { fetchFileFromUrl } from "@/lib/attachment-fetcher";
 import { apiLogger } from "@/lib/logger";
 
 interface EmailResult {

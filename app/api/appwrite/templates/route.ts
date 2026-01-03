@@ -1,8 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
+import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
+import type { TemplateDocument } from "@/types/appwrite";
+
+// Extended type for version tracking
+interface ExtendedTemplateDocument extends TemplateDocument {
+  version?: number;
+}
 
 // GET /api/appwrite/templates - List templates for the authenticated user
 export async function GET(_request: NextRequest) {
@@ -27,10 +36,16 @@ export async function GET(_request: NextRequest) {
       total: response.total,
       documents: response.documents,
     });
-  } catch (error: any) {
-    apiLogger.error("Error fetching templates", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error fetching templates",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to fetch templates" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to fetch templates",
+      },
       { status: 500 },
     );
   }
@@ -66,10 +81,16 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    apiLogger.error("Error creating template", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error creating template",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to create template" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to create template",
+      },
       { status: 500 },
     );
   }
@@ -96,17 +117,17 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verify ownership
-    const doc = await databases.getDocument(
+    const doc = (await databases.getDocument(
       config.databaseId,
       config.templatesCollectionId,
       id,
-    );
+    )) as ExtendedTemplateDocument;
 
-    if ((doc as any).user_email !== session.user.email) {
+    if (doc.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const currentVersion = (doc as any).version || 1;
+    const currentVersion = doc.version || 1;
 
     // Save current state as a version if requested (or if major content change)
     if (saveVersion) {
@@ -118,23 +139,27 @@ export async function PUT(request: NextRequest) {
           {
             template_id: id,
             version: currentVersion,
-            name: (doc as any).name,
-            subject: (doc as any).subject,
-            content: (doc as any).content,
-            category: (doc as any).category,
+            name: doc.name,
+            subject: doc.subject,
+            content: doc.content,
+            category: doc.category,
             user_email: session.user.email,
             created_at: new Date().toISOString(),
             change_note: changeNote || null,
           },
         );
-      } catch (versionError: any) {
+      } catch (versionError: unknown) {
         // If template_versions collection doesn't exist, just continue
+        const appwriteError = versionError as {
+          code?: number;
+          message?: string;
+        };
         if (
-          versionError.code !== 404 &&
-          !versionError.message?.includes("Collection")
+          appwriteError.code !== 404 &&
+          !appwriteError.message?.includes("Collection")
         ) {
           apiLogger.warn("Failed to save template version", {
-            error: versionError.message,
+            error: appwriteError.message,
           });
         }
       }
@@ -155,10 +180,16 @@ export async function PUT(request: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    apiLogger.error("Error updating template", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error updating template",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to update template" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to update template",
+      },
       { status: 500 },
     );
   }
@@ -184,13 +215,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify ownership
-    const doc = await databases.getDocument(
+    const doc = (await databases.getDocument(
       config.databaseId,
       config.templatesCollectionId,
       templateId,
-    );
+    )) as TemplateDocument;
 
-    if ((doc as any).user_email !== session.user.email) {
+    if (doc.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -201,10 +232,16 @@ export async function DELETE(request: NextRequest) {
     );
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    apiLogger.error("Error deleting template", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error deleting template",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to delete template" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to delete template",
+      },
       { status: 500 },
     );
   }

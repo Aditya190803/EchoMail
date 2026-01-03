@@ -1,7 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { databases, config, Query } from "@/lib/appwrite-server";
+import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 
 // DELETE /api/gdpr/delete - Delete all user data (GDPR Right to be Forgotten)
@@ -35,7 +38,9 @@ export async function DELETE(_request: NextRequest) {
       collectionId: string,
       key: keyof typeof deletionResults,
     ) {
-      if (!collectionId) return;
+      if (!collectionId) {
+        return;
+      }
 
       try {
         let hasMore = true;

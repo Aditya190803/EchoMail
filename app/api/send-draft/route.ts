@@ -1,5 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
+
+import { databases, config } from "@/lib/appwrite-server";
 import { authOptions } from "@/lib/auth";
 import {
   sendEmailViaAPI,
@@ -9,7 +12,6 @@ import {
   preBuildEmailTemplate,
   sendEmailWithTemplate,
 } from "@/lib/gmail";
-import { databases, config } from "@/lib/appwrite-server";
 import { apiLogger } from "@/lib/logger";
 
 /**

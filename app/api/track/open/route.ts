@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
+
 import { databases, config, ID } from "@/lib/appwrite-server";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 /**
  * Tracking pixel endpoint for email open tracking
@@ -14,6 +16,18 @@ const TRACKING_PIXEL = Buffer.from(
 );
 
 export async function GET(request: NextRequest) {
+  // Apply rate limiting to prevent abuse
+  const rateLimitResponse = rateLimit(request, RATE_LIMITS.public);
+  if (rateLimitResponse) {
+    // Return pixel anyway but don't process tracking
+    return new NextResponse(TRACKING_PIXEL, {
+      status: 200,
+      headers: {
+        "Content-Type": "image/gif",
+      },
+    });
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const campaignId = searchParams.get("c");

@@ -1,8 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { apiLogger } from "@/lib/logger";
 
 // Use the same global Map as in send-single-email
 declare global {
+  // eslint-disable-next-line no-var
   var emailProgress: Map<
     string,
     {
@@ -14,6 +17,7 @@ declare global {
       lastUpdate: number;
     }
   >;
+  // eslint-disable-next-line no-var
   var emailRateLimitState: {
     isPaused: boolean;
     pauseStartTime: number;

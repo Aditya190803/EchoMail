@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
+
 import { databases, config, ID } from "@/lib/appwrite-server";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 /**
  * Link click tracking endpoint
@@ -8,6 +10,18 @@ import { apiLogger } from "@/lib/logger";
  */
 
 export async function GET(request: NextRequest) {
+  // Apply rate limiting to prevent abuse
+  const rateLimitResponse = rateLimit(request, RATE_LIMITS.public);
+  if (rateLimitResponse) {
+    // Still redirect even if rate limited, just don't track
+    const { searchParams } = new URL(request.url);
+    const targetUrl = searchParams.get("url");
+    if (targetUrl) {
+      return NextResponse.redirect(decodeURIComponent(targetUrl));
+    }
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const campaignId = searchParams.get("c");

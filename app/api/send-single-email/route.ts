@@ -1,12 +1,15 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
+
+import { fetchFileFromUrl } from "@/lib/attachment-fetcher";
 import { authOptions } from "@/lib/auth";
 import {
   sendEmailViaAPI,
   replacePlaceholders,
   preResolveAttachments,
 } from "@/lib/gmail";
-import { fetchFileFromUrl } from "@/lib/attachment-fetcher";
 import { apiLogger } from "@/lib/logger";
 
 // App Router configuration for single email sending

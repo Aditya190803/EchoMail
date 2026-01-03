@@ -1,8 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
+import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
+import type { UnsubscribeDocument } from "@/types/appwrite";
 
 // GET /api/appwrite/unsubscribes - List unsubscribes for the authenticated user
 export async function GET(request: NextRequest) {
@@ -43,22 +47,29 @@ export async function GET(request: NextRequest) {
       ],
     );
 
-    const documents = response.documents.map((doc) => ({
+    const documents = (
+      response.documents as unknown as UnsubscribeDocument[]
+    ).map((doc) => ({
       $id: doc.$id,
-      email: (doc as any).email || "",
-      user_email: (doc as any).user_email || "",
-      reason: (doc as any).reason,
-      unsubscribed_at: (doc as any).unsubscribed_at || doc.$createdAt,
+      email: doc.email || "",
+      user_email: doc.user_email || "",
+      reason: doc.reason,
+      unsubscribed_at: doc.unsubscribed_at || doc.$createdAt,
     }));
 
     return NextResponse.json({ total: response.total, documents });
-  } catch (error: any) {
+  } catch (error: unknown) {
     apiLogger.error(
       "Error fetching unsubscribes",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to fetch unsubscribes" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch unsubscribes",
+      },
       { status: 500 },
     );
   }
@@ -89,10 +100,18 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    apiLogger.error("Error creating unsubscribe", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error creating unsubscribe",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to create unsubscribe" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to create unsubscribe",
+      },
       { status: 500 },
     );
   }
@@ -124,17 +143,27 @@ export async function PATCH(request: NextRequest) {
     );
 
     const unsubscribedSet = new Set(
-      response.documents.map((u: any) => u.email.toLowerCase()),
+      (response.documents as unknown as UnsubscribeDocument[]).map((u) =>
+        u.email.toLowerCase(),
+      ),
     );
     const filteredEmails = emails.filter(
       (email: string) => !unsubscribedSet.has(email.toLowerCase()),
     );
 
     return NextResponse.json({ emails: filteredEmails });
-  } catch (error: any) {
-    apiLogger.error("Error filtering unsubscribes", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error filtering unsubscribes",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to filter unsubscribes" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to filter unsubscribes",
+      },
       { status: 500 },
     );
   }
@@ -160,13 +189,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify ownership
-    const doc = await databases.getDocument(
+    const doc = (await databases.getDocument(
       config.databaseId,
       config.unsubscribesCollectionId,
       unsubscribeId,
-    );
+    )) as UnsubscribeDocument;
 
-    if ((doc as any).user_email !== session.user.email) {
+    if (doc.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -177,13 +206,18 @@ export async function DELETE(request: NextRequest) {
     );
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
     apiLogger.error(
       "Error deleting unsubscribe",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to delete unsubscribe" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to delete unsubscribe",
+      },
       { status: 500 },
     );
   }

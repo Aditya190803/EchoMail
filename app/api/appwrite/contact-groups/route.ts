@@ -1,8 +1,18 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
+import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
+import type { ContactGroupDocument } from "@/types/appwrite";
+
+// Extended type for fields not in base ContactGroupDocument
+interface ExtendedContactGroupDocument extends ContactGroupDocument {
+  color?: string;
+  contact_ids?: string | string[];
+}
 
 // GET /api/appwrite/contact-groups - List groups for the authenticated user
 export async function GET(_request: NextRequest) {
@@ -24,25 +34,35 @@ export async function GET(_request: NextRequest) {
     );
 
     // Parse stringified JSON fields
-    const documents = response.documents.map((doc) => ({
+    const documents = (
+      response.documents as unknown as ExtendedContactGroupDocument[]
+    ).map((doc) => ({
       $id: doc.$id,
-      name: (doc as any).name || "",
-      description: (doc as any).description,
-      color: (doc as any).color,
+      name: doc.name || "",
+      description: doc.description,
+      color: doc.color,
       contact_ids:
-        typeof (doc as any).contact_ids === "string"
-          ? JSON.parse((doc as any).contact_ids)
-          : (doc as any).contact_ids || [],
-      user_email: (doc as any).user_email || "",
-      created_at: (doc as any).created_at || doc.$createdAt,
-      updated_at: (doc as any).updated_at || doc.$updatedAt,
+        typeof doc.contact_ids === "string"
+          ? JSON.parse(doc.contact_ids)
+          : doc.contact_ids || [],
+      user_email: doc.user_email || "",
+      created_at: doc.created_at || doc.$createdAt,
+      updated_at: doc.updated_at || doc.$updatedAt,
     }));
 
     return NextResponse.json({ total: response.total, documents });
-  } catch (error: any) {
-    apiLogger.error("Error fetching contact groups", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error fetching contact groups",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to fetch contact groups" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch contact groups",
+      },
       { status: 500 },
     );
   }
@@ -76,10 +96,18 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    apiLogger.error("Error creating contact group", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error creating contact group",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to create contact group" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to create contact group",
+      },
       { status: 500 },
     );
   }
@@ -102,22 +130,29 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verify ownership
-    const doc = await databases.getDocument(
+    const doc = (await databases.getDocument(
       config.databaseId,
       config.contactGroupsCollectionId,
       id,
-    );
+    )) as ContactGroupDocument;
 
-    if ((doc as any).user_email !== session.user.email) {
+    if (doc.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const updateData: any = {};
-    if (name !== undefined) updateData.name = name;
-    if (description !== undefined) updateData.description = description;
-    if (color !== undefined) updateData.color = color;
-    if (contact_ids !== undefined)
+    const updateData: Record<string, string | boolean | number | null> = {};
+    if (name !== undefined) {
+      updateData.name = name;
+    }
+    if (description !== undefined) {
+      updateData.description = description;
+    }
+    if (color !== undefined) {
+      updateData.color = color;
+    }
+    if (contact_ids !== undefined) {
       updateData.contact_ids = JSON.stringify(contact_ids);
+    }
 
     const result = await databases.updateDocument(
       config.databaseId,
@@ -127,10 +162,18 @@ export async function PUT(request: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    apiLogger.error("Error updating contact group", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error updating contact group",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to update contact group" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to update contact group",
+      },
       { status: 500 },
     );
   }
@@ -153,13 +196,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify ownership
-    const doc = await databases.getDocument(
+    const doc = (await databases.getDocument(
       config.databaseId,
       config.contactGroupsCollectionId,
       groupId,
-    );
+    )) as ContactGroupDocument;
 
-    if ((doc as any).user_email !== session.user.email) {
+    if (doc.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -170,10 +213,18 @@ export async function DELETE(request: NextRequest) {
     );
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    apiLogger.error("Error deleting contact group", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error deleting contact group",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to delete contact group" },
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to delete contact group",
+      },
       { status: 500 },
     );
   }

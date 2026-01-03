@@ -1,8 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
+import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
+import type { ABTestDocument } from "@/types/appwrite";
 
 // GET /api/appwrite/ab-tests - List A/B tests for the authenticated user
 export async function GET(request: NextRequest) {
@@ -18,43 +22,43 @@ export async function GET(request: NextRequest) {
 
     // Get single test by ID
     if (testId) {
-      const doc = await databases.getDocument(
+      const doc = (await databases.getDocument(
         config.databaseId,
         config.abTestsCollectionId,
         testId,
-      );
+      )) as ABTestDocument;
 
-      if ((doc as any).user_email !== session.user.email) {
+      if (doc.user_email !== session.user.email) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
       }
 
       return NextResponse.json({
         $id: doc.$id,
-        name: (doc as any).name || "",
-        status: (doc as any).status || "draft",
-        test_type: (doc as any).test_type || "subject",
-        variant_a_subject: (doc as any).variant_a_subject,
-        variant_a_content: (doc as any).variant_a_content,
-        variant_b_subject: (doc as any).variant_b_subject,
-        variant_b_content: (doc as any).variant_b_content,
+        name: doc.name || "",
+        status: doc.status || "draft",
+        test_type: doc.test_type || "subject",
+        variant_a_subject: doc.variant_a_subject,
+        variant_a_content: doc.variant_a_content,
+        variant_b_subject: doc.variant_b_subject,
+        variant_b_content: doc.variant_b_content,
         variant_a_recipients:
-          typeof (doc as any).variant_a_recipients === "string"
-            ? JSON.parse((doc as any).variant_a_recipients)
-            : (doc as any).variant_a_recipients || [],
+          typeof doc.variant_a_recipients === "string"
+            ? JSON.parse(doc.variant_a_recipients)
+            : doc.variant_a_recipients || [],
         variant_b_recipients:
-          typeof (doc as any).variant_b_recipients === "string"
-            ? JSON.parse((doc as any).variant_b_recipients)
-            : (doc as any).variant_b_recipients || [],
-        variant_a_sent: (doc as any).variant_a_sent || 0,
-        variant_b_sent: (doc as any).variant_b_sent || 0,
-        variant_a_opens: (doc as any).variant_a_opens || 0,
-        variant_b_opens: (doc as any).variant_b_opens || 0,
-        variant_a_clicks: (doc as any).variant_a_clicks || 0,
-        variant_b_clicks: (doc as any).variant_b_clicks || 0,
-        winner: (doc as any).winner,
-        user_email: (doc as any).user_email || "",
-        created_at: (doc as any).created_at || doc.$createdAt,
-        completed_at: (doc as any).completed_at,
+          typeof doc.variant_b_recipients === "string"
+            ? JSON.parse(doc.variant_b_recipients)
+            : doc.variant_b_recipients || [],
+        variant_a_sent: doc.variant_a_sent || 0,
+        variant_b_sent: doc.variant_b_sent || 0,
+        variant_a_opens: doc.variant_a_opens || 0,
+        variant_b_opens: doc.variant_b_opens || 0,
+        variant_a_clicks: doc.variant_a_clicks || 0,
+        variant_b_clicks: doc.variant_b_clicks || 0,
+        winner: doc.winner,
+        user_email: doc.user_email || "",
+        created_at: doc.created_at || doc.$createdAt,
+        completed_at: doc.completed_at,
       });
     }
 
@@ -69,40 +73,48 @@ export async function GET(request: NextRequest) {
       ],
     );
 
-    const documents = response.documents.map((doc) => ({
-      $id: doc.$id,
-      name: (doc as any).name || "",
-      status: (doc as any).status || "draft",
-      test_type: (doc as any).test_type || "subject",
-      variant_a_subject: (doc as any).variant_a_subject,
-      variant_a_content: (doc as any).variant_a_content,
-      variant_b_subject: (doc as any).variant_b_subject,
-      variant_b_content: (doc as any).variant_b_content,
-      variant_a_recipients:
-        typeof (doc as any).variant_a_recipients === "string"
-          ? JSON.parse((doc as any).variant_a_recipients)
-          : (doc as any).variant_a_recipients || [],
-      variant_b_recipients:
-        typeof (doc as any).variant_b_recipients === "string"
-          ? JSON.parse((doc as any).variant_b_recipients)
-          : (doc as any).variant_b_recipients || [],
-      variant_a_sent: (doc as any).variant_a_sent || 0,
-      variant_b_sent: (doc as any).variant_b_sent || 0,
-      variant_a_opens: (doc as any).variant_a_opens || 0,
-      variant_b_opens: (doc as any).variant_b_opens || 0,
-      variant_a_clicks: (doc as any).variant_a_clicks || 0,
-      variant_b_clicks: (doc as any).variant_b_clicks || 0,
-      winner: (doc as any).winner,
-      user_email: (doc as any).user_email || "",
-      created_at: (doc as any).created_at || doc.$createdAt,
-      completed_at: (doc as any).completed_at,
-    }));
+    const documents = (response.documents as unknown as ABTestDocument[]).map(
+      (doc) => ({
+        $id: doc.$id,
+        name: doc.name || "",
+        status: doc.status || "draft",
+        test_type: doc.test_type || "subject",
+        variant_a_subject: doc.variant_a_subject,
+        variant_a_content: doc.variant_a_content,
+        variant_b_subject: doc.variant_b_subject,
+        variant_b_content: doc.variant_b_content,
+        variant_a_recipients:
+          typeof doc.variant_a_recipients === "string"
+            ? JSON.parse(doc.variant_a_recipients)
+            : doc.variant_a_recipients || [],
+        variant_b_recipients:
+          typeof doc.variant_b_recipients === "string"
+            ? JSON.parse(doc.variant_b_recipients)
+            : doc.variant_b_recipients || [],
+        variant_a_sent: doc.variant_a_sent || 0,
+        variant_b_sent: doc.variant_b_sent || 0,
+        variant_a_opens: doc.variant_a_opens || 0,
+        variant_b_opens: doc.variant_b_opens || 0,
+        variant_a_clicks: doc.variant_a_clicks || 0,
+        variant_b_clicks: doc.variant_b_clicks || 0,
+        winner: doc.winner,
+        user_email: doc.user_email || "",
+        created_at: doc.created_at || doc.$createdAt,
+        completed_at: doc.completed_at,
+      }),
+    );
 
     return NextResponse.json({ total: response.total, documents });
-  } catch (error: any) {
-    apiLogger.error("Error fetching A/B tests", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error fetching A/B tests",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to fetch A/B tests" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to fetch A/B tests",
+      },
       { status: 500 },
     );
   }
@@ -156,10 +168,16 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    apiLogger.error("Error creating A/B test", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error creating A/B test",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to create A/B test" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to create A/B test",
+      },
       { status: 500 },
     );
   }
@@ -182,26 +200,22 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verify ownership
-    const doc = await databases.getDocument(
+    const doc = (await databases.getDocument(
       config.databaseId,
       config.abTestsCollectionId,
       id,
-    );
+    )) as ABTestDocument;
 
-    if ((doc as any).user_email !== session.user.email) {
+    if (doc.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     // If completing the test, determine winner
     if (complete) {
       const aRate =
-        (doc as any).variant_a_sent > 0
-          ? (doc as any).variant_a_opens / (doc as any).variant_a_sent
-          : 0;
+        doc.variant_a_sent > 0 ? doc.variant_a_opens / doc.variant_a_sent : 0;
       const bRate =
-        (doc as any).variant_b_sent > 0
-          ? (doc as any).variant_b_opens / (doc as any).variant_b_sent
-          : 0;
+        doc.variant_b_sent > 0 ? doc.variant_b_opens / doc.variant_b_sent : 0;
 
       let winner: "A" | "B" | "tie" = "tie";
       if (Math.abs(aRate - bRate) > 0.05) {
@@ -223,7 +237,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Regular update
-    const updateData: Record<string, any> = {};
+    const updateData: Record<string, string | number | null> = {};
 
     if (updates.variant_a_recipients) {
       updateData.variant_a_recipients = JSON.stringify(
@@ -268,10 +282,16 @@ export async function PUT(request: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    apiLogger.error("Error updating A/B test", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error updating A/B test",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to update A/B test" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to update A/B test",
+      },
       { status: 500 },
     );
   }
@@ -294,13 +314,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify ownership
-    const doc = await databases.getDocument(
+    const doc = (await databases.getDocument(
       config.databaseId,
       config.abTestsCollectionId,
       testId,
-    );
+    )) as ABTestDocument;
 
-    if ((doc as any).user_email !== session.user.email) {
+    if (doc.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -311,10 +331,16 @@ export async function DELETE(request: NextRequest) {
     );
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    apiLogger.error("Error deleting A/B test", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error deleting A/B test",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to delete A/B test" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to delete A/B test",
+      },
       { status: 500 },
     );
   }

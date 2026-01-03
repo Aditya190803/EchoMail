@@ -1,9 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
-import type { GDPRDataExport } from "@/types/gdpr";
+import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
+import type { GDPRDataExport } from "@/types/gdpr";
 
 // Helper to sanitize data for export (remove internal fields) - kept for potential future use
 function _sanitizeDocument(doc: any): any {

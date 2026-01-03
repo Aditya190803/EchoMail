@@ -1,8 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
+import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
+import type { CampaignDocument } from "@/types/appwrite";
 
 // GET /api/appwrite/campaigns - List campaigns for the authenticated user
 export async function GET(_request: NextRequest) {
@@ -24,37 +28,65 @@ export async function GET(_request: NextRequest) {
     );
 
     // Parse stringified JSON fields
-    const documents = response.documents.map((doc) => ({
-      $id: doc.$id,
-      subject: (doc as any).subject || "",
-      content: (doc as any).content || "",
-      recipients:
-        typeof (doc as any).recipients === "string"
-          ? JSON.parse((doc as any).recipients)
-          : (doc as any).recipients || [],
-      sent: (doc as any).sent || 0,
-      failed: (doc as any).failed || 0,
-      status: (doc as any).status || "completed",
-      user_email: (doc as any).user_email || "",
-      created_at: (doc as any).created_at || doc.$createdAt,
-      campaign_type: (doc as any).campaign_type,
-      attachments: (doc as any).attachments
-        ? typeof (doc as any).attachments === "string"
-          ? JSON.parse((doc as any).attachments)
-          : (doc as any).attachments
-        : [],
-      send_results: (doc as any).send_results
-        ? typeof (doc as any).send_results === "string"
-          ? JSON.parse((doc as any).send_results)
-          : (doc as any).send_results
-        : [],
-    }));
+    const documents = (response.documents as unknown as CampaignDocument[]).map(
+      (doc) => ({
+        $id: doc.$id,
+        subject: doc.subject || "",
+        content: doc.content || "",
+        recipients:
+          typeof (doc as CampaignDocument & { recipients?: string | string[] })
+            .recipients === "string"
+            ? JSON.parse(
+                (doc as CampaignDocument & { recipients?: string })
+                  .recipients as string,
+              )
+            : (doc as CampaignDocument & { recipients?: string[] })
+                .recipients || [],
+        sent: (doc as CampaignDocument & { sent?: number }).sent || 0,
+        failed: (doc as CampaignDocument & { failed?: number }).failed || 0,
+        status: doc.status || "completed",
+        user_email: doc.user_email || "",
+        created_at: doc.created_at || doc.$createdAt,
+        campaign_type: (doc as CampaignDocument & { campaign_type?: string })
+          .campaign_type,
+        attachments: (
+          doc as CampaignDocument & { attachments?: string | unknown[] }
+        ).attachments
+          ? typeof (doc as CampaignDocument & { attachments?: string })
+              .attachments === "string"
+            ? JSON.parse(
+                (doc as CampaignDocument & { attachments?: string })
+                  .attachments as string,
+              )
+            : (doc as CampaignDocument & { attachments?: unknown[] })
+                .attachments
+          : [],
+        send_results: (
+          doc as CampaignDocument & { send_results?: string | unknown[] }
+        ).send_results
+          ? typeof (doc as CampaignDocument & { send_results?: string })
+              .send_results === "string"
+            ? JSON.parse(
+                (doc as CampaignDocument & { send_results?: string })
+                  .send_results as string,
+              )
+            : (doc as CampaignDocument & { send_results?: unknown[] })
+                .send_results
+          : [],
+      }),
+    );
 
     return NextResponse.json({ total: response.total, documents });
-  } catch (error: any) {
-    apiLogger.error("Error fetching campaigns", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error fetching campaigns",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to fetch campaigns" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to fetch campaigns",
+      },
       { status: 500 },
     );
   }
@@ -102,10 +134,16 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    apiLogger.error("Error creating campaign", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error creating campaign",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to create campaign" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to create campaign",
+      },
       { status: 500 },
     );
   }

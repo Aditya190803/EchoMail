@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
+
 import { databases, config, ID, Query } from "@/lib/appwrite-server";
 import { apiLogger } from "@/lib/logger";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 /**
  * Public unsubscribe endpoint
@@ -8,6 +10,21 @@ import { apiLogger } from "@/lib/logger";
  */
 
 export async function GET(request: NextRequest) {
+  // Apply rate limiting to prevent abuse
+  const rateLimitResponse = rateLimit(request, RATE_LIMITS.public);
+  if (rateLimitResponse) {
+    return new NextResponse(
+      generateHtmlPage(
+        "Rate Limited",
+        "Too many requests. Please try again later.",
+      ),
+      {
+        status: 429,
+        headers: { "Content-Type": "text/html" },
+      },
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const email = searchParams.get("e");
   const userEmail = searchParams.get("u");

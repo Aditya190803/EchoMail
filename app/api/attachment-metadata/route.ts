@@ -1,5 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
+
 import { authOptions } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 
@@ -68,7 +71,9 @@ function getDirectDownloadUrl(url: string): string {
     trimmedUrl.includes("docs.google.com")
   ) {
     const converted = convertGoogleDriveLink(trimmedUrl);
-    if (converted) return converted;
+    if (converted) {
+      return converted;
+    }
   }
 
   if (
@@ -77,7 +82,9 @@ function getDirectDownloadUrl(url: string): string {
     trimmedUrl.includes("sharepoint.com")
   ) {
     const converted = convertOneDriveLink(trimmedUrl);
-    if (converted) return converted;
+    if (converted) {
+      return converted;
+    }
   }
 
   if (trimmedUrl.includes("dropbox.com")) {
@@ -119,21 +126,32 @@ function extractFileName(
   // Generate filename based on content type
   let extension = ".pdf";
   if (contentType) {
-    if (contentType.includes("word") || contentType.includes("docx"))
+    if (contentType.includes("word") || contentType.includes("docx")) {
       extension = ".docx";
-    else if (contentType.includes("doc")) extension = ".doc";
-    else if (contentType.includes("powerpoint") || contentType.includes("pptx"))
+    } else if (contentType.includes("doc")) {
+      extension = ".doc";
+    } else if (
+      contentType.includes("powerpoint") ||
+      contentType.includes("pptx")
+    ) {
       extension = ".pptx";
-    else if (contentType.includes("ppt")) extension = ".ppt";
-    else if (contentType.includes("excel") || contentType.includes("xlsx"))
+    } else if (contentType.includes("ppt")) {
+      extension = ".ppt";
+    } else if (contentType.includes("excel") || contentType.includes("xlsx")) {
       extension = ".xlsx";
-    else if (contentType.includes("xls")) extension = ".xls";
-    else if (contentType.includes("jpeg") || contentType.includes("jpg"))
+    } else if (contentType.includes("xls")) {
+      extension = ".xls";
+    } else if (contentType.includes("jpeg") || contentType.includes("jpg")) {
       extension = ".jpg";
-    else if (contentType.includes("png")) extension = ".png";
-    else if (contentType.includes("gif")) extension = ".gif";
-    else if (contentType.includes("zip")) extension = ".zip";
-    else if (contentType.includes("pdf")) extension = ".pdf";
+    } else if (contentType.includes("png")) {
+      extension = ".png";
+    } else if (contentType.includes("gif")) {
+      extension = ".gif";
+    } else if (contentType.includes("zip")) {
+      extension = ".zip";
+    } else if (contentType.includes("pdf")) {
+      extension = ".pdf";
+    }
   }
 
   return `attachment${extension}`;
@@ -147,32 +165,38 @@ function getFileType(
   const lowerUrl = url.toLowerCase();
   const lowerType = (contentType || "").toLowerCase();
 
-  if (lowerType.includes("pdf") || lowerUrl.includes(".pdf")) return "pdf";
+  if (lowerType.includes("pdf") || lowerUrl.includes(".pdf")) {
+    return "pdf";
+  }
   if (
     lowerType.includes("image") ||
     lowerUrl.match(/\.(jpg|jpeg|png|gif|webp|svg)/)
-  )
+  ) {
     return "image";
+  }
   if (
     lowerType.includes("word") ||
     lowerUrl.match(/\.(doc|docx)/) ||
     lowerUrl.includes("/document/")
-  )
+  ) {
     return "document";
+  }
   if (
     lowerType.includes("excel") ||
     lowerType.includes("spreadsheet") ||
     lowerUrl.match(/\.(xls|xlsx)/) ||
     lowerUrl.includes("/spreadsheets/")
-  )
+  ) {
     return "spreadsheet";
+  }
   if (
     lowerType.includes("powerpoint") ||
     lowerType.includes("presentation") ||
     lowerUrl.match(/\.(ppt|pptx)/) ||
     lowerUrl.includes("/presentation/")
-  )
+  ) {
     return "presentation";
+  }
 
   return "other";
 }
@@ -185,15 +209,19 @@ function getSource(
   if (
     lowerUrl.includes("drive.google.com") ||
     lowerUrl.includes("docs.google.com")
-  )
+  ) {
     return "google-drive";
+  }
   if (
     lowerUrl.includes("1drv.ms") ||
     lowerUrl.includes("onedrive") ||
     lowerUrl.includes("sharepoint")
-  )
+  ) {
     return "onedrive";
-  if (lowerUrl.includes("dropbox")) return "dropbox";
+  }
+  if (lowerUrl.includes("dropbox")) {
+    return "dropbox";
+  }
   return "direct";
 }
 

@@ -1,8 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
+import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
+import type { ContactDocument } from "@/types/appwrite";
 
 // GET /api/appwrite/contacts - List contacts for the authenticated user
 export async function GET(_request: NextRequest) {
@@ -27,10 +31,16 @@ export async function GET(_request: NextRequest) {
       total: response.total,
       documents: response.documents,
     });
-  } catch (error: any) {
-    apiLogger.error("Error fetching contacts", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error fetching contacts",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to fetch contacts" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to fetch contacts",
+      },
       { status: 500 },
     );
   }
@@ -64,10 +74,16 @@ export async function POST(request: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    apiLogger.error("Error creating contact", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error creating contact",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to create contact" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to create contact",
+      },
       { status: 500 },
     );
   }
@@ -93,22 +109,32 @@ export async function PUT(request: NextRequest) {
     }
 
     // Verify the contact belongs to the user before updating
-    const doc = await databases.getDocument(
+    const doc = (await databases.getDocument(
       config.databaseId,
       config.contactsCollectionId,
       id,
-    );
+    )) as ContactDocument;
 
-    if ((doc as any).user_email !== session.user.email) {
+    if (doc.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const updateData: Record<string, any> = {};
-    if (email !== undefined) updateData.email = email;
-    if (name !== undefined) updateData.name = name;
-    if (company !== undefined) updateData.company = company;
-    if (phone !== undefined) updateData.phone = phone;
-    if (tags !== undefined) updateData.tags = JSON.stringify(tags);
+    const updateData: Record<string, string | null> = {};
+    if (email !== undefined) {
+      updateData.email = email;
+    }
+    if (name !== undefined) {
+      updateData.name = name;
+    }
+    if (company !== undefined) {
+      updateData.company = company;
+    }
+    if (phone !== undefined) {
+      updateData.phone = phone;
+    }
+    if (tags !== undefined) {
+      updateData.tags = JSON.stringify(tags);
+    }
 
     const result = await databases.updateDocument(
       config.databaseId,
@@ -118,10 +144,16 @@ export async function PUT(request: NextRequest) {
     );
 
     return NextResponse.json(result);
-  } catch (error: any) {
-    apiLogger.error("Error updating contact", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error updating contact",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to update contact" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to update contact",
+      },
       { status: 500 },
     );
   }
@@ -147,13 +179,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify the contact belongs to the user before deleting
-    const doc = await databases.getDocument(
+    const doc = (await databases.getDocument(
       config.databaseId,
       config.contactsCollectionId,
       documentId,
-    );
+    )) as ContactDocument;
 
-    if ((doc as any).user_email !== session.user.email) {
+    if (doc.user_email !== session.user.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -164,10 +196,16 @@ export async function DELETE(request: NextRequest) {
     );
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    apiLogger.error("Error deleting contact", error);
+  } catch (error: unknown) {
+    apiLogger.error(
+      "Error deleting contact",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to delete contact" },
+      {
+        error:
+          error instanceof Error ? error.message : "Failed to delete contact",
+      },
       { status: 500 },
     );
   }
