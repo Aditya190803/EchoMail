@@ -9,7 +9,7 @@ import { useEffect, useCallback } from "react";
  */
 export function useBeforeUnload(shouldWarn: boolean, message?: string) {
   const handleBeforeUnload = useCallback(
-    (e: BeforeUnloadEvent) => {
+    (e: BeforeUnloadEvent): string | undefined => {
       if (shouldWarn) {
         e.preventDefault();
         // Modern browsers require returnValue to be set
@@ -18,6 +18,7 @@ export function useBeforeUnload(shouldWarn: boolean, message?: string) {
           "You have unsaved changes. Are you sure you want to leave?";
         return e.returnValue;
       }
+      return undefined;
     },
     [shouldWarn, message],
   );
@@ -29,5 +30,6 @@ export function useBeforeUnload(shouldWarn: boolean, message?: string) {
         window.removeEventListener("beforeunload", handleBeforeUnload);
       };
     }
+    return undefined;
   }, [shouldWarn, handleBeforeUnload]);
 }

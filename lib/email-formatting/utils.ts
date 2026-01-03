@@ -208,7 +208,9 @@ const EMOJI_PATTERNS = {
  * @returns HTML with emoji images converted to Unicode text
  */
 export function convertEmojisToUnicode(html: string): string {
-  if (!html) return "";
+  if (!html) {
+    return "";
+  }
 
   let result = html;
 
@@ -279,6 +281,20 @@ const SANITIZE_PATTERNS = {
   scriptTags: /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
   eventHandlers: /\s(on\w+)=["'][^"']*["']/gi,
   javascriptUrls: /\sjavascript:[^"\s>]*/gi,
+  dataUrls: /\sdata:[^"\s>]*/gi,
+  vbscriptUrls: /\svbscript:[^"\s>]*/gi,
+
+  // Additional XSS vectors
+  styleExpression: /expression\s*\([^)]*\)/gi,
+  styleBehavior: /behavior\s*:[^;}"']*/gi,
+  styleBinding: /-moz-binding\s*:[^;}"']*/gi,
+  svgOnload: /<svg[^>]*\s+onload\s*=/gi,
+  iframeSrcdoc: /srcdoc\s*=\s*["'][^"']*["']/gi,
+  objectData: /<object[^>]*data\s*=/gi,
+  embedSrc: /<embed[^>]*src\s*=/gi,
+  baseHref: /<base[^>]*href\s*=/gi,
+  metaRefresh: /<meta[^>]*http-equiv\s*=\s*["']?refresh["']?[^>]*/gi,
+  linkImport: /<link[^>]*rel\s*=\s*["']?import["']?[^>]*/gi,
 
   // Editor-specific classes to remove
   editorClasses: /class="editor-[^"]*"/gi,
@@ -303,22 +319,40 @@ const SANITIZE_PATTERNS = {
  *
  * Removes dangerous content (scripts, event handlers) and
  * editor-specific classes that won't work in email clients.
+ * Implements comprehensive XSS prevention.
  *
  * @param html - HTML content to sanitize
  * @returns Sanitized HTML safe for email
  */
 export function sanitizeHTML(html: string): string {
-  if (!html) return "";
+  if (!html) {
+    return "";
+  }
 
   let result = html;
 
-  // 1. Remove dangerous content (security)
+  // 1. Remove dangerous content (security - XSS prevention)
   result = result
     .replace(SANITIZE_PATTERNS.scriptTags, "")
     .replace(SANITIZE_PATTERNS.eventHandlers, "")
-    .replace(SANITIZE_PATTERNS.javascriptUrls, "");
+    .replace(SANITIZE_PATTERNS.javascriptUrls, "")
+    .replace(SANITIZE_PATTERNS.dataUrls, "")
+    .replace(SANITIZE_PATTERNS.vbscriptUrls, "");
 
-  // 2. Remove editor-specific classes
+  // 2. Remove additional XSS vectors
+  result = result
+    .replace(SANITIZE_PATTERNS.styleExpression, "")
+    .replace(SANITIZE_PATTERNS.styleBehavior, "")
+    .replace(SANITIZE_PATTERNS.styleBinding, "")
+    .replace(SANITIZE_PATTERNS.svgOnload, "<svg ")
+    .replace(SANITIZE_PATTERNS.iframeSrcdoc, "")
+    .replace(SANITIZE_PATTERNS.objectData, "<object ")
+    .replace(SANITIZE_PATTERNS.embedSrc, "<embed ")
+    .replace(SANITIZE_PATTERNS.baseHref, "<!-- base removed -->")
+    .replace(SANITIZE_PATTERNS.metaRefresh, "<!-- meta refresh removed -->")
+    .replace(SANITIZE_PATTERNS.linkImport, "<!-- link import removed -->");
+
+  // 3. Remove editor-specific classes
   result = result
     .replace(SANITIZE_PATTERNS.editorClasses, "")
     .replace(SANITIZE_PATTERNS.proseMirrorClasses, "")
@@ -329,12 +363,12 @@ export function sanitizeHTML(html: string): string {
     .replace(SANITIZE_PATTERNS.selectedCellClass, "")
     .replace(SANITIZE_PATTERNS.proseClasses, "");
 
-  // 3. Handle Gmail-forwarded complex tables
+  // 4. Handle Gmail-forwarded complex tables
   if (result.includes("m_") && result.includes("<table")) {
     result = simplifyComplexTables(result);
   }
 
-  // 4. Clean up whitespace
+  // 5. Clean up whitespace
   result = result
     .replace(SANITIZE_PATTERNS.multipleSpaces, " ")
     .replace(SANITIZE_PATTERNS.excessiveNewlines, "\n\n")

@@ -203,7 +203,9 @@ const STYLE_PATTERNS = {
  * @returns HTML with inline styles applied
  */
 export function applyInlineStyles(html: string): string {
-  if (!html) return "";
+  if (!html) {
+    return "";
+  }
 
   let result = html;
 
@@ -253,7 +255,9 @@ export function applyInlineStyles(html: string): string {
 
   // Apply inline code styles (only if not already styled)
   result = result.replace(/<code([^>]*)>/gi, (match, attrs: string) => {
-    if (attrs.includes("style=")) return match;
+    if (attrs.includes("style=")) {
+      return match;
+    }
     return `<code${attrs} style="${styleObjectToString(ELEMENT_STYLES.code)}">`;
   });
 
@@ -296,9 +300,11 @@ export function applyInlineStyles(html: string): string {
   // Apply link styles - ensure all links are styled and have proper attributes
   result = result.replace(
     /<a\s+([^>]*href="([^"]*)"[^>]*)>/gi,
-    (match, allAttrs: string, href: string) => {
+    (match, allAttrs: string, _href: string) => {
       // Skip if already has inline styles
-      if (allAttrs.includes("style=")) return match;
+      if (allAttrs.includes("style=")) {
+        return match;
+      }
 
       // Build proper link with styles
       let attrs = allAttrs;
@@ -315,7 +321,9 @@ export function applyInlineStyles(html: string): string {
 
   // Apply image styles (only if not already styled)
   result = result.replace(/<img([^>]*)>/gi, (match, attrs: string) => {
-    if (attrs.includes("style=")) return match;
+    if (attrs.includes("style=")) {
+      return match;
+    }
     return `<img${attrs} style="${styleObjectToString(ELEMENT_STYLES.img)}">`;
   });
 

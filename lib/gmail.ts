@@ -1,5 +1,5 @@
-import { formatForEmail, sanitizeHTML } from "./email-formatting";
 import { serverStorageService } from "./appwrite-server";
+import { sanitizeHTML } from "./email-formatting";
 import { emailLogger } from "./logger";
 
 export interface AttachmentData {
@@ -30,7 +30,9 @@ let cachedEmailTemplate: EmailTemplate | null = null;
 export async function preResolveAttachments(
   attachments: AttachmentData[],
 ): Promise<AttachmentData[]> {
-  if (!attachments || attachments.length === 0) return [];
+  if (!attachments || attachments.length === 0) {
+    return [];
+  }
 
   const resolvedAttachments: AttachmentData[] = [];
 
@@ -361,7 +363,9 @@ function sanitizeText(text: string): string {
 
 // RFC 2045 quoted-printable encoder to keep long HTML lines intact for email clients
 export function encodeQuotedPrintable(input: string): string {
-  if (!input) return "";
+  if (!input) {
+    return "";
+  }
 
   const safeChar = (byte: number): boolean => {
     return (

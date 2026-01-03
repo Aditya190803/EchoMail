@@ -1,4 +1,5 @@
 import { Client, Databases, Storage, Query, ID } from "node-appwrite";
+
 import type { AttachmentData, EmailResult } from "@/types/campaign";
 
 // Server-side Appwrite configuration - lazy loaded to avoid build-time errors

@@ -33,6 +33,7 @@
 
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
+
 import { type Contact, contactsService } from "@/lib/appwrite";
 
 /**
@@ -93,7 +94,9 @@ export const useContactStore = create<ContactState>()(
         // Computed
         filteredContacts: () => {
           const { contacts, searchQuery } = get();
-          if (!searchQuery.trim()) return contacts;
+          if (!searchQuery.trim()) {
+            return contacts;
+          }
 
           const query = searchQuery.toLowerCase();
           return contacts.filter(

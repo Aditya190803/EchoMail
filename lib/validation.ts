@@ -157,7 +157,9 @@ export const trackingEventSchema = z.object({
  * Removes script tags, event handlers, and dangerous attributes
  */
 export function sanitizeHTML(html: string): string {
-  if (!html) return "";
+  if (!html) {
+    return "";
+  }
 
   return (
     html
@@ -180,7 +182,9 @@ export function sanitizeHTML(html: string): string {
  * Sanitize plain text input
  */
 export function sanitizeText(text: string): string {
-  if (!text) return "";
+  if (!text) {
+    return "";
+  }
 
   return (
     text

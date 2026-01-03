@@ -21,7 +21,9 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
 let cleanupInterval: NodeJS.Timeout | null = null;
 
 function startCleanup() {
-  if (cleanupInterval) return;
+  if (cleanupInterval) {
+    return;
+  }
 
   cleanupInterval = setInterval(() => {
     const now = Date.now();

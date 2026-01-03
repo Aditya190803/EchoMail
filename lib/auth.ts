@@ -1,8 +1,9 @@
-import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import type { JWT } from "next-auth/jwt";
-import type { User } from "next-auth";
+
 import { authLogger } from "./logger";
+
+import type { NextAuthOptions, User } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 
 /** Response from Google OAuth token refresh endpoint */
 interface RefreshedTokens {

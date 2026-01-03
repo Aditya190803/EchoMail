@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+
 import { emailSendLogger } from "@/lib/client-logger";
 import type {
   EmailResult,
@@ -100,7 +101,9 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
   };
 
   const getTabId = (): string => {
-    if (typeof window === "undefined") return "server";
+    if (typeof window === "undefined") {
+      return "server";
+    }
 
     let tabId = sessionStorage.getItem("echomail_tab_id");
     if (!tabId) {
@@ -274,14 +277,18 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
         lastError =
           errorData.userMessage || errorData.error || `HTTP ${response.status}`;
 
-        if (!isRetryableError(lastError)) break;
+        if (!isRetryableError(lastError)) {
+          break;
+        }
       } catch (fetchError) {
         lastError =
           fetchError instanceof Error ? fetchError.message : "Network error";
         if (lastError.includes("Failed to fetch")) {
           lastError = "Network error - please check your internet connection";
         }
-        if (!isRetryableError(lastError)) break;
+        if (!isRetryableError(lastError)) {
+          break;
+        }
       }
     }
 
@@ -306,6 +313,7 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
   const clearSavedCampaign = useCallback(() => {
     clearCampaignState();
     releaseLock();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const sendEmails = useCallback(
@@ -553,6 +561,7 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
         releaseLock();
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 
@@ -595,7 +604,9 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
   }, [sendEmails]);
 
   const retryFailedEmails = useCallback(async (): Promise<EmailResult[]> => {
-    if (failedEmails.length === 0) return [];
+    if (failedEmails.length === 0) {
+      return [];
+    }
 
     setStoppedDueToError(false);
     setError(null);

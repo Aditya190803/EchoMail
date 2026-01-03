@@ -121,7 +121,9 @@ export function useVirtualScroll<T>(
   // Attach scroll listener
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     const onScroll = () => {
       handleScroll(container.scrollTop);
@@ -287,7 +289,9 @@ export function useVariableVirtualScroll<T>(
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) {
+      return;
+    }
 
     const onScroll = () => {
       handleScroll(container.scrollTop);

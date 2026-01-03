@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+
 import {
   DEFAULT_CACHE_TTL_SECONDS,
   LONG_CACHE_TTL_SECONDS,
@@ -74,7 +75,9 @@ class MemoryCache implements CacheProvider {
   }
 
   private evictOldest(): void {
-    if (this.cache.size <= this.config.maxEntries) return;
+    if (this.cache.size <= this.config.maxEntries) {
+      return;
+    }
 
     let oldestKey: string | null = null;
     let oldestTime = Infinity;
@@ -95,7 +98,9 @@ class MemoryCache implements CacheProvider {
     const fullKey = this.getKey(key);
     const entry = this.cache.get(fullKey);
 
-    if (!entry) return null;
+    if (!entry) {
+      return null;
+    }
 
     if (this.isExpired(entry)) {
       this.cache.delete(fullKey);
@@ -178,7 +183,9 @@ class UpstashCache implements CacheProvider {
   }
 
   async get<T>(key: string): Promise<T | null> {
-    if (!this.isAvailable) return null;
+    if (!this.isAvailable) {
+      return null;
+    }
 
     try {
       const fullKey = this.getKey(key);
@@ -191,7 +198,9 @@ class UpstashCache implements CacheProvider {
   }
 
   async set<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
-    if (!this.isAvailable) return;
+    if (!this.isAvailable) {
+      return;
+    }
 
     try {
       const fullKey = this.getKey(key);
@@ -205,7 +214,9 @@ class UpstashCache implements CacheProvider {
   }
 
   async delete(key: string): Promise<void> {
-    if (!this.isAvailable) return;
+    if (!this.isAvailable) {
+      return;
+    }
 
     try {
       const fullKey = this.getKey(key);
@@ -216,7 +227,9 @@ class UpstashCache implements CacheProvider {
   }
 
   async has(key: string): Promise<boolean> {
-    if (!this.isAvailable) return false;
+    if (!this.isAvailable) {
+      return false;
+    }
 
     try {
       const fullKey = this.getKey(key);
@@ -229,7 +242,9 @@ class UpstashCache implements CacheProvider {
   }
 
   async clear(): Promise<void> {
-    if (!this.isAvailable) return;
+    if (!this.isAvailable) {
+      return;
+    }
 
     try {
       // Use SCAN to find all keys with our prefix, then delete

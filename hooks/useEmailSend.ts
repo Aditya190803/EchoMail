@@ -1,6 +1,9 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+
 import { signIn } from "next-auth/react";
+
 import { emailSendLogger } from "@/lib/client-logger";
+import type { TokenStatus } from "@/types/auth";
 import type {
   EmailResult,
   SendStatus,
@@ -11,7 +14,6 @@ import type {
   PersonalizedEmailData,
   SavedCampaignInfo,
 } from "@/types/campaign";
-import type { TokenStatus } from "@/types/auth";
 
 interface UseEmailSendResult {
   sendEmails: (
@@ -115,7 +117,7 @@ export function useEmailSend(): UseEmailSendResult {
             lastUpdated: lastUpdated,
           };
         }
-      } catch (e) {
+      } catch (_e) {
         // Failed to load quota, use defaults
       }
     }
@@ -152,7 +154,9 @@ export function useEmailSend(): UseEmailSendResult {
 
   // Network status monitoring
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined") {
+      return;
+    }
 
     const handleOnline = () => {
       emailSendLogger.info("Network restored");
@@ -222,7 +226,9 @@ export function useEmailSend(): UseEmailSendResult {
   };
 
   const getTabId = (): string => {
-    if (typeof window === "undefined") return "server";
+    if (typeof window === "undefined") {
+      return "server";
+    }
 
     let tabId = sessionStorage.getItem("echomail_tab_id");
     if (!tabId) {
@@ -322,8 +328,12 @@ export function useEmailSend(): UseEmailSendResult {
 
   // Wait for network to come back online
   const waitForNetwork = async (): Promise<boolean> => {
-    if (typeof window === "undefined") return true;
-    if (navigator.onLine) return true;
+    if (typeof window === "undefined") {
+      return true;
+    }
+    if (navigator.onLine) {
+      return true;
+    }
 
     emailSendLogger.info("Waiting for network...");
 
@@ -356,7 +366,9 @@ export function useEmailSend(): UseEmailSendResult {
     errorMessage: string,
     statusCode?: number,
   ): boolean => {
-    if (statusCode === 429) return true;
+    if (statusCode === 429) {
+      return true;
+    }
     const rateLimitIndicators = [
       "429",
       "rate limit",
@@ -383,7 +395,9 @@ export function useEmailSend(): UseEmailSendResult {
     // Wait with periodic checks for stop request
     const endTime = Date.now() + delay;
     while (Date.now() < endTime) {
-      if (shouldStopRef.current) return;
+      if (shouldStopRef.current) {
+        return;
+      }
 
       const remaining = Math.ceil((endTime - Date.now()) / 1000);
       if (remaining % 10 === 0) {
@@ -521,10 +535,10 @@ export function useEmailSend(): UseEmailSendResult {
   const sendSingleEmailWithRetry = async (
     email: PersonalizedEmailData,
     index: number,
-    totalEmails: number,
+    _totalEmails: number,
   ): Promise<EmailResult> => {
     let lastError = "";
-    let lastStatusCode: number | undefined;
+    let _lastStatusCode: number | undefined;
 
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       // Check if stop was requested
@@ -601,7 +615,7 @@ export function useEmailSend(): UseEmailSendResult {
           body: JSON.stringify(payload),
         });
 
-        lastStatusCode = response.status;
+        _lastStatusCode = response.status;
 
         if (response.ok) {
           emailSendLogger.info(`Email sent successfully`, { to: email.to });
@@ -706,6 +720,7 @@ export function useEmailSend(): UseEmailSendResult {
   const clearSavedCampaign = useCallback(() => {
     clearCampaignState();
     releaseLock();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const sendEmails = useCallback(
@@ -798,7 +813,7 @@ export function useEmailSend(): UseEmailSendResult {
       saveCampaignState(campaignState);
 
       const results: EmailResult[] = [];
-      let successCount = 0;
+      let _successCount = 0;
 
       try {
         for (let i = 0; i < personalizedEmails.length; i++) {
@@ -930,7 +945,7 @@ export function useEmailSend(): UseEmailSendResult {
           // Update campaign state
           if (result.status === "success") {
             campaignState.sentIndices.push(i);
-            successCount++;
+            _successCount++;
             updateQuotaUsed(1);
           } else {
             campaignState.failedIndices.push(i);
@@ -1067,6 +1082,7 @@ export function useEmailSend(): UseEmailSendResult {
         releaseLock();
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [quotaInfo.estimatedRemaining, updateQuotaUsed, checkTokenStatus],
   );
 

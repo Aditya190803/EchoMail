@@ -115,7 +115,9 @@ export function getInstantPreview(html: string): string {
  * @returns Sanitized HTML safe for display
  */
 export function sanitizeForDisplay(html: string): string {
-  if (!html) return "";
+  if (!html) {
+    return "";
+  }
 
   return html
     .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")

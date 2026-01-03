@@ -45,7 +45,9 @@ class ClientLogger {
   }
 
   debug(message: string, context?: Record<string, unknown>): void {
-    if (!this.shouldLog("debug")) return;
+    if (!this.shouldLog("debug")) {
+      return;
+    }
     if (context) {
       console.debug(this.formatMessage("debug", message), context);
     } else {
@@ -54,7 +56,9 @@ class ClientLogger {
   }
 
   info(message: string, context?: Record<string, unknown>): void {
-    if (!this.shouldLog("info")) return;
+    if (!this.shouldLog("info")) {
+      return;
+    }
     if (context) {
       console.info(this.formatMessage("info", message), context);
     } else {
@@ -67,7 +71,9 @@ class ClientLogger {
     errorOrContext?: Error | Record<string, unknown>,
     context?: Record<string, unknown>,
   ): void {
-    if (!this.shouldLog("warn")) return;
+    if (!this.shouldLog("warn")) {
+      return;
+    }
     if (errorOrContext instanceof Error) {
       if (context) {
         console.warn(this.formatMessage("warn", message), {
@@ -90,7 +96,9 @@ class ClientLogger {
     errorOrContext?: Error | Record<string, unknown>,
     context?: Record<string, unknown>,
   ): void {
-    if (!this.shouldLog("error")) return;
+    if (!this.shouldLog("error")) {
+      return;
+    }
     if (errorOrContext instanceof Error) {
       if (context) {
         console.error(this.formatMessage("error", message), {

@@ -94,7 +94,9 @@ function getDirectDownloadUrl(url: string): string {
     trimmedUrl.includes("docs.google.com")
   ) {
     const converted = convertGoogleDriveLink(trimmedUrl);
-    if (converted) return converted;
+    if (converted) {
+      return converted;
+    }
   }
 
   // OneDrive / SharePoint
@@ -104,7 +106,9 @@ function getDirectDownloadUrl(url: string): string {
     trimmedUrl.includes("sharepoint.com")
   ) {
     const converted = convertOneDriveLink(trimmedUrl);
-    if (converted) return converted;
+    if (converted) {
+      return converted;
+    }
   }
 
   // Dropbox - convert to direct download
@@ -159,19 +163,28 @@ function extractFileName(
   let extension = ".pdf"; // Default to PDF as it's the most common use case
 
   if (contentType) {
-    if (contentType.includes("word") || contentType.includes("docx"))
+    if (contentType.includes("word") || contentType.includes("docx")) {
       extension = ".docx";
-    else if (contentType.includes("doc")) extension = ".doc";
-    else if (contentType.includes("powerpoint") || contentType.includes("pptx"))
+    } else if (contentType.includes("doc")) {
+      extension = ".doc";
+    } else if (
+      contentType.includes("powerpoint") ||
+      contentType.includes("pptx")
+    ) {
       extension = ".pptx";
-    else if (contentType.includes("ppt")) extension = ".ppt";
-    else if (contentType.includes("excel") || contentType.includes("xlsx"))
+    } else if (contentType.includes("ppt")) {
+      extension = ".ppt";
+    } else if (contentType.includes("excel") || contentType.includes("xlsx")) {
       extension = ".xlsx";
-    else if (contentType.includes("xls")) extension = ".xls";
-    else if (contentType.includes("jpeg") || contentType.includes("jpg"))
+    } else if (contentType.includes("xls")) {
+      extension = ".xls";
+    } else if (contentType.includes("jpeg") || contentType.includes("jpg")) {
       extension = ".jpg";
-    else if (contentType.includes("png")) extension = ".png";
-    else if (contentType.includes("zip")) extension = ".zip";
+    } else if (contentType.includes("png")) {
+      extension = ".png";
+    } else if (contentType.includes("zip")) {
+      extension = ".zip";
+    }
   }
 
   return `${sanitizedName}${extension}`;
@@ -274,7 +287,9 @@ export async function fetchFileFromUrl(
  * Check if a URL is likely an attachment link
  */
 export function isAttachmentUrl(url: string): boolean {
-  if (!url || typeof url !== "string") return false;
+  if (!url || typeof url !== "string") {
+    return false;
+  }
 
   const trimmed = url.trim().toLowerCase();
 
@@ -293,25 +308,31 @@ export function isAttachmentUrl(url: string): boolean {
     ".png",
     ".jpeg",
   ];
-  if (extensions.some((ext) => trimmed.endsWith(ext))) return true;
+  if (extensions.some((ext) => trimmed.endsWith(ext))) {
+    return true;
+  }
 
   // Google Drive
   if (
     trimmed.includes("drive.google.com") ||
     trimmed.includes("docs.google.com")
-  )
+  ) {
     return true;
+  }
 
   // OneDrive
   if (
     trimmed.includes("1drv.ms") ||
     trimmed.includes("onedrive") ||
     trimmed.includes("sharepoint")
-  )
+  ) {
     return true;
+  }
 
   // Dropbox
-  if (trimmed.includes("dropbox.com")) return true;
+  if (trimmed.includes("dropbox.com")) {
+    return true;
+  }
 
   // Check for common patterns
   if (
@@ -319,8 +340,9 @@ export function isAttachmentUrl(url: string): boolean {
     trimmed.includes("certificate") ||
     trimmed.includes("document") ||
     trimmed.includes("attachment")
-  )
+  ) {
     return true;
+  }
 
   return false;
 }

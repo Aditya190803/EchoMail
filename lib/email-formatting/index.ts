@@ -54,14 +54,17 @@ export {
 } from "./inline-styles";
 
 // Import for internal use
-import type { EmailFormatterOptions, FormattingResult } from "./types";
-import { DEFAULT_FORMATTER_OPTIONS } from "./types";
+import { applyInlineStyles, wrapForGmail } from "./inline-styles";
+import {
+  DEFAULT_FORMATTER_OPTIONS,
+  type EmailFormatterOptions,
+  type FormattingResult,
+} from "./types";
 import {
   convertEmojisToUnicode,
   sanitizeHTML,
   validateEmailContent,
 } from "./utils";
-import { applyInlineStyles, wrapForGmail } from "./inline-styles";
 
 // ============================================================================
 // MAIN FORMATTING FUNCTIONS

@@ -173,7 +173,7 @@ export interface ABTest {
 // API Helper
 // ============================================
 
-async function apiRequest<T>(
+export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
@@ -261,6 +261,12 @@ export const campaignsService = {
     return apiRequest("/api/appwrite/campaigns");
   },
 
+  async delete(id: string): Promise<void> {
+    await apiRequest(`/api/appwrite/campaigns?id=${id}`, {
+      method: "DELETE",
+    });
+  },
+
   subscribeToUserCampaigns(
     _userEmail: string,
     _callback: (response: any) => void,
@@ -295,7 +301,9 @@ export const templatesService = {
       documents: EmailTemplate[];
     }>("/api/appwrite/templates");
     const template = response.documents.find((t) => t.$id === templateId);
-    if (!template) throw new Error("Template not found");
+    if (!template) {
+      throw new Error("Template not found");
+    }
     return template;
   },
 
@@ -376,7 +384,9 @@ export const contactGroupsService = {
       documents: ContactGroup[];
     }>("/api/appwrite/contact-groups");
     const group = response.documents.find((g) => g.$id === groupId);
-    if (!group) throw new Error("Group not found");
+    if (!group) {
+      throw new Error("Group not found");
+    }
     return group;
   },
 
@@ -694,9 +704,15 @@ export const abTestsService = {
     const updates: Record<string, number> = {};
     const prefix = variant === "A" ? "variant_a" : "variant_b";
 
-    if (stats.sent !== undefined) updates[`${prefix}_sent`] = stats.sent;
-    if (stats.opens !== undefined) updates[`${prefix}_opens`] = stats.opens;
-    if (stats.clicks !== undefined) updates[`${prefix}_clicks`] = stats.clicks;
+    if (stats.sent !== undefined) {
+      updates[`${prefix}_sent`] = stats.sent;
+    }
+    if (stats.opens !== undefined) {
+      updates[`${prefix}_opens`] = stats.opens;
+    }
+    if (stats.clicks !== undefined) {
+      updates[`${prefix}_clicks`] = stats.clicks;
+    }
 
     return this.update(testId, updates as any);
   },
@@ -891,13 +907,24 @@ export const auditLogsService = {
     end_date?: string;
   }): Promise<{ total: number; documents: any[] }> {
     const params = new URLSearchParams();
-    if (options?.limit) params.append("limit", options.limit.toString());
-    if (options?.offset) params.append("offset", options.offset.toString());
-    if (options?.action) params.append("action", options.action);
-    if (options?.resource_type)
+    if (options?.limit) {
+      params.append("limit", options.limit.toString());
+    }
+    if (options?.offset) {
+      params.append("offset", options.offset.toString());
+    }
+    if (options?.action) {
+      params.append("action", options.action);
+    }
+    if (options?.resource_type) {
       params.append("resource_type", options.resource_type);
-    if (options?.start_date) params.append("start_date", options.start_date);
-    if (options?.end_date) params.append("end_date", options.end_date);
+    }
+    if (options?.start_date) {
+      params.append("start_date", options.start_date);
+    }
+    if (options?.end_date) {
+      params.append("end_date", options.end_date);
+    }
 
     return apiRequest(`/api/gdpr/audit-logs?${params}`);
   },
