@@ -1,6 +1,7 @@
-import { Client, Databases } from "node-appwrite";
-import { config as dotenvConfig } from "dotenv";
 import { resolve } from "path";
+
+import { config as dotenvConfig } from "dotenv";
+import { Client, Databases } from "node-appwrite";
 
 // Load environment variables from .env.local
 dotenvConfig({ path: resolve(process.cwd(), ".env.local") });
