@@ -66,6 +66,7 @@ export interface CampaignState {
   status: "in-progress" | "paused" | "completed" | "cancelled";
   startedAt: string;
   subject?: string;
+  isTransactional?: boolean;
 }
 
 /**
@@ -87,6 +88,8 @@ export interface SendOptions {
   delayBetweenEmails?: number;
   checkTokenEveryN?: number;
   campaignSubject?: string;
+  isTransactional?: boolean;
+  trackingEnabled?: boolean;
 }
 
 /**
