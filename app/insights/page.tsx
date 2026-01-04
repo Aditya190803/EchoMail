@@ -148,7 +148,7 @@ export default function HistoryPage() {
   >([]);
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [comparison, setComparison] = useState<ComparisonReport | null>(null);
-  const [deviceDistribution, setDeviceDistribution] = useState<
+  const [_deviceDistribution, setDeviceDistribution] = useState<
     { name: string; value: number; color: string }[]
   >([]);
   const [heatmap, setHeatmap] = useState<ClickHeatmapData | null>(null);
@@ -172,6 +172,12 @@ export default function HistoryPage() {
   const [filterStatus, setFilterStatus] = useState<
     "all" | "success" | "failed"
   >("all");
+  const [selectedHeatmapCampaignId, setSelectedHeatmapCampaignId] = useState<
+    string | null
+  >(null);
+  const [allTrackingEvents, setAllTrackingEvents] = useState<TrackingEvent[]>(
+    [],
+  );
 
   // Prepare chart data by aggregating by date
   const chartData = useMemo(() => {
@@ -328,9 +334,11 @@ export default function HistoryPage() {
       setSummary(calculateSummary(transformed));
       setComparison(generateWeekOverWeekComparison(transformed));
       setDeviceDistribution(aggregateDeviceData(events));
+      setAllTrackingEvents(events);
 
-      // If there's a recent campaign, show its heatmap
+      // If there's a recent campaign, show its heatmap and select it
       if (transformed.length > 0) {
+        setSelectedHeatmapCampaignId(transformed[0].id);
         setHeatmap(aggregateClickData(events, transformed[0].id));
       }
 
@@ -992,79 +1000,330 @@ export default function HistoryPage() {
           </TabsContent>
 
           <TabsContent value="tracking" className="space-y-8">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2">
-                {heatmap && (
-                  <HeatmapWidget
-                    links={heatmap.links}
-                    totalClicks={heatmap.totalClicks}
-                    title="Email Click Heatmap"
-                  />
-                )}
-              </div>
-              <div className="space-y-8">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">
-                      Tracking Overview
-                    </CardTitle>
-                    <CardDescription>
-                      Real-time engagement metrics across all campaigns
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="p-2 bg-accent/10 rounded-lg">
-                          <Eye className="h-4 w-4 text-accent" />
-                        </div>
-                        <span className="text-sm font-medium">Total Opens</span>
-                      </div>
-                      <span className="text-lg font-bold">
-                        {summary?.totalOpens || 0}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="p-2 bg-primary/10 rounded-lg">
-                          <MousePointer2 className="h-4 w-4 text-primary" />
-                        </div>
-                        <span className="text-sm font-medium">
-                          Total Clicks
-                        </span>
-                      </div>
-                      <span className="text-lg font-bold">
-                        {summary?.totalClicks || 0}
-                      </span>
-                    </div>
-                    <div className="pt-4 border-t">
-                      <div className="text-xs text-muted-foreground mb-2">
-                        Engagement Score
-                      </div>
-                      <div className="flex items-end gap-2">
-                        <div className="text-3xl font-bold text-primary">
-                          {summary?.averageOpenRate
-                            ? (
-                                (summary.averageOpenRate +
-                                  (summary.averageClickRate || 0) * 2) /
-                                3
-                              ).toFixed(1)
-                            : "0.0"}
-                        </div>
-                        <div className="text-sm text-muted-foreground mb-1">
-                          / 100
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+            {/* Campaign Selector */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Select Campaign for Analytics
+                </CardTitle>
+                <CardDescription>
+                  Choose a campaign to view its detailed click analytics and
+                  heatmap
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-2">
+                  {historyData?.recentCampaigns
+                    ?.slice(0, 12)
+                    .map((campaign) => {
+                      const isSelected =
+                        selectedHeatmapCampaignId === campaign.$id;
+                      const campaignEvents = allTrackingEvents.filter(
+                        (e) => e.campaign_id === campaign.$id,
+                      );
+                      const opens = campaignEvents.filter(
+                        (e) => e.event_type === "open",
+                      ).length;
+                      const clicks = campaignEvents.filter(
+                        (e) => e.event_type === "click",
+                      ).length;
 
-                <PieChartWidget
-                  title="Device Distribution"
-                  data={deviceDistribution}
-                />
+                      return (
+                        <button
+                          key={campaign.$id}
+                          onClick={() => {
+                            setSelectedHeatmapCampaignId(campaign.$id);
+                            setHeatmap(
+                              aggregateClickData(
+                                allTrackingEvents,
+                                campaign.$id,
+                              ),
+                            );
+                          }}
+                          className={cn(
+                            "px-3 py-2 rounded-lg border text-left transition-all hover:border-primary/50 max-w-[200px]",
+                            isSelected
+                              ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                              : "border-border hover:bg-muted/50",
+                          )}
+                        >
+                          <div className="font-medium text-xs truncate">
+                            {campaign.subject || "Untitled"}
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-1">
+                            <span className="flex items-center gap-0.5">
+                              <Eye className="h-2.5 w-2.5" />
+                              {opens}
+                            </span>
+                            <span className="flex items-center gap-0.5">
+                              <MousePointer2 className="h-2.5 w-2.5" />
+                              {clicks}
+                            </span>
+                            <span className="flex items-center gap-0.5">
+                              <Send className="h-2.5 w-2.5" />
+                              {campaign.sent}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+                {(!historyData?.recentCampaigns ||
+                  historyData.recentCampaigns.length === 0) && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Mail className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>
+                      No campaigns found. Send your first email to see
+                      analytics.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Selected Campaign Analytics */}
+            {selectedHeatmapCampaignId && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2">
+                  {heatmap && heatmap.links.length > 0 ? (
+                    <HeatmapWidget
+                      links={heatmap.links}
+                      totalClicks={heatmap.totalClicks}
+                      title={`Link Clicks - ${historyData?.recentCampaigns?.find((c) => c.$id === selectedHeatmapCampaignId)?.subject || "Campaign"}`}
+                    />
+                  ) : (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base">
+                          Link Click Heatmap
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-center py-12 text-muted-foreground">
+                          <MousePointer2 className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                          <p className="text-lg font-medium mb-2">
+                            No link clicks recorded
+                          </p>
+                          <p className="text-sm">
+                            Link clicks will appear here when recipients click
+                            links in this campaign.
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+                <div className="space-y-8">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">
+                        Campaign Metrics
+                      </CardTitle>
+                      <CardDescription>
+                        Engagement metrics for the selected campaign
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {(() => {
+                        const campaignEvents = allTrackingEvents.filter(
+                          (e) => e.campaign_id === selectedHeatmapCampaignId,
+                        );
+                        const opens = campaignEvents.filter(
+                          (e) => e.event_type === "open",
+                        ).length;
+                        const clicks = campaignEvents.filter(
+                          (e) => e.event_type === "click",
+                        ).length;
+                        const uniqueOpens = new Set(
+                          campaignEvents
+                            .filter((e) => e.event_type === "open")
+                            .map((e) => e.email),
+                        ).size;
+                        const uniqueClicks = new Set(
+                          campaignEvents
+                            .filter((e) => e.event_type === "click")
+                            .map((e) => e.email),
+                        ).size;
+                        const campaign = historyData?.recentCampaigns?.find(
+                          (c) => c.$id === selectedHeatmapCampaignId,
+                        );
+                        const totalSent = campaign?.sent || 0;
+                        const openRate =
+                          totalSent > 0 ? (uniqueOpens / totalSent) * 100 : 0;
+                        const clickRate =
+                          totalSent > 0 ? (uniqueClicks / totalSent) * 100 : 0;
+
+                        return (
+                          <>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="p-2 bg-accent/10 rounded-lg">
+                                  <Eye className="h-4 w-4 text-accent" />
+                                </div>
+                                <div>
+                                  <span className="text-sm font-medium block">
+                                    Opens
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {uniqueOpens} unique
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-lg font-bold block">
+                                  {opens}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {openRate.toFixed(1)}%
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="p-2 bg-primary/10 rounded-lg">
+                                  <MousePointer2 className="h-4 w-4 text-primary" />
+                                </div>
+                                <div>
+                                  <span className="text-sm font-medium block">
+                                    Clicks
+                                  </span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {uniqueClicks} unique
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-lg font-bold block">
+                                  {clicks}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {clickRate.toFixed(1)}%
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="p-2 bg-green-500/10 rounded-lg">
+                                  <Send className="h-4 w-4 text-green-500" />
+                                </div>
+                                <span className="text-sm font-medium">
+                                  Delivered
+                                </span>
+                              </div>
+                              <span className="text-lg font-bold">
+                                {totalSent}
+                              </span>
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">
+                        Device Distribution
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {(() => {
+                        const campaignEvents = allTrackingEvents.filter(
+                          (e) => e.campaign_id === selectedHeatmapCampaignId,
+                        );
+                        const deviceData = aggregateDeviceData(campaignEvents);
+                        const hasData =
+                          deviceData.length > 0 &&
+                          deviceData.some((d) => d.value > 0);
+
+                        if (!hasData) {
+                          return (
+                            <div className="text-center py-6 text-muted-foreground text-sm">
+                              No device data yet
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="space-y-2">
+                            {deviceData.map((device, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center justify-between"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className="w-3 h-3 rounded-full"
+                                    style={{
+                                      backgroundColor:
+                                        device.color ||
+                                        `hsl(var(--chart-${idx + 1}))`,
+                                    }}
+                                  />
+                                  <span className="text-sm">{device.name}</span>
+                                </div>
+                                <span className="text-sm font-medium">
+                                  {device.value}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Global Overview */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Global Tracking Overview
+                </CardTitle>
+                <CardDescription>
+                  Aggregate metrics across all campaigns
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-primary">
+                      {summary?.totalOpens || 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Total Opens
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-accent">
+                      {summary?.totalClicks || 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Total Clicks
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold">
+                      {summary?.averageOpenRate?.toFixed(1) || 0}%
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Avg Open Rate
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold">
+                      {summary?.averageClickRate?.toFixed(1) || 0}%
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      Avg Click Rate
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </main>
@@ -1206,17 +1465,27 @@ export default function HistoryPage() {
                     </div>
 
                     <div className="bg-background rounded-lg p-4 border">
-                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1 flex items-center gap-2">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
                         <Mail className="h-3 w-3" />
                         Email Clients
                       </h4>
-                      <PieChartWidget
-                        title=""
-                        data={campaignStats.emailClients || []}
-                        size="small"
-                        showLabels={false}
-                        className="border-0 shadow-none p-0 bg-transparent h-24"
-                      />
+                      {campaignStats.emailClients &&
+                      campaignStats.emailClients.length > 0 &&
+                      campaignStats.emailClients.some(
+                        (c: any) => c.value > 0,
+                      ) ? (
+                        <PieChartWidget
+                          title=""
+                          data={campaignStats.emailClients}
+                          size="small"
+                          showLabels={false}
+                          className="border-0 shadow-none p-0 bg-transparent"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-20 text-muted-foreground text-sm">
+                          No email client data yet
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

@@ -373,48 +373,60 @@ export function PieChartWidget({
     );
   }
 
+  const hasData = data && data.length > 0 && data.some((d) => d.value > 0);
+
   return (
     <Card className={cn("flex flex-col", className)}>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
       <CardContent className="flex-1">
-        <ResponsiveContainer width="100%" height={height}>
-          <PieChart>
-            <Pie
-              data={data}
-              cx="50%"
-              cy="50%"
-              innerRadius={size === "small" ? 30 : 50}
-              outerRadius={size === "small" ? 50 : 80}
-              paddingAngle={2}
-              dataKey="value"
-              label={
-                showLabels
-                  ? ({ name, percent }) =>
-                      `${name}: ${((percent || 0) * 100).toFixed(0)}%`
-                  : undefined
-              }
-              labelLine={showLabels}
-            >
-              {data.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={
-                    entry.color || DEFAULT_COLORS[index % DEFAULT_COLORS.length]
-                  }
-                />
-              ))}
-            </Pie>
-            <Tooltip
-              contentStyle={{
-                backgroundColor: "hsl(var(--background))",
-                border: "1px solid hsl(var(--border))",
-                borderRadius: "8px",
-              }}
-            />
-          </PieChart>
-        </ResponsiveContainer>
+        {!hasData ? (
+          <div
+            className="flex items-center justify-center text-muted-foreground text-sm"
+            style={{ height }}
+          >
+            No data available
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={height}>
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                innerRadius={size === "small" ? 30 : 50}
+                outerRadius={size === "small" ? 50 : 80}
+                paddingAngle={2}
+                dataKey="value"
+                label={
+                  showLabels
+                    ? ({ name, percent }) =>
+                        `${name}: ${((percent || 0) * 100).toFixed(0)}%`
+                    : undefined
+                }
+                labelLine={showLabels}
+              >
+                {data.map((entry, index) => (
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={
+                      entry.color ||
+                      DEFAULT_COLORS[index % DEFAULT_COLORS.length]
+                    }
+                  />
+                ))}
+              </Pie>
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--background))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "8px",
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        )}
       </CardContent>
     </Card>
   );

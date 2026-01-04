@@ -1192,9 +1192,9 @@ export function ComposeForm() {
 
     // No date/time validation needed for drafts - saved immediately
 
-    // Filter out unsubscribed emails
+    // Filter out unsubscribed emails - only for marketing emails, not transactional
     let filteredRecipients = recipients;
-    if (session?.user?.email) {
+    if (isMarketing && session?.user?.email) {
       try {
         filteredRecipients = await unsubscribesService.filterUnsubscribed(
           session.user.email,
