@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
       personalizedAttachment,
       campaignId,
       trackingEnabled = true,
+      isTransactional = false,
     } = data;
 
     if (!to || !subject || !message) {
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
             userEmail: session.user.email,
           }
         : undefined,
+      isTransactional,
     );
 
     if (result.status === "error") {

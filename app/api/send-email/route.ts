@@ -29,6 +29,7 @@ export async function POST(request: NextRequest) {
     const {
       campaignId,
       trackingEnabled = true,
+      isTransactional = false,
       abTestId: _abTestId,
       recipients,
       subject,
@@ -92,18 +93,21 @@ export async function POST(request: NextRequest) {
           campaignId: campaignId,
           userEmail: session.user.email,
         },
-        checkUnsubscribe: async (email: string) => {
-          const unsubscribeCheck = await databases.listDocuments(
-            config.databaseId,
-            config.unsubscribesCollectionId,
-            [
-              Query.equal("user_email", session.user.email!),
-              Query.equal("email", email.toLowerCase()),
-              Query.limit(1),
-            ],
-          );
-          return unsubscribeCheck.documents.length > 0;
-        },
+        // Only check unsubscribe list for marketing emails, not transactional
+        checkUnsubscribe: isTransactional
+          ? undefined
+          : async (email: string) => {
+              const unsubscribeCheck = await databases.listDocuments(
+                config.databaseId,
+                config.unsubscribesCollectionId,
+                [
+                  Query.equal("user_email", session.user.email!),
+                  Query.equal("email", email.toLowerCase()),
+                  Query.limit(1),
+                ],
+              );
+              return unsubscribeCheck.documents.length > 0;
+            },
       },
     );
 
