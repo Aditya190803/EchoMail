@@ -23,6 +23,7 @@ export interface Contact {
 }
 
 export interface EmailCampaignInput {
+  id?: string;
   subject: string;
   content: string;
   recipients: string[];

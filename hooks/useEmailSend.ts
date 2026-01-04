@@ -792,7 +792,7 @@ export function useEmailSend(): UseEmailSendResult {
       setStoppedDueToError(false);
       remainingEmailsRef.current = [];
 
-      const campaignId = generateCampaignId();
+      const campaignId = options?.campaignId || generateCampaignId();
       campaignIdRef.current = campaignId;
 
       const totalEmails = personalizedEmails.length;

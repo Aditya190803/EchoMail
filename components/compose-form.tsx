@@ -70,6 +70,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 import { useEmailSend } from "@/hooks/useEmailSend";
+import { generateCampaignId } from "@/lib/analytics";
 import {
   contactsService,
   campaignsService,
@@ -1393,7 +1394,9 @@ export function ComposeForm() {
     });
 
     try {
+      const campaignId = generateCampaignId();
       const results = await sendEmails(personalizedEmails, {
+        campaignId,
         isTransactional: !isMarketing,
         trackingEnabled,
       });
@@ -1404,6 +1407,7 @@ export function ComposeForm() {
       // Save campaign to Appwrite (user_email is set server-side)
       if (session?.user?.email) {
         await campaignsService.create({
+          id: campaignId,
           subject,
           content,
           recipients,

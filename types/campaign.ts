@@ -85,6 +85,7 @@ export interface PersonalizedEmailData {
  * Options for sending emails
  */
 export interface SendOptions {
+  campaignId?: string;
   delayBetweenEmails?: number;
   checkTokenEveryN?: number;
   campaignSubject?: string;

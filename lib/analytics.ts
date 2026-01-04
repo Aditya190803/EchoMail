@@ -8,9 +8,12 @@ import { v4 as uuidv4 } from "uuid";
 
 /**
  * Generates a unique campaign ID
+ * Format: camp_<uuid> - compatible with Appwrite document IDs
+ * Appwrite IDs must be alphanumeric with underscores, max 36 chars
  */
 export function generateCampaignId(): string {
-  return `c-${uuidv4().split("-")[0]}`;
+  // Use underscore instead of hyphen for Appwrite compatibility
+  return `camp_${uuidv4().replace(/-/g, "").slice(0, 20)}`;
 }
 
 /**

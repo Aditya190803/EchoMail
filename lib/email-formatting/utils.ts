@@ -6,6 +6,7 @@
  */
 
 import { generateLinkId, generateRecipientId } from "../analytics";
+import { emailLogger } from "../logger";
 
 import type { EmojiMap, ValidationResult } from "./types";
 
@@ -505,11 +506,20 @@ export function injectTracking(
   const encodedUser = encodeURIComponent(userEmail || "");
   const recipientId = generateRecipientId(recipientEmail);
 
+  emailLogger.info("Injecting tracking into email", {
+    campaignId,
+    recipientEmail,
+    userEmail,
+    trackingEnabled,
+    baseUrl,
+  });
+
   let result = html;
 
   // 1. Inject Open Tracking Pixel (1x1 transparent GIF)
   if (trackingEnabled) {
     const openTrackUrl = `${baseUrl}/api/track/open?c=${campaignId}&e=${encodedRecipient}&u=${encodedUser}&r=${recipientId}`;
+    emailLogger.debug("Open tracking URL", { openTrackUrl });
     const pixelTag = `<img src="${openTrackUrl}" width="1" height="1" style="display:none !important; visibility:hidden !important; opacity:0 !important;" alt="" />`;
 
     // Append before </body> if exists, otherwise at the end
