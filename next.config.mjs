@@ -92,7 +92,7 @@ const nextConfig = {
     
     // In production, use the actual domain
     const origin = process.env.NODE_ENV === 'production' 
-      ? (process.env.NEXT_PUBLIC_APP_URL || 'https://echomail.app')
+      ? (process.env.NEXT_PUBLIC_APP_URL || 'https://echomail.adityamer.live')
       : allowedOrigins[0]
 
     return [
