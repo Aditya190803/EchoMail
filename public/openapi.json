@@ -19,7 +19,7 @@
       "description": "Development server"
     },
     {
-      "url": "https://your-domain.com",
+      "url": "https://echomail.adityamer.live",
       "description": "Production server"
     }
   ],
@@ -337,6 +337,75 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/activity/campaign-stats": {
+      "get": {
+        "tags": ["Campaigns"],
+        "summary": "Get campaign statistics",
+        "description": "Retrieve performance metrics for a specific campaign",
+        "operationId": "getCampaignStats",
+        "parameters": [
+          {
+            "name": "campaignId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "advanced",
+            "in": "query",
+            "description": "Whether to include advanced metrics like time-series and geographic data",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "sent": { "type": "integer" },
+                    "opened": { "type": "integer" },
+                    "clicked": { "type": "integer" },
+                    "bounced": { "type": "integer" },
+                    "openRate": { "type": "number" },
+                    "clickRate": { "type": "number" },
+                    "timeSeries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "date": { "type": "string" },
+                          "opens": { "type": "integer" },
+                          "clicks": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "devices": {
+                      "type": "object",
+                      "additionalProperties": { "type": "integer" }
+                    },
+                    "locations": {
+                      "type": "object",
+                      "additionalProperties": { "type": "integer" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -717,32 +786,51 @@
       },
       "SendEmailRequest": {
         "type": "object",
-        "required": ["personalizedEmails"],
-        "properties": {
-          "personalizedEmails": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "to": {
-                  "type": "string",
-                  "format": "email"
-                },
-                "subject": {
-                  "type": "string"
-                },
-                "message": {
-                  "type": "string"
-                },
-                "originalRowData": {
-                  "type": "object"
-                },
-                "attachments": {
-                  "type": "array"
+        "oneOf": [
+          {
+            "required": ["personalizedEmails"],
+            "properties": {
+              "personalizedEmails": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "to": { "type": "string", "format": "email" },
+                    "subject": { "type": "string" },
+                    "message": { "type": "string" },
+                    "originalRowData": { "type": "object" },
+                    "attachments": { "type": "array" }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "required": ["recipients", "subject", "content"],
+            "properties": {
+              "recipients": {
+                "type": "array",
+                "items": { "type": "string", "format": "email" }
+              },
+              "subject": { "type": "string" },
+              "content": { "type": "string" },
+              "variants": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "subject": { "type": "string" },
+                    "content": { "type": "string" }
+                  }
                 }
               }
             }
           }
+        ],
+        "properties": {
+          "campaignId": { "type": "string" },
+          "trackingEnabled": { "type": "boolean", "default": true },
+          "verifyBeforeSending": { "type": "boolean", "default": false }
         }
       },
       "SendEmailResponse": {
