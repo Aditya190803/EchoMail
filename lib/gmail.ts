@@ -620,13 +620,16 @@ export async function sendEmailViaAPI(
   // Properly encode the subject line to handle UTF-8 characters
   const encodedSubject = encodeSubject(subject);
 
+  // Sanitize and preserve authoring-time formatting
+  const sanitizedHtmlBody = sanitizeHTML(htmlBody);
+
   // Inject tracking if enabled
-  let processedHtmlBody = htmlBody;
+  let processedHtmlBody = sanitizedHtmlBody;
   if (tracking) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
     processedHtmlBody = injectTracking(
-      htmlBody,
+      sanitizedHtmlBody,
       {
         campaignId: tracking.campaignId,
         recipientEmail: validatedTo,
@@ -638,26 +641,43 @@ export async function sendEmailViaAPI(
     );
   }
 
-  // Sanitize and preserve authoring-time formatting
-  const sanitizedHtmlBody = sanitizeHTML(processedHtmlBody);
   const zeroMarginCss =
     '<style type="text/css">html,body{margin:0!important;padding:0!important;width:100%!important;}table{border-collapse:collapse!important;border-spacing:0!important;}p{margin:0!important;padding:0!important;}*{margin:0!important;padding:0!important;}</style>';
 
-  const formattedHtmlBody = [
-    "<!doctype html>",
-    "<html>",
-    "<head>",
-    zeroMarginCss,
-    "</head>",
-    '<body style="margin:0;padding:0;">',
-    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;border:0;border-collapse:collapse;border-spacing:0;mso-table-lspace:0pt;mso-table-rspace:0pt;width:100%;">',
-    '<tr><td style="margin:0;padding:0;border:0;">',
-    sanitizedHtmlBody,
-    "</td></tr>",
-    "</table>",
-    "</body>",
-    "</html>",
-  ].join("");
+  // Check if the body is already a full HTML document
+  const hasHtmlTag = /<html/i.test(processedHtmlBody);
+  const hasBodyTag = /<body/i.test(processedHtmlBody);
+
+  let formattedHtmlBody: string;
+
+  if (hasHtmlTag || hasBodyTag) {
+    // If it's already a full document, just ensure the CSS is there
+    if (processedHtmlBody.includes("</head>")) {
+      formattedHtmlBody = processedHtmlBody.replace(
+        "</head>",
+        `${zeroMarginCss}</head>`,
+      );
+    } else {
+      formattedHtmlBody = `${zeroMarginCss}${processedHtmlBody}`;
+    }
+  } else {
+    // Wrap simple content in a full HTML structure with a layout table for better compatibility
+    formattedHtmlBody = [
+      "<!doctype html>",
+      "<html>",
+      "<head>",
+      zeroMarginCss,
+      "</head>",
+      '<body style="margin:0;padding:0;">',
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;border:0;border-collapse:collapse;border-spacing:0;mso-table-lspace:0pt;mso-table-rspace:0pt;width:100%;">',
+      '<tr><td style="margin:0;padding:0;border:0;">',
+      processedHtmlBody,
+      "</td></tr>",
+      "</table>",
+      "</body>",
+      "</html>",
+    ].join("\n");
+  }
 
   // Build email in Gmail's native format
   // Gmail sends emails with multipart/alternative (text + html) wrapped in multipart/mixed if attachments
