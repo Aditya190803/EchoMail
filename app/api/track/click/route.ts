@@ -37,8 +37,14 @@ export async function GET(request: NextRequest) {
 
     // Record the click event if we have the required parameters
     if (campaignId && email && userEmail) {
+      apiLogger.info("Processing click tracking", {
+        campaignId,
+        email: decodeURIComponent(email),
+        targetUrl: decodeURIComponent(targetUrl),
+        collectionId: config.trackingEventsCollectionId,
+      });
       try {
-        await databases.createDocument(
+        const doc = await databases.createDocument(
           config.databaseId,
           config.trackingEventsCollectionId,
           ID.unique(),
@@ -58,18 +64,32 @@ export async function GET(request: NextRequest) {
             created_at: new Date().toISOString(),
           },
         );
-        apiLogger.debug("Link click tracked", {
-          email,
+        apiLogger.info("Link click tracked successfully", {
+          email: decodeURIComponent(email),
           targetUrl: decodeURIComponent(targetUrl),
           campaignId,
+          docId: doc.$id,
         });
       } catch (error) {
         apiLogger.error(
           "Error recording click event",
           error instanceof Error ? error : undefined,
+          {
+            campaignId,
+            email: decodeURIComponent(email),
+            errorMessage:
+              error instanceof Error ? error.message : String(error),
+            collectionId: config.trackingEventsCollectionId,
+          },
         );
         // Don't fail the redirect
       }
+    } else {
+      apiLogger.warn("Click tracking missing required params", {
+        hasCampaignId: !!campaignId,
+        hasEmail: !!email,
+        hasUserEmail: !!userEmail,
+      });
     }
 
     // Redirect to the target URL

@@ -103,6 +103,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const {
+      id,
       subject,
       content,
       recipients,
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest) {
     const result = await databases.createDocument(
       config.databaseId,
       config.campaignsCollectionId,
-      ID.unique(),
+      id || ID.unique(),
       {
         subject,
         content,

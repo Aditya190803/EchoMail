@@ -37,8 +37,14 @@ export async function GET(request: NextRequest) {
 
     // Record the open event if we have the required parameters
     if (campaignId && email && userEmail) {
+      apiLogger.info("Processing open tracking", {
+        campaignId,
+        email: decodeURIComponent(email),
+        userEmail: decodeURIComponent(userEmail),
+        collectionId: config.trackingEventsCollectionId,
+      });
       try {
-        await databases.createDocument(
+        const doc = await databases.createDocument(
           config.databaseId,
           config.trackingEventsCollectionId,
           ID.unique(),
@@ -56,14 +62,31 @@ export async function GET(request: NextRequest) {
             created_at: new Date().toISOString(),
           },
         );
-        apiLogger.debug("Email open tracked", { email, campaignId });
+        apiLogger.info("Email open tracked successfully", {
+          email: decodeURIComponent(email),
+          campaignId,
+          docId: doc.$id,
+        });
       } catch (error) {
         apiLogger.error(
           "Error recording open event",
           error instanceof Error ? error : undefined,
+          {
+            campaignId,
+            email: decodeURIComponent(email),
+            errorMessage:
+              error instanceof Error ? error.message : String(error),
+            collectionId: config.trackingEventsCollectionId,
+          },
         );
         // Don't fail the request, still return the pixel
       }
+    } else {
+      apiLogger.warn("Open tracking missing required params", {
+        hasCampaignId: !!campaignId,
+        hasEmail: !!email,
+        hasUserEmail: !!userEmail,
+      });
     }
 
     // Return the tracking pixel
