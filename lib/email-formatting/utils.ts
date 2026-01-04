@@ -517,10 +517,14 @@ export function injectTracking(
   let result = html;
 
   // 1. Inject Open Tracking Pixel (1x1 transparent GIF)
+  // Note: Many email clients block images by default, so open tracking has limitations
+  // Using minimal styling that doesn't trigger image blocking heuristics
   if (trackingEnabled) {
     const openTrackUrl = `${baseUrl}/api/track/open?c=${campaignId}&e=${encodedRecipient}&u=${encodedUser}&r=${recipientId}`;
     emailLogger.debug("Open tracking URL", { openTrackUrl });
-    const pixelTag = `<img src="${openTrackUrl}" width="1" height="1" style="display:none !important; visibility:hidden !important; opacity:0 !important;" alt="" />`;
+    // Use a simple 1x1 image without display:none (which some clients skip loading)
+    // Position it at the end of the email where it's least intrusive
+    const pixelTag = `<img src="${openTrackUrl}" width="1" height="1" alt="" style="border:0;width:1px;height:1px;" />`;
 
     // Append before </body> if exists, otherwise at the end
     if (result.includes("</body>")) {

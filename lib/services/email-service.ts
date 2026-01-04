@@ -215,6 +215,7 @@ export class EmailService {
       userEmail: string;
       enabled?: boolean;
     },
+    isTransactional?: boolean,
   ): Promise<EmailResult> {
     try {
       // Build personalization data from recipient
@@ -272,6 +273,7 @@ export class EmailService {
         personalizedBody,
         resolvedAttachments,
         tracking,
+        isTransactional,
       );
 
       // Record "sent" event
