@@ -1,3 +1,4 @@
+import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -59,6 +60,7 @@ export default function SettingsLoading() {
           </Card>
         </div>
       </main>
+      <Footer />
     </div>
   );
 }

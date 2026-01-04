@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useCallback, useState } from "react";
 
-import { LogOut, ChevronDown, AlertCircle } from "lucide-react";
+import { LogOut, ChevronDown, AlertCircle, Loader2 } from "lucide-react";
 import { useSession, signIn, signOut } from "next-auth/react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -18,14 +18,29 @@ import {
 
 export function AuthButton() {
   const { data: session, status } = useSession();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // Secure logout: revoke tokens before signing out
+  const handleLogout = useCallback(async () => {
+    setIsLoggingOut(true);
+    try {
+      // Call logout API to revoke tokens
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Continue with signOut even if API call fails
+    } finally {
+      // Always sign out regardless of API result
+      signOut({ callbackUrl: "/" });
+    }
+  }, []);
 
   // Auto sign out if there's a refresh token error
   useEffect(() => {
     if (session?.error === "RefreshAccessTokenError") {
       // Token refresh failed, sign out and redirect to sign in
-      signOut({ callbackUrl: "/" });
+      handleLogout();
     }
-  }, [session?.error]);
+  }, [session?.error, handleLogout]);
 
   if (status === "loading") {
     return (
@@ -92,11 +107,16 @@ export function AuthButton() {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            onClick={() => signOut()}
+            onClick={handleLogout}
+            disabled={isLoggingOut}
             className="text-destructive focus:text-destructive cursor-pointer"
           >
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign out
+            {isLoggingOut ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <LogOut className="mr-2 h-4 w-4" />
+            )}
+            {isLoggingOut ? "Signing out..." : "Sign out"}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

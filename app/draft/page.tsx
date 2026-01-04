@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import {
   AlertDialog,
@@ -60,6 +61,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { draftEmailsService, type DraftEmail } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
+import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
+import { getCookie } from "@/lib/utils";
 
 export default function DraftPage() {
   const { session, status, router } = useAuthGuard();
@@ -77,7 +80,9 @@ export default function DraftPage() {
   }, []);
 
   const fetchDraftEmails = useCallback(async () => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -94,7 +99,9 @@ export default function DraftPage() {
   }, [session?.user?.email]);
 
   useEffect(() => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
 
     fetchDraftEmails();
 
@@ -104,7 +111,9 @@ export default function DraftPage() {
     );
 
     return () => {
-      if (unsubscribe) {unsubscribe();}
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, [session?.user?.email, fetchDraftEmails]);
 
@@ -204,15 +213,21 @@ export default function DraftPage() {
   };
 
   const sendNow = async (email: DraftEmail) => {
-    if (!email.$id) {return;}
+    if (!email.$id) {
+      return;
+    }
 
     setSendingId(email.$id);
 
     try {
       // Call the send draft API (API will handle status updates)
+      const csrfToken = getCookie(CSRF_TOKEN_NAME);
       const response = await fetch("/api/send-draft", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+        },
         body: JSON.stringify({ draftId: email.$id }),
       });
 
@@ -266,7 +281,9 @@ export default function DraftPage() {
 
   // Duplicate a draft email
   const duplicateDraftEmail = async (email: DraftEmail) => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
 
     try {
       await draftEmailsService.create({
@@ -293,7 +310,9 @@ export default function DraftPage() {
 
   // Retry a failed draft
   const retryFailedDraft = async (email: DraftEmail) => {
-    if (!email.$id) {return;}
+    if (!email.$id) {
+      return;
+    }
 
     // Reset status to pending and try sending again
     try {
@@ -355,10 +374,10 @@ export default function DraftPage() {
 
   if (status === "loading" || !isMounted || isLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Navbar />
 
-        <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
           {/* Header Skeleton */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
             <div>
@@ -432,7 +451,9 @@ export default function DraftPage() {
     );
   }
 
-  if (status === "unauthenticated") {return null;}
+  if (status === "unauthenticated") {
+    return null;
+  }
 
   const pendingEmails = draftEmails.filter((e) => e.status === "pending");
   const completedEmails = draftEmails.filter((e) =>
@@ -440,10 +461,10 @@ export default function DraftPage() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
@@ -979,6 +1000,8 @@ export default function DraftPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Footer />
     </div>
   );
 }

@@ -16,6 +16,7 @@ import {
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
+import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import {
@@ -80,7 +81,9 @@ export default function SignaturesPage() {
   }, [status, router]);
 
   const fetchSignatures = useCallback(async () => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
 
     try {
       const response = await signaturesService.listByUser(session.user.email);
@@ -95,7 +98,9 @@ export default function SignaturesPage() {
   }, [session?.user?.email]);
 
   useEffect(() => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
     const loadData = async () => {
       await fetchSignatures();
       setIsLoadingData(false);
@@ -108,8 +113,9 @@ export default function SignaturesPage() {
       !session?.user?.email ||
       !newSignature.name.trim() ||
       !newSignature.content.trim()
-    )
-      {return;}
+    ) {
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -134,7 +140,9 @@ export default function SignaturesPage() {
   };
 
   const updateSignature = async () => {
-    if (!editingSignature?.$id) {return;}
+    if (!editingSignature?.$id) {
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -173,7 +181,9 @@ export default function SignaturesPage() {
   };
 
   const setAsDefault = async (signatureId: string) => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
 
     try {
       await signaturesService.setAsDefault(session.user.email, signatureId);
@@ -190,9 +200,9 @@ export default function SignaturesPage() {
 
   if (status === "loading" || !isMounted || isLoadingData) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Navbar />
-        <main className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
+        <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
           {/* Header Skeleton */}
           <div className="flex items-center gap-4 mb-8">
             <Skeleton className="h-10 w-10" />
@@ -227,13 +237,15 @@ export default function SignaturesPage() {
     );
   }
 
-  if (status === "unauthenticated") {return null;}
+  if (status === "unauthenticated") {
+    return null;
+  }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      <main className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
@@ -541,6 +553,8 @@ export default function SignaturesPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Footer />
     </div>
   );
 }

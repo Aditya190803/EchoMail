@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { componentLogger } from "@/lib/client-logger";
+import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
+import { getCookie } from "@/lib/utils";
 import type { PersonalizedEmail } from "@/types/email";
 
 interface EmailPreviewProps {
@@ -53,9 +55,13 @@ export function EmailPreview({
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 10000);
 
+          const csrfToken = getCookie(CSRF_TOKEN_NAME);
           const response = await fetch("/api/format-email-preview", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+            },
             body: JSON.stringify({ htmlContent: emails[i].message }),
             signal: controller.signal,
           });

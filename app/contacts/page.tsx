@@ -23,9 +23,12 @@ import {
   UserMinus,
   RefreshCw,
   CloudDownload,
+  Clock,
+  Send,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { Pagination } from "@/components/pagination";
 import {
@@ -62,6 +65,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { usePagination } from "@/hooks/usePagination";
+import { useVirtualScroll } from "@/hooks/useVirtualScroll";
 import {
   contactsService,
   contactGroupsService,
@@ -108,6 +112,7 @@ export default function ContactsPage() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState("contacts");
+  const [viewMode, setViewMode] = useState<"grid" | "virtual">("grid");
   const [newContact, setNewContact] = useState({
     email: "",
     name: "",
@@ -158,6 +163,13 @@ export default function ContactsPage() {
   // Pagination hook for contacts - must be called before any conditional returns
   const contactsPagination = usePagination(filteredContacts, { pageSize: 12 });
 
+  // Virtual scroll hook for large lists
+  const virtualScroll = useVirtualScroll(filteredContacts, {
+    itemHeight: 80,
+    containerHeight: 600,
+    overscan: 5,
+  });
+
   // Reset pagination when filters change
   useEffect(() => {
     contactsPagination.reset();
@@ -169,7 +181,9 @@ export default function ContactsPage() {
   }, []);
 
   const formatDate = (dateValue: string) => {
-    if (!isMounted) {return "";}
+    if (!isMounted) {
+      return "";
+    }
     try {
       return new Date(dateValue).toLocaleDateString("en-US", {
         month: "short",
@@ -181,9 +195,180 @@ export default function ContactsPage() {
     }
   };
 
+  const renderContactCard = (contact: Contact) => {
+    const contactGroups = getContactGroups(contact.$id);
+    return (
+      <Card key={contact.$id} hover className="group h-full">
+        <CardContent className="p-5">
+          <div className="flex justify-between items-start mb-4">
+            <div className="flex-1 min-w-0">
+              {contact.name && (
+                <h3 className="font-semibold text-foreground truncate mb-1">
+                  {contact.name}
+                </h3>
+              )}
+              <div className="flex items-center gap-2 text-sm text-primary">
+                <Mail className="h-3.5 w-3.5 flex-shrink-0" />
+                <span className="truncate">{contact.email}</span>
+              </div>
+            </div>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="opacity-0 group-hover:opacity-100"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setEditingContact(contact);
+                    setShowEditContact(true);
+                  }}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Contact
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    setSelectedContactForGroup(contact);
+                    setShowAddToGroup(true);
+                  }}
+                >
+                  <Tag className="h-4 w-4 mr-2" />
+                  Add to Group
+                </DropdownMenuItem>
+                {contactGroups.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    {contactGroups.map((group) => (
+                      <DropdownMenuItem
+                        key={group.$id}
+                        onClick={() =>
+                          removeContactFromGroup(contact.$id, group.$id!)
+                        }
+                      >
+                        <UserMinus className="h-4 w-4 mr-2" />
+                        Remove from {group.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                )}
+                <DropdownMenuSeparator />
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <DropdownMenuItem
+                      onSelect={(e) => e.preventDefault()}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete
+                    </DropdownMenuItem>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Contact</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete{" "}
+                        {contact.name || contact.email}? This action cannot be
+                        undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => deleteContact(contact.$id)}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Delete
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <div className="space-y-2">
+            {contact.company && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Building className="h-3.5 w-3.5 flex-shrink-0" />
+                <span className="truncate">{contact.company}</span>
+              </div>
+            )}
+
+            {contact.phone && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Phone className="h-3.5 w-3.5 flex-shrink-0" />
+                <span className="truncate">{contact.phone}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Contact Groups */}
+          {contactGroups.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-4">
+              {contactGroups.map((group) => (
+                <Badge
+                  key={group.$id}
+                  variant="outline"
+                  className="text-[10px] px-1.5 py-0 h-4"
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full mr-1 ${getGroupColor(group.color)}`}
+                  />
+                  {group.name}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          {/* Tags */}
+          {contact.tags && contact.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {contact.tags.map((tag) => (
+                <Badge
+                  key={tag}
+                  variant="secondary"
+                  className="text-[10px] px-1.5 py-0 h-4"
+                >
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-4 pt-4 border-t border-border flex items-center justify-between text-[10px] text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              <span>Added {formatDate(contact.created_at)}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-[10px]"
+              asChild
+            >
+              <Link href={`/compose?to=${encodeURIComponent(contact.email)}`}>
+                <Send className="h-3 w-3 mr-1" />
+                Send
+              </Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   // Fetch contacts function
   const fetchContacts = useCallback(async () => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
 
     try {
       const response = await contactsService.listByUser(session.user.email);
@@ -222,7 +407,9 @@ export default function ContactsPage() {
 
   // Fetch groups function
   const fetchGroups = useCallback(async () => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
 
     try {
       const response = await contactGroupsService.listByUser(
@@ -239,7 +426,9 @@ export default function ContactsPage() {
 
   // Initial fetch and real-time subscription
   useEffect(() => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
 
     // Initial fetch
     const loadData = async () => {
@@ -258,12 +447,16 @@ export default function ContactsPage() {
     );
 
     return () => {
-      if (unsubscribe) {unsubscribe();}
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, [session?.user?.email, fetchContacts, fetchGroups]);
 
   const addContact = async () => {
-    if (!session?.user?.email || !newContact.email.trim()) {return;}
+    if (!session?.user?.email || !newContact.email.trim()) {
+      return;
+    }
 
     // Create an optimistic contact with a temporary ID
     const tempId = `temp-${Date.now()}`;
@@ -310,7 +503,9 @@ export default function ContactsPage() {
   };
 
   const updateContact = async () => {
-    if (!editingContact?.$id) {return;}
+    if (!editingContact?.$id) {
+      return;
+    }
 
     // Store the previous state for rollback
     const previousContacts = [...contacts];
@@ -356,7 +551,9 @@ export default function ContactsPage() {
   const deleteContact = async (contactId: string) => {
     // Store the contact for potential rollback
     const contactToDelete = contacts.find((c) => c.$id === contactId);
-    if (!contactToDelete) {return;}
+    if (!contactToDelete) {
+      return;
+    }
 
     // Optimistically remove from UI
     setContacts((prev) => prev.filter((c) => c.$id !== contactId));
@@ -378,7 +575,9 @@ export default function ContactsPage() {
 
   // Group functions
   const createGroup = async () => {
-    if (!session?.user?.email || !newGroup.name.trim()) {return;}
+    if (!session?.user?.email || !newGroup.name.trim()) {
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -405,7 +604,9 @@ export default function ContactsPage() {
   };
 
   const updateGroup = async () => {
-    if (!editingGroup?.$id) {return;}
+    if (!editingGroup?.$id) {
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -520,7 +721,9 @@ export default function ContactsPage() {
   };
 
   const importSelectedGmailContacts = async () => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
 
     const contactsToImport = gmailContacts.filter((c) =>
       selectedGmailContacts.has(c.email),
@@ -650,7 +853,9 @@ export default function ContactsPage() {
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
-    if (!file || !session?.user?.email) {return;}
+    if (!file || !session?.user?.email) {
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -727,9 +932,9 @@ export default function ContactsPage() {
 
   if (status === "loading" || !isMounted || isLoadingData) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Navbar />
-        <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
           {/* Header Skeleton */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
             <div>
@@ -792,13 +997,15 @@ export default function ContactsPage() {
     );
   }
 
-  if (status === "unauthenticated") {return null;}
+  if (status === "unauthenticated") {
+    return null;
+  }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
           <div>
@@ -1103,6 +1310,24 @@ export default function ContactsPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="max-w-md"
               />
+              <div className="flex items-center gap-2 bg-muted p-1 rounded-md self-start">
+                <Button
+                  variant={viewMode === "grid" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("grid")}
+                  className="h-8 px-3"
+                >
+                  Grid
+                </Button>
+                <Button
+                  variant={viewMode === "virtual" ? "secondary" : "ghost"}
+                  size="sm"
+                  onClick={() => setViewMode("virtual")}
+                  className="h-8 px-3"
+                >
+                  Virtual List
+                </Button>
+              </div>
               <div className="flex gap-2 flex-wrap">
                 <Button
                   variant={
@@ -1180,208 +1405,162 @@ export default function ContactsPage() {
               <>
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-sm text-muted-foreground">
-                    Showing {contactsPagination.startIndex + 1} to{" "}
-                    {Math.min(
-                      contactsPagination.endIndex + 1,
-                      filteredContacts.length,
-                    )}{" "}
-                    of {filteredContacts.length} contacts
+                    {viewMode === "grid" ? (
+                      <>
+                        Showing {contactsPagination.startIndex + 1} to{" "}
+                        {Math.min(
+                          contactsPagination.endIndex + 1,
+                          filteredContacts.length,
+                        )}{" "}
+                        of {filteredContacts.length} contacts
+                      </>
+                    ) : (
+                      <>
+                        Showing {filteredContacts.length} contacts (Virtual
+                        Scrolling)
+                      </>
+                    )}
                     {selectedGroup &&
                       ` in "${groups.find((g) => g.$id === selectedGroup)?.name}"`}
                   </p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {contactsPagination.paginatedItems.map((contact) => {
-                    const contactGroups = getContactGroups(contact.$id);
-                    return (
-                      <Card key={contact.$id} hover className="group">
-                        <CardContent className="p-5">
-                          <div className="flex justify-between items-start mb-4">
-                            <div className="flex-1 min-w-0">
-                              {contact.name && (
-                                <h3 className="font-semibold text-foreground truncate mb-1">
-                                  {contact.name}
-                                </h3>
-                              )}
-                              <div className="flex items-center gap-2 text-sm text-primary">
-                                <Mail className="h-3.5 w-3.5 flex-shrink-0" />
-                                <span className="truncate">
-                                  {contact.email}
-                                </span>
+
+                {viewMode === "grid" ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {contactsPagination.paginatedItems.map((contact) =>
+                      renderContactCard(contact),
+                    )}
+                  </div>
+                ) : (
+                  <div
+                    ref={virtualScroll.containerRef}
+                    className="h-[600px] overflow-auto border rounded-lg bg-muted/30 p-4"
+                  >
+                    <div
+                      style={{
+                        height: `${virtualScroll.totalHeight}px`,
+                        position: "relative",
+                      }}
+                    >
+                      {virtualScroll.virtualItems.map((virtualItem) => (
+                        <div
+                          key={virtualItem.data.$id}
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            width: "100%",
+                            height: `${virtualItem.height}px`,
+                            transform: `translateY(${virtualItem.top}px)`,
+                            paddingBottom: "8px",
+                          }}
+                        >
+                          <div className="h-full bg-background rounded-lg border shadow-sm p-4 flex items-center justify-between group">
+                            <div className="flex items-center gap-4 min-w-0">
+                              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold flex-shrink-0">
+                                {(virtualItem.data.name ||
+                                  virtualItem.data.email)[0].toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-medium truncate">
+                                  {virtualItem.data.name || "No Name"}
+                                </div>
+                                <div className="text-sm text-muted-foreground truncate flex items-center gap-2">
+                                  <Mail className="h-3 w-3" />
+                                  {virtualItem.data.email}
+                                </div>
                               </div>
                             </div>
 
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon-sm"
-                                  className="opacity-0 group-hover:opacity-100"
-                                >
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setEditingContact(contact);
-                                    setShowEditContact(true);
-                                  }}
-                                >
-                                  <Edit className="h-4 w-4 mr-2" />
-                                  Edit Contact
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setSelectedContactForGroup(contact);
-                                    setShowAddToGroup(true);
-                                  }}
-                                >
-                                  <Tag className="h-4 w-4 mr-2" />
-                                  Add to Group
-                                </DropdownMenuItem>
-                                {contactGroups.length > 0 && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    {contactGroups.map((group) => (
-                                      <DropdownMenuItem
-                                        key={group.$id}
-                                        onClick={() =>
-                                          removeContactFromGroup(
-                                            contact.$id,
-                                            group.$id!,
-                                          )
-                                        }
-                                      >
-                                        <UserMinus className="h-4 w-4 mr-2" />
-                                        Remove from {group.name}
-                                      </DropdownMenuItem>
-                                    ))}
-                                  </>
-                                )}
-                                <DropdownMenuSeparator />
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem
-                                      onSelect={(e) => e.preventDefault()}
-                                      className="text-destructive focus:text-destructive"
-                                    >
-                                      <Trash2 className="h-4 w-4 mr-2" />
-                                      Delete
-                                    </DropdownMenuItem>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Delete Contact
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to delete{" "}
-                                        {contact.name || contact.email}? This
-                                        action cannot be undone.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() =>
-                                          deleteContact(contact.$id)
-                                        }
-                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                      >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-
-                          <div className="space-y-2">
-                            {contact.company && (
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Building className="h-3.5 w-3.5 flex-shrink-0" />
-                                <span className="truncate">
-                                  {contact.company}
-                                </span>
-                              </div>
-                            )}
-
-                            {contact.phone && (
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Phone className="h-3.5 w-3.5 flex-shrink-0" />
-                                <span className="truncate">
-                                  {contact.phone}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Contact Groups */}
-                          {contactGroups.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-1">
-                              {contactGroups.map((group) => (
+                            <div className="flex items-center gap-2">
+                              {virtualItem.data.company && (
                                 <Badge
-                                  key={group.$id}
-                                  variant="secondary"
-                                  className="text-xs flex items-center gap-1"
-                                >
-                                  <span
-                                    className={`w-1.5 h-1.5 rounded-full ${getGroupColor(group.color)}`}
-                                  />
-                                  {group.name}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-
-                          {/* Contact Tags */}
-                          {contact.tags && contact.tags.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              {contact.tags.map((tag) => (
-                                <Badge
-                                  key={tag}
                                   variant="outline"
-                                  className="text-xs flex items-center gap-1 cursor-pointer hover:bg-primary/20"
-                                  onClick={() => setSelectedTag(tag)}
+                                  className="hidden md:flex"
                                 >
-                                  <Tag className="h-2.5 w-2.5" />
-                                  {tag}
+                                  <Building className="h-3 w-3 mr-1" />
+                                  {virtualItem.data.company}
                                 </Badge>
-                              ))}
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="opacity-0 group-hover:opacity-100"
+                                asChild
+                              >
+                                <Link
+                                  href={`/compose?to=${encodeURIComponent(virtualItem.data.email)}`}
+                                >
+                                  <Send className="h-4 w-4 mr-1" />
+                                  Send
+                                </Link>
+                              </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon-sm">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setEditingContact(virtualItem.data);
+                                      setShowEditContact(true);
+                                    }}
+                                  >
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setSelectedContactForGroup(
+                                        virtualItem.data,
+                                      );
+                                      setShowAddToGroup(true);
+                                    }}
+                                  >
+                                    <Tag className="h-4 w-4 mr-2" />
+                                    Add to Group
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      deleteContact(virtualItem.data.$id)
+                                    }
+                                    className="text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Delete
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
-                          )}
-
-                          <div className="mt-4 pt-4 border-t text-xs text-muted-foreground">
-                            Added {formatDate(contact.created_at)}
                           </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
-
-                {/* Pagination */}
-                {filteredContacts.length > contactsPagination.pageSize && (
-                  <div className="mt-6">
-                    <Pagination
-                      currentPage={contactsPagination.currentPage}
-                      totalPages={contactsPagination.totalPages}
-                      pageSize={contactsPagination.pageSize}
-                      totalItems={contactsPagination.totalItems}
-                      hasPreviousPage={contactsPagination.hasPreviousPage}
-                      hasNextPage={contactsPagination.hasNextPage}
-                      onPageChange={contactsPagination.goToPage}
-                      onPageSizeChange={contactsPagination.setPageSize}
-                      getPageNumbers={contactsPagination.getPageNumbers}
-                      startIndex={contactsPagination.startIndex}
-                      endIndex={contactsPagination.endIndex}
-                    />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
+
+                {/* Pagination */}
+                {viewMode === "grid" &&
+                  filteredContacts.length > contactsPagination.pageSize && (
+                    <div className="mt-6">
+                      <Pagination
+                        currentPage={contactsPagination.currentPage}
+                        totalPages={contactsPagination.totalPages}
+                        pageSize={contactsPagination.pageSize}
+                        totalItems={contactsPagination.totalItems}
+                        hasPreviousPage={contactsPagination.hasPreviousPage}
+                        hasNextPage={contactsPagination.hasNextPage}
+                        onPageChange={contactsPagination.goToPage}
+                        onPageSizeChange={contactsPagination.setPageSize}
+                        getPageNumbers={contactsPagination.getPageNumbers}
+                        startIndex={contactsPagination.startIndex}
+                        endIndex={contactsPagination.endIndex}
+                      />
+                    </div>
+                  )}
               </>
             ) : (
               <Card>
@@ -2013,6 +2192,8 @@ export default function ContactsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Footer />
     </div>
   );
 }

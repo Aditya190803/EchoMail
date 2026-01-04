@@ -9,7 +9,6 @@ import {
   Mail,
   LayoutDashboard,
   Users,
-  History,
   PenSquare,
   Menu,
   X,
@@ -22,6 +21,7 @@ import {
   Database,
   Beaker,
   Shield,
+  BarChart3,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 
@@ -43,7 +43,7 @@ const navigation = [
   { name: "Drafts", href: "/draft", icon: Clock },
   { name: "Templates", href: "/templates", icon: FileText },
   { name: "Contacts", href: "/contacts", icon: Users },
-  { name: "History", href: "/history", icon: History },
+  { name: "Insights", href: "/insights", icon: BarChart3 },
   { name: "A/B Tests", href: "/ab-testing", icon: Beaker },
 ];
 

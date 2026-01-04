@@ -19,6 +19,7 @@ import {
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
+import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import {
   AlertDialog,
@@ -68,7 +69,9 @@ export default function UnsubscribesPage() {
   }, [status, router]);
 
   const fetchUnsubscribes = useCallback(async () => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -85,12 +88,16 @@ export default function UnsubscribesPage() {
   }, [session?.user?.email]);
 
   useEffect(() => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
     fetchUnsubscribes();
   }, [session?.user?.email, fetchUnsubscribes]);
 
   const addUnsubscribe = async () => {
-    if (!session?.user?.email || !newEmail.trim()) {return;}
+    if (!session?.user?.email || !newEmail.trim()) {
+      return;
+    }
 
     // Validate email
     if (!newEmail.includes("@")) {
@@ -162,7 +169,9 @@ export default function UnsubscribesPage() {
 
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file || !session?.user?.email) {return;}
+    if (!file || !session?.user?.email) {
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -226,17 +235,19 @@ export default function UnsubscribesPage() {
     );
   }
 
-  if (status === "unauthenticated") {return null;}
+  if (status === "unauthenticated") {
+    return null;
+  }
 
   const filteredUnsubscribes = unsubscribes.filter((u) =>
     u.email.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      <main className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
@@ -457,6 +468,8 @@ export default function UnsubscribesPage() {
           </CardContent>
         </Card>
       </main>
+
+      <Footer />
     </div>
   );
 }

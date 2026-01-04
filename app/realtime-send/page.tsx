@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import { Send } from "lucide-react";
 
+import { Footer } from "@/components/footer";
+import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,7 +36,7 @@ export default function RealtimeSendPage() {
     setEmailsRemaining(totalEmails);
 
     // Always use sequential sending (no more chunking/batching)
-    setCurrentProcessingMethod("� Sequential Email Sending");
+    setCurrentProcessingMethod("📧 Sequential Email Sending");
     setProcessingStatus(`Sending ${totalEmails} emails one by one...`);
 
     // Simulate sequential sending (one email at a time)
@@ -79,22 +81,24 @@ export default function RealtimeSendPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-zinc-900 p-4">
+    <div className="min-h-screen bg-background flex flex-col">
+      <Navbar />
+
       {/* Real-time Sending Screen - Full Screen Overlay */}
       {showSendingScreen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-2xl bg-white dark:bg-zinc-800 border-2 border-blue-200 dark:border-blue-800">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-2xl border-2 border-primary/20">
             <CardContent className="p-6">
               <div className="space-y-6">
                 {/* Header */}
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-3 mb-4">
-                    <div className="h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                    <h2 className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                    <div className="h-8 w-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                    <h2 className="text-2xl font-bold">
                       Sending Your Campaign
                     </h2>
                   </div>
-                  <p className="text-gray-600 dark:text-gray-400">
+                  <p className="text-muted-foreground">
                     Please keep this window open while we send your emails
                   </p>
                 </div>
@@ -102,34 +106,31 @@ export default function RealtimeSendPage() {
                 {/* Progress Bar */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    <span className="text-sm font-medium">
                       Overall Progress
                     </span>
-                    <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                    <span className="text-sm font-bold text-primary">
                       {sendProgress}%
                     </span>
                   </div>
-                  <Progress
-                    value={sendProgress}
-                    className="w-full h-4 bg-blue-100 dark:bg-blue-900"
-                  />
+                  <Progress value={sendProgress} className="w-full h-4" />
                 </div>
 
                 {/* Real-time Statistics */}
                 <div className="grid grid-cols-2 gap-6">
-                  <div className="text-center p-6 bg-green-50 rounded-lg border-2 border-green-200">
-                    <div className="text-4xl font-bold text-green-600 mb-2">
+                  <div className="text-center p-6 bg-success/10 rounded-lg border-2 border-success/20">
+                    <div className="text-4xl font-bold text-success mb-2">
                       {emailsSent}
                     </div>
-                    <div className="text-sm font-medium text-green-800">
+                    <div className="text-sm font-medium text-success">
                       Emails Sent
                     </div>
                   </div>
-                  <div className="text-center p-6 bg-orange-50 rounded-lg border-2 border-orange-200">
-                    <div className="text-4xl font-bold text-orange-600 mb-2">
+                  <div className="text-center p-6 bg-warning/10 rounded-lg border-2 border-warning/20">
+                    <div className="text-4xl font-bold text-warning mb-2">
                       {emailsRemaining}
                     </div>
-                    <div className="text-sm font-medium text-orange-800">
+                    <div className="text-sm font-medium text-warning">
                       Remaining
                     </div>
                   </div>
@@ -137,12 +138,12 @@ export default function RealtimeSendPage() {
 
                 {/* Processing Method Info */}
                 {currentProcessingMethod && (
-                  <div className="text-center p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="text-lg font-semibold text-gray-800 mb-2">
+                  <div className="text-center p-4 bg-muted rounded-lg border border-border">
+                    <div className="text-lg font-semibold mb-2">
                       {currentProcessingMethod}
                     </div>
                     {processingStatus && (
-                      <div className="text-sm text-gray-600">
+                      <div className="text-sm text-muted-foreground">
                         {processingStatus}
                       </div>
                     )}
@@ -150,12 +151,12 @@ export default function RealtimeSendPage() {
                 )}
 
                 {/* Status Message */}
-                <div className="text-center p-4 bg-blue-50 rounded-lg">
-                  <p className="text-lg text-blue-800 font-medium">
+                <div className="text-center p-4 bg-info/10 rounded-lg border border-info/20">
+                  <p className="text-lg text-info font-medium">
                     {processingStatus || "Processing your email campaign..."}
                   </p>
                   {!isLoading && (
-                    <p className="text-sm text-gray-600 mt-2">
+                    <p className="text-sm text-muted-foreground mt-2">
                       Campaign completed! This screen will close automatically
                       in a few seconds.
                     </p>
@@ -181,53 +182,57 @@ export default function RealtimeSendPage() {
       )}
 
       {/* Main Page Content */}
-      <div className="max-w-2xl mx-auto">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Send className="h-5 w-5" />
-              Real-time Email Sending Demo
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="emailCount">Number of emails to simulate</Label>
-              <Input
-                id="emailCount"
-                type="number"
-                value={emailCount}
-                onChange={(e) => setEmailCount(e.target.value)}
-                placeholder="Enter number of emails"
-                min="1"
-                max="1000"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                All emails are sent sequentially, one at a time, for maximum
-                reliability.
-              </p>
-            </div>
+      <main className="flex-1 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-2xl mx-auto">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Send className="h-5 w-5" />
+                Real-time Email Sending Demo
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="emailCount">Number of emails to simulate</Label>
+                <Input
+                  id="emailCount"
+                  type="number"
+                  value={emailCount}
+                  onChange={(e) => setEmailCount(e.target.value)}
+                  placeholder="Enter number of emails"
+                  min="1"
+                  max="1000"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  All emails are sent sequentially, one at a time, for maximum
+                  reliability.
+                </p>
+              </div>
 
-            <Button
-              onClick={simulateEmailSending}
-              disabled={isLoading}
-              className="w-full"
-            >
-              {isLoading ? "Sending..." : "Start Email Campaign"}
-            </Button>
+              <Button
+                onClick={simulateEmailSending}
+                disabled={isLoading}
+                className="w-full"
+              >
+                {isLoading ? "Sending..." : "Start Email Campaign"}
+              </Button>
 
-            <div className="text-center text-sm text-gray-600">
-              <p>
-                This is a simulation that demonstrates the real-time loading
-                screen.
-              </p>
-              <p>
-                All emails are sent sequentially, one at a time, for maximum
-                reliability.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+              <div className="text-center text-sm text-muted-foreground">
+                <p>
+                  This is a simulation that demonstrates the real-time loading
+                  screen.
+                </p>
+                <p>
+                  All emails are sent sequentially, one at a time, for maximum
+                  reliability.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+
+      <Footer />
     </div>
   );
 }

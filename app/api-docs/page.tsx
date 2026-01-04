@@ -1,7 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import "swagger-ui-react/swagger-ui.css";
+
+import { Footer } from "@/components/footer";
+import { Navbar } from "@/components/navbar";
 
 // Dynamically import SwaggerUI to avoid SSR issues
 const SwaggerUI = dynamic(() => import("swagger-ui-react"), { ssr: false });
@@ -9,16 +13,18 @@ const SwaggerUI = dynamic(() => import("swagger-ui-react"), { ssr: false });
 /**
  * API Documentation Page
  *
- * This page provides interactive API documentation using Swagger UI.
+ * This page provides interactive cumentation using Swagger UI.
  * It loads the OpenAPI specification from /public/openapi.json
  */
 export default function ApiDocsPage() {
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto py-8">
+    <div className="min-h-screen bg-background flex flex-col">
+      <Navbar />
+
+      <main className="flex-1 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-8">
         <header className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">
-            EchoMail API Documentation
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2">
+            API Documentation
           </h1>
           <p className="text-muted-foreground">
             Interactive API documentation for the EchoMail email campaign
@@ -39,22 +45,24 @@ export default function ApiDocsPage() {
           />
         </div>
 
-        <footer className="mt-8 text-center text-sm text-muted-foreground">
+        <div className="mt-8 text-center text-sm text-muted-foreground">
           <p>
             For more information, see the{" "}
-            <a href="/docs/API.md" className="text-primary hover:underline">
+            <Link href="/docs/API.md" className="text-primary hover:underline">
               API Markdown Documentation
-            </a>{" "}
+            </Link>{" "}
             or the{" "}
-            <a
+            <Link
               href="/docs/DEVELOPER_GUIDE.md"
               className="text-primary hover:underline"
             >
               Developer Guide
-            </a>
+            </Link>
           </p>
-        </footer>
-      </div>
+        </div>
+      </main>
+
+      <Footer />
     </div>
   );
 }

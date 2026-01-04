@@ -43,6 +43,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { componentLogger } from "@/lib/client-logger";
+import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
+import { getCookie } from "@/lib/utils";
 
 interface ConsentRecord {
   $id: string;
@@ -138,9 +140,13 @@ export default function GDPRPage() {
   const handleConsentChange = async (consentType: string, given: boolean) => {
     setUpdatingConsent(consentType);
     try {
+      const csrfToken = getCookie(CSRF_TOKEN_NAME);
       const response = await fetch("/api/gdpr/consent", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+        },
         body: JSON.stringify({ consent_type: consentType, given }),
       });
 
@@ -188,8 +194,12 @@ export default function GDPRPage() {
   const handleDeleteData = async () => {
     setIsDeleting(true);
     try {
+      const csrfToken = getCookie(CSRF_TOKEN_NAME);
       const response = await fetch("/api/gdpr/delete", {
         method: "DELETE",
+        headers: {
+          ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+        },
       });
 
       if (!response.ok) {

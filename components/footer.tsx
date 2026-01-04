@@ -57,10 +57,10 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="/history"
+                  href="/insights"
                   className="text-sm text-muted-foreground hover:text-primary transition-colors"
                 >
-                  History
+                  Insights
                 </Link>
               </li>
             </ul>

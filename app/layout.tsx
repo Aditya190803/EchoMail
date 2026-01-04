@@ -44,11 +44,13 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // CSRF token is ensured by proxy.ts (middleware)
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

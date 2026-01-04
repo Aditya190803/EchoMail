@@ -1,13 +1,13 @@
-import { Navbar } from "@/components/navbar"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Navbar } from "@/components/navbar";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DashboardLoading() {
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section Skeleton */}
         <div className="mb-8">
           <Skeleton className="h-8 w-64 mb-2" />
@@ -85,5 +85,5 @@ export default function DashboardLoading() {
         </Card>
       </main>
     </div>
-  )
+  );
 }

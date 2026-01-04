@@ -63,6 +63,8 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { componentLogger } from "@/lib/client-logger";
+import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
+import { getCookie } from "@/lib/utils";
 
 interface Team {
   $id: string;
@@ -179,9 +181,13 @@ export default function TeamsPage() {
 
     setIsCreating(true);
     try {
+      const csrfToken = getCookie(CSRF_TOKEN_NAME);
       const response = await fetch("/api/teams", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+        },
         body: JSON.stringify(newTeam),
       });
 
@@ -210,9 +216,13 @@ export default function TeamsPage() {
 
     setIsInviting(true);
     try {
+      const csrfToken = getCookie(CSRF_TOKEN_NAME);
       const response = await fetch("/api/teams/members", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+        },
         body: JSON.stringify({
           team_id: selectedTeam.$id,
           email: inviteData.email,
@@ -237,11 +247,17 @@ export default function TeamsPage() {
   };
 
   const handleRemoveMember = async (memberId: string) => {
-    if (!selectedTeam) {return;}
+    if (!selectedTeam) {
+      return;
+    }
 
     try {
+      const csrfToken = getCookie(CSRF_TOKEN_NAME);
       const response = await fetch(`/api/teams/members?id=${memberId}`, {
         method: "DELETE",
+        headers: {
+          ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+        },
       });
 
       if (!response.ok) {
@@ -258,8 +274,12 @@ export default function TeamsPage() {
 
   const handleDeleteTeam = async (teamId: string) => {
     try {
+      const csrfToken = getCookie(CSRF_TOKEN_NAME);
       const response = await fetch(`/api/teams?id=${teamId}`, {
         method: "DELETE",
+        headers: {
+          ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+        },
       });
 
       if (!response.ok) {
@@ -280,9 +300,13 @@ export default function TeamsPage() {
 
   const handleUpdateMemberRole = async (memberId: string, newRole: string) => {
     try {
+      const csrfToken = getCookie(CSRF_TOKEN_NAME);
       const response = await fetch("/api/teams/members", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+        },
         body: JSON.stringify({ member_id: memberId, role: newRole }),
       });
 

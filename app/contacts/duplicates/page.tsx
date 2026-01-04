@@ -19,6 +19,7 @@ import {
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
+import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import {
   AlertDialog,
@@ -75,7 +76,9 @@ export default function DuplicatesPage() {
   }, [status, router]);
 
   const fetchContacts = useCallback(async () => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -125,7 +128,9 @@ export default function DuplicatesPage() {
   };
 
   useEffect(() => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
     fetchContacts();
   }, [session?.user?.email, fetchContacts]);
 
@@ -141,7 +146,9 @@ export default function DuplicatesPage() {
   };
 
   const mergeDuplicates = async () => {
-    if (!selectedGroup || !primaryContact) {return;}
+    if (!selectedGroup || !primaryContact) {
+      return;
+    }
 
     setIsProcessing(true);
     try {
@@ -198,7 +205,9 @@ export default function DuplicatesPage() {
   };
 
   const autoMergeAll = async () => {
-    if (duplicates.length === 0) {return;}
+    if (duplicates.length === 0) {
+      return;
+    }
 
     setIsProcessing(true);
     let totalMerged = 0;
@@ -241,7 +250,9 @@ export default function DuplicatesPage() {
     );
   }
 
-  if (status === "unauthenticated") {return null;}
+  if (status === "unauthenticated") {
+    return null;
+  }
 
   const totalDuplicates = duplicates.reduce(
     (sum, group) => sum + group.contacts.length - 1,
@@ -249,10 +260,10 @@ export default function DuplicatesPage() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      <main className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
@@ -499,6 +510,8 @@ export default function DuplicatesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Footer />
     </div>
   );
 }

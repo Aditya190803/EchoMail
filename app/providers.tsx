@@ -6,7 +6,7 @@ import { SessionProvider } from "next-auth/react";
 import { Toaster } from "sonner";
 
 import { ThemeProvider } from "@/components/theme-provider";
-import { initGA4 } from "@/lib/analytics/ga4";
+import { initGA4 } from "@/lib/activity/ga4";
 import { QueryProvider } from "@/lib/query-client";
 
 export function Providers({ children }: { children: ReactNode }) {

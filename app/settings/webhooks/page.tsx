@@ -30,6 +30,7 @@ import {
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
+import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import {
   AlertDialog,
@@ -137,7 +138,9 @@ export default function WebhooksPage() {
   }, [status, router]);
 
   const fetchWebhooks = useCallback(async () => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
 
     try {
       const response = await webhooksService.listByUser(session.user.email);
@@ -152,7 +155,9 @@ export default function WebhooksPage() {
   }, [session?.user?.email]);
 
   useEffect(() => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
     fetchWebhooks();
   }, [session?.user?.email, fetchWebhooks]);
 
@@ -181,7 +186,9 @@ export default function WebhooksPage() {
   };
 
   const toggleEditEvent = (event: WebhookType["events"][number]) => {
-    if (!editingWebhook) {return;}
+    if (!editingWebhook) {
+      return;
+    }
     setEditingWebhook((prev) =>
       prev
         ? {
@@ -200,8 +207,9 @@ export default function WebhooksPage() {
       !newWebhook.name.trim() ||
       !newWebhook.url.trim() ||
       newWebhook.events.length === 0
-    )
-      {return;}
+    ) {
+      return;
+    }
 
     // Validate URL
     try {
@@ -237,7 +245,9 @@ export default function WebhooksPage() {
   };
 
   const updateWebhook = async () => {
-    if (!editingWebhook?.$id) {return;}
+    if (!editingWebhook?.$id) {
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -302,13 +312,15 @@ export default function WebhooksPage() {
     );
   }
 
-  if (status === "unauthenticated") {return null;}
+  if (status === "unauthenticated") {
+    return null;
+  }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      <main className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
@@ -1152,6 +1164,8 @@ app.post('/webhook', (req, res) => {
           )}
         </DialogContent>
       </Dialog>
+
+      <Footer />
     </div>
   );
 }

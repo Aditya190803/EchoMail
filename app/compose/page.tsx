@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 import { ComposeForm } from "@/components/compose-form";
+import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -79,6 +80,7 @@ export default function ComposePage() {
             <Skeleton className="h-12 w-full" />
           </div>
         </main>
+        <Footer />
       </div>
     );
   }
@@ -109,6 +111,8 @@ export default function ComposePage() {
       <main className="flex-1 mx-auto max-w-4xl w-full py-6 px-4 sm:px-6 lg:px-8 pb-32">
         <ComposeForm />
       </main>
+
+      <Footer />
     </div>
   );
 }

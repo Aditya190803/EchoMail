@@ -35,6 +35,7 @@ import {
   Loader2,
   Monitor,
   Smartphone,
+  Settings,
 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
@@ -83,7 +84,9 @@ import {
 } from "@/lib/appwrite";
 import { detectPdfColumn, isPdfUrl } from "@/lib/attachment-fetcher";
 import { componentLogger } from "@/lib/client-logger";
+import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
 import { getEmailPreview } from "@/lib/email-formatting/client";
+import { getCookie } from "@/lib/utils";
 import type { CSVRow } from "@/types/email";
 
 // Draft storage key
@@ -138,6 +141,12 @@ export function ComposeForm() {
   // Draft state (toggle to save as draft instead of sending immediately)
   const [saveAsDraft, setSaveAsDraft] = useState(false);
 
+  // Marketing vs Transactional state
+  const [isMarketing, setIsMarketing] = useState(false);
+
+  // Tracking state
+  const [trackingEnabled, _setTrackingEnabled] = useState(true);
+
   // Signature state
   const [signatures, setSignatures] = useState<EmailSignature[]>([]);
   const [selectedSignature, setSelectedSignature] = useState<string | null>(
@@ -150,10 +159,11 @@ export function ComposeForm() {
   const [htmlImportCode, setHtmlImportCode] = useState("");
 
   // UI state
-  const [activeTab, setActiveTab] = useState("compose");
+  const [activeTab, setActiveTab] = useState("recipients");
   const [_showPreview, _setShowPreview] = useState(false);
   const [showSendingDialog, setShowSendingDialog] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState("");
   const [showDraftRecoveryDialog, setShowDraftRecoveryDialog] = useState(false);
   const [pendingDraft, setPendingDraft] = useState<EmailDraft | null>(null);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -180,6 +190,14 @@ export function ComposeForm() {
       setShowPersonalizedAttachments(true);
     }
   }, [pdfColumn]);
+
+  // Set marketing mode based on A/B testing or content
+  useEffect(() => {
+    const abTestId = searchParams.get("abTestId");
+    if (abTestId) {
+      setIsMarketing(true);
+    }
+  }, [searchParams]);
 
   // Preview state
   const [previewRecipientIndex, setPreviewRecipientIndex] = useState(0);
@@ -250,6 +268,50 @@ export function ComposeForm() {
     savedCampaignInfo,
     quotaInfo,
   } = useEmailSend();
+
+  // Load template or campaign content if templateId is provided
+  useEffect(() => {
+    const templateId = searchParams.get("templateId");
+    if (!templateId) {
+      return;
+    }
+
+    const loadTemplate = async () => {
+      try {
+        setIsLoadingTemplates(true);
+        // Try to fetch as a template first
+        try {
+          const template = await templatesService.get(templateId);
+          setSubject(template.subject || "");
+          setContent(template.content || "");
+          toast.success("Template loaded!");
+          return;
+        } catch (_e) {
+          // If not a template, try as a campaign
+          try {
+            const campaign = await campaignsService.get(templateId);
+            setSubject(campaign.subject || "");
+            setContent(campaign.content || "");
+            // Also set marketing mode if it was a marketing campaign
+            if (campaign.campaign_type === "marketing") {
+              setIsMarketing(true);
+            }
+            toast.success("Campaign content loaded!");
+          } catch (e2) {
+            componentLogger.error(
+              "Failed to load template or campaign",
+              e2 instanceof Error ? e2 : undefined,
+            );
+            toast.error("Failed to load content");
+          }
+        }
+      } finally {
+        setIsLoadingTemplates(false);
+      }
+    };
+
+    loadTemplate();
+  }, [searchParams]);
 
   // Load draft on mount
   useEffect(() => {
@@ -720,8 +782,12 @@ export function ComposeForm() {
           const formData = new FormData();
           formData.append("files", file);
 
+          const csrfToken = getCookie(CSRF_TOKEN_NAME);
           const response = await fetch("/api/upload-attachment", {
             method: "POST",
+            headers: {
+              ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+            },
             body: formData,
           });
 
@@ -1064,9 +1130,13 @@ export function ComposeForm() {
       setIsLoadingAttachmentMetadata(true);
 
       try {
+        const csrfToken = getCookie(CSRF_TOKEN_NAME);
         const response = await fetch("/api/attachment-metadata", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+          },
           body: JSON.stringify({
             url: String(attachmentUrl),
             recipientName:
@@ -1186,8 +1256,12 @@ export function ComposeForm() {
                 const formData = new FormData();
                 formData.append("files", file);
 
+                const csrfToken = getCookie(CSRF_TOKEN_NAME);
                 const response = await fetch("/api/upload-attachment", {
                   method: "POST",
+                  headers: {
+                    ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+                  },
                   body: formData,
                 });
 
@@ -1319,7 +1393,10 @@ export function ComposeForm() {
     });
 
     try {
-      const results = await sendEmails(personalizedEmails);
+      const results = await sendEmails(personalizedEmails, {
+        isTransactional: !isMarketing,
+        trackingEnabled,
+      });
 
       const successCount = results.filter((r) => r.status === "success").length;
       const failCount = results.filter((r) => r.status === "error").length;
@@ -1522,13 +1599,6 @@ export function ComposeForm() {
       >
         <TabsList className="grid w-full grid-cols-3 h-auto">
           <TabsTrigger
-            value="compose"
-            className="flex items-center gap-1 md:gap-2 py-2 md:py-3 text-xs md:text-sm"
-          >
-            <Mail className="h-3 w-3 md:h-4 md:w-4" />
-            <span className="hidden xs:inline">Compose</span>
-          </TabsTrigger>
-          <TabsTrigger
             value="recipients"
             className="flex items-center gap-1 md:gap-2 py-2 md:py-3 text-xs md:text-sm"
           >
@@ -1544,6 +1614,13 @@ export function ComposeForm() {
             )}
           </TabsTrigger>
           <TabsTrigger
+            value="compose"
+            className="flex items-center gap-1 md:gap-2 py-2 md:py-3 text-xs md:text-sm"
+          >
+            <Mail className="h-3 w-3 md:h-4 md:w-4" />
+            <span className="hidden xs:inline">Compose</span>
+          </TabsTrigger>
+          <TabsTrigger
             value="preview"
             className="flex items-center gap-1 md:gap-2 py-2 md:py-3 text-xs md:text-sm"
           >
@@ -1551,473 +1628,6 @@ export function ComposeForm() {
             <span className="hidden xs:inline">Preview</span>
           </TabsTrigger>
         </TabsList>
-
-        {/* Compose Tab */}
-        <TabsContent value="compose" className="space-y-4">
-          {/* Template & HTML Import */}
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="text-sm text-muted-foreground">
-              Start from scratch or use a template
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Dialog open={showHtmlImport} onOpenChange={setShowHtmlImport}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs sm:text-sm"
-                  >
-                    <FileCode className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                    <span className="hidden xs:inline">Import</span> HTML
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="w-[95vw] max-w-2xl max-h-[80vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Import HTML Template</DialogTitle>
-                    <DialogDescription>
-                      Paste your HTML code to use as email content
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 pt-4">
-                    <textarea
-                      value={htmlImportCode}
-                      onChange={(e) => setHtmlImportCode(e.target.value)}
-                      placeholder="Paste your HTML code here..."
-                      className="w-full h-48 sm:h-64 p-3 rounded-md border bg-muted/50 font-mono text-xs sm:text-sm"
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => {
-                          if (htmlImportCode.trim()) {
-                            setContent(htmlImportCode);
-                            setShowHtmlImport(false);
-                            setHtmlImportCode("");
-                            toast.success("HTML template imported!");
-                          }
-                        }}
-                        disabled={!htmlImportCode.trim()}
-                        className="flex-1"
-                      >
-                        Import
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowHtmlImport(false)}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
-              <Dialog
-                open={showTemplateDialog}
-                onOpenChange={(open) => {
-                  setShowTemplateDialog(open);
-                  if (open) {
-                    loadTemplates();
-                  }
-                }}
-              >
-                <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs sm:text-sm"
-                  >
-                    <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                    <span className="hidden xs:inline">Use</span> Template
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="w-[95vw] max-w-lg max-h-[80vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Choose a Template</DialogTitle>
-                    <DialogDescription>
-                      Select a template to use as a starting point
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 pt-4">
-                    {isLoadingTemplates ? (
-                      <div className="flex items-center justify-center py-8">
-                        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-                      </div>
-                    ) : (
-                      <>
-                        {/* User's saved templates */}
-                        {templates.length > 0 && (
-                          <div className="space-y-2">
-                            <h4 className="text-sm font-medium text-muted-foreground">
-                              Your Templates
-                            </h4>
-                            {templates.map((template) => (
-                              <button
-                                key={template.$id}
-                                onClick={() => applyTemplate(template)}
-                                className="w-full text-left p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-                              >
-                                <div className="font-medium mb-1">
-                                  {template.name}
-                                </div>
-                                <div className="text-sm text-muted-foreground truncate">
-                                  {template.subject}
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Quick starter templates */}
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-1">
-                            <Sparkles className="h-3 w-3" />
-                            Quick Start
-                          </h4>
-                          <div className="grid grid-cols-2 gap-2">
-                            {[
-                              {
-                                name: "Welcome",
-                                icon: "👋",
-                                subject: "Welcome, {{name}}!",
-                                content:
-                                  "<p>Hi {{name}},</p><p>Welcome aboard! We're excited to have you.</p><p>Best regards</p>",
-                              },
-                              {
-                                name: "Thank You",
-                                icon: "🙏",
-                                subject: "Thank you, {{name}}!",
-                                content:
-                                  "<p>Dear {{name}},</p><p>Thank you so much for your support!</p><p>Warm regards</p>",
-                              },
-                              {
-                                name: "Meeting",
-                                icon: "📅",
-                                subject: "Meeting Request: {{topic}}",
-                                content:
-                                  "<p>Hi {{name}},</p><p>I'd like to schedule a meeting to discuss {{topic}}.</p><p>Would any of these times work for you?</p><p>Best</p>",
-                              },
-                              {
-                                name: "Follow-up",
-                                icon: "🔄",
-                                subject: "Following up: {{topic}}",
-                                content:
-                                  "<p>Hi {{name}},</p><p>I wanted to follow up on {{topic}}.</p><p>Have you had a chance to think about it?</p><p>Best</p>",
-                              },
-                              {
-                                name: "Reminder",
-                                icon: "⏰",
-                                subject: "Reminder: {{event}}",
-                                content:
-                                  "<p>Hi {{name}},</p><p>This is a friendly reminder about {{event}}.</p><p>See you soon!</p>",
-                              },
-                              {
-                                name: "Invitation",
-                                icon: "🎉",
-                                subject: "You're Invited: {{event}}",
-                                content:
-                                  "<p>Dear {{name}},</p><p>You're invited to {{event}}!</p><p>We hope to see you there.</p><p>Best regards</p>",
-                              },
-                            ].map((qt, idx) => (
-                              <button
-                                key={idx}
-                                onClick={() => {
-                                  setSubject(qt.subject);
-                                  setContent(qt.content);
-                                  setShowTemplateDialog(false);
-                                  toast.success(
-                                    `"${qt.name}" template applied`,
-                                  );
-                                }}
-                                className="flex items-center gap-2 p-3 rounded-lg border hover:bg-muted/50 transition-colors text-left"
-                              >
-                                <span className="text-lg">{qt.icon}</span>
-                                <span className="text-sm font-medium">
-                                  {qt.name}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Link to full templates page */}
-                        <Button
-                          variant="outline"
-                          className="w-full"
-                          onClick={() => {
-                            setShowTemplateDialog(false);
-                            router.push("/templates");
-                          }}
-                        >
-                          <FileText className="h-4 w-4 mr-2" />
-                          Browse All Templates
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="subject">Subject</Label>
-            <Input
-              id="subject"
-              placeholder="Enter email subject..."
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Email Body</Label>
-            <LazyRichTextEditor
-              content={content}
-              onChange={setContent}
-              placeholder="Compose your email..."
-            />
-          </div>
-
-          {/* Attachments */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Paperclip className="h-4 w-4" />
-              Attachments
-              <span className="text-xs text-muted-foreground font-normal">
-                (Gmail limit: 25MB total)
-              </span>
-            </Label>
-
-            {/* Total size warning */}
-            {(() => {
-              const totalSize = attachments.reduce(
-                (sum, a) => sum + (a.fileSize || 0),
-                0,
-              );
-              const totalMB = totalSize / 1024 / 1024;
-              if (totalMB > 20) {
-                return (
-                  <div
-                    className={`text-xs p-2 rounded ${totalMB > 25 ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}
-                  >
-                    {totalMB > 25
-                      ? `⚠️ Total size (${totalMB.toFixed(1)}MB) exceeds Gmail's 25MB limit!`
-                      : `⚠️ Total size: ${totalMB.toFixed(1)}MB (approaching 25MB limit)`}
-                  </div>
-                );
-              }
-              return null;
-            })()}
-
-            <div className="flex flex-wrap gap-2">
-              {attachments.map((file, index) => (
-                <Badge
-                  key={file.tempId || index}
-                  variant={file.isProcessing ? "outline" : "secondary"}
-                  className={`flex items-center gap-2 py-2 ${file.isProcessing ? "animate-pulse" : ""}`}
-                >
-                  {file.isProcessing ? (
-                    <RefreshCw className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Paperclip className="h-3 w-3" />
-                  )}
-                  {file.name}
-                  {file.fileSize && (
-                    <span className="text-xs text-muted-foreground">
-                      ({(file.fileSize / 1024 / 1024).toFixed(1)}MB)
-                    </span>
-                  )}
-                  {file.isProcessing && (
-                    <span className="text-xs text-muted-foreground">
-                      {file.fileSize >= LARGE_FILE_THRESHOLD
-                        ? "uploading..."
-                        : "encoding..."}
-                    </span>
-                  )}
-                  <button
-                    onClick={() => removeAttachment(index)}
-                    className="hover:text-destructive"
-                    disabled={file.isProcessing}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-
-              <label className="cursor-pointer">
-                <input
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={(e) =>
-                    e.target.files && handleFileUpload(e.target.files)
-                  }
-                  disabled={isUploading}
-                />
-                <Badge
-                  variant="outline"
-                  className="flex items-center gap-2 py-2 cursor-pointer hover:bg-muted"
-                >
-                  {isUploading ? (
-                    <RefreshCw className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Upload className="h-3 w-3" />
-                  )}
-                  Add Files
-                </Badge>
-              </label>
-            </div>
-          </div>
-
-          {/* Personalized Attachments Toggle */}
-          <div className="space-y-4 pt-4 border-t">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-base flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  Personalized Attachments
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  Send a unique file to each recipient (e.g. certificates,
-                  invoices)
-                </p>
-              </div>
-              <Switch
-                checked={showPersonalizedAttachments}
-                onCheckedChange={(checked) => {
-                  setShowPersonalizedAttachments(checked);
-                  if (!checked) {
-                    setPdfColumn(null);
-                  } else if (csvHeaders.length > 0 && !pdfColumn) {
-                    // Try to auto-detect or default to first
-                    const detected = detectPdfColumn(csvHeaders);
-                    setPdfColumn(detected || csvHeaders[0]);
-                  }
-                }}
-              />
-            </div>
-
-            {showPersonalizedAttachments && (
-              <div className="p-4 border rounded-lg bg-muted/30 space-y-4 animate-in fade-in slide-in-from-top-2">
-                {csvData.length === 0 ? (
-                  <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
-                    <AlertCircle className="h-4 w-4" />
-                    <span className="text-sm">
-                      Please upload a CSV file in the Recipients tab first.
-                    </span>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Label>Select Attachment Column</Label>
-                    <select
-                      value={pdfColumn || ""}
-                      onChange={(e) => setPdfColumn(e.target.value || null)}
-                      className="w-full p-2 text-sm border rounded-md bg-background"
-                    >
-                      <option value="">Select a column...</option>
-                      {csvHeaders.map((header) => (
-                        <option key={header} value={header}>
-                          {header}{" "}
-                          {isPdfUrl(csvData[0]?.[header])
-                            ? "(Detected Link)"
-                            : ""}
-                        </option>
-                      ))}
-                    </select>
-                    {pdfColumn && (
-                      <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
-                        <CheckCircle className="h-3 w-3" />
-                        <span>
-                          {
-                            csvData.filter((row) => isPdfUrl(row[pdfColumn]))
-                              .length
-                          }{" "}
-                          valid links found in {csvData.length} rows
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Email Signature */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Pen className="h-4 w-4" />
-              Email Signature
-            </Label>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant={selectedSignature === null ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => setSelectedSignature(null)}
-              >
-                No Signature
-              </Button>
-              {signatures.map((sig) => (
-                <Button
-                  key={sig.$id}
-                  variant={
-                    selectedSignature === sig.$id ? "secondary" : "outline"
-                  }
-                  size="sm"
-                  onClick={() => setSelectedSignature(sig.$id!)}
-                >
-                  {sig.name}
-                  {sig.is_default && (
-                    <Badge variant="secondary" className="ml-1 text-xs">
-                      Default
-                    </Badge>
-                  )}
-                </Button>
-              ))}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push("/settings/signatures")}
-              >
-                Manage Signatures
-              </Button>
-            </div>
-          </div>
-
-          {/* Save as Draft */}
-          <div
-            className={`flex items-center justify-between p-4 border rounded-lg transition-colors ${
-              saveAsDraft ? "bg-primary/10 border-primary/30" : "bg-muted/30"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                id="draft-toggle"
-                checked={saveAsDraft}
-                onChange={(e) => setSaveAsDraft(e.target.checked)}
-                className="h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary"
-              />
-              <div>
-                <Label
-                  htmlFor="draft-toggle"
-                  className="flex items-center gap-2 cursor-pointer font-medium"
-                >
-                  <Save className="h-4 w-4" />
-                  Save as Draft
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Save without sending — you can send it later from the Drafts
-                  page
-                </p>
-              </div>
-            </div>
-            {saveAsDraft && (
-              <Badge variant="secondary" className="hidden sm:flex">
-                <Clock className="h-3 w-3 mr-1" />
-                Draft Mode
-              </Badge>
-            )}
-          </div>
-        </TabsContent>
 
         {/* Recipients Tab */}
         <TabsContent value="recipients" className="space-y-6">
@@ -2288,6 +1898,647 @@ export function ComposeForm() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Compose Tab */}
+        <TabsContent value="compose" className="space-y-4">
+          {/* Template & HTML Import */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="text-sm text-muted-foreground">
+              Start from scratch or use a template
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Dialog open={showHtmlImport} onOpenChange={setShowHtmlImport}>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs sm:text-sm"
+                  >
+                    <FileCode className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    <span className="hidden xs:inline">Import</span> HTML
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="w-[95vw] max-w-2xl max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Import HTML Template</DialogTitle>
+                    <DialogDescription>
+                      Paste your HTML code to use as email content
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <textarea
+                      value={htmlImportCode}
+                      onChange={(e) => setHtmlImportCode(e.target.value)}
+                      placeholder="Paste your HTML code here..."
+                      className="w-full h-48 sm:h-64 p-3 rounded-md border bg-muted/50 font-mono text-xs sm:text-sm"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => {
+                          if (htmlImportCode.trim()) {
+                            setContent(htmlImportCode);
+                            setShowHtmlImport(false);
+                            setHtmlImportCode("");
+                            toast.success("HTML template imported!");
+                          }
+                        }}
+                        disabled={!htmlImportCode.trim()}
+                        className="flex-1"
+                      >
+                        Import
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowHtmlImport(false)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <Dialog
+                open={showTemplateDialog}
+                onOpenChange={(open) => {
+                  setShowTemplateDialog(open);
+                  if (open) {
+                    loadTemplates();
+                  }
+                }}
+              >
+                <DialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs sm:text-sm"
+                  >
+                    <FileText className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    <span className="hidden xs:inline">Use</span> Template
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="w-[95vw] max-w-lg max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Choose a Template</DialogTitle>
+                    <DialogDescription>
+                      Select a template to use as a starting point
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
+                    <div className="relative">
+                      <Pen className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search templates..."
+                        className="pl-9"
+                        value={templateSearch}
+                        onChange={(e) => setTemplateSearch(e.target.value)}
+                      />
+                    </div>
+                    {isLoadingTemplates ? (
+                      <div className="flex items-center justify-center py-8">
+                        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : (
+                      <>
+                        {/* User's saved templates */}
+                        {templates.filter(
+                          (t) =>
+                            t.name
+                              .toLowerCase()
+                              .includes(templateSearch.toLowerCase()) ||
+                            t.subject
+                              .toLowerCase()
+                              .includes(templateSearch.toLowerCase()),
+                        ).length > 0 && (
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-medium text-muted-foreground">
+                              Your Templates
+                            </h4>
+                            {templates
+                              .filter(
+                                (t) =>
+                                  t.name
+                                    .toLowerCase()
+                                    .includes(templateSearch.toLowerCase()) ||
+                                  t.subject
+                                    .toLowerCase()
+                                    .includes(templateSearch.toLowerCase()),
+                              )
+                              .map((template) => (
+                                <button
+                                  key={template.$id}
+                                  onClick={() => applyTemplate(template)}
+                                  className="w-full text-left p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                                >
+                                  <div className="font-medium mb-1">
+                                    {template.name}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground truncate">
+                                    {template.subject}
+                                  </div>
+                                </button>
+                              ))}
+                          </div>
+                        )}
+
+                        {/* Quick starter templates */}
+                        {[
+                          {
+                            name: "Welcome",
+                            icon: "👋",
+                            subject: "Welcome, {{name}}!",
+                            content:
+                              "<p>Hi {{name}},</p><p>Welcome aboard! We're excited to have you.</p><p>Best regards</p>",
+                          },
+                          {
+                            name: "Thank You",
+                            icon: "🙏",
+                            subject: "Thank you, {{name}}!",
+                            content:
+                              "<p>Dear {{name}},</p><p>Thank you so much for your support!</p><p>Warm regards</p>",
+                          },
+                          {
+                            name: "Meeting",
+                            icon: "📅",
+                            subject: "Meeting Request: {{topic}}",
+                            content:
+                              "<p>Hi {{name}},</p><p>I'd like to schedule a meeting to discuss {{topic}}.</p><p>Would any of these times work for you?</p><p>Best</p>",
+                          },
+                          {
+                            name: "Follow-up",
+                            icon: "🔄",
+                            subject: "Following up: {{topic}}",
+                            content:
+                              "<p>Hi {{name}},</p><p>I wanted to follow up on {{topic}}.</p><p>Have you had a chance to think about it?</p><p>Best</p>",
+                          },
+                          {
+                            name: "Reminder",
+                            icon: "⏰",
+                            subject: "Reminder: {{event}}",
+                            content:
+                              "<p>Hi {{name}},</p><p>This is a friendly reminder about {{event}}.</p><p>See you soon!</p>",
+                          },
+                          {
+                            name: "Invitation",
+                            icon: "🎉",
+                            subject: "You're Invited: {{event}}",
+                            content:
+                              "<p>Dear {{name}},</p><p>You're invited to {{event}}!</p><p>We hope to see you there.</p><p>Best regards</p>",
+                          },
+                        ].filter(
+                          (qt) =>
+                            qt.name
+                              .toLowerCase()
+                              .includes(templateSearch.toLowerCase()) ||
+                            qt.subject
+                              .toLowerCase()
+                              .includes(templateSearch.toLowerCase()),
+                        ).length > 0 && (
+                          <div className="space-y-2">
+                            <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+                              <Sparkles className="h-3 w-3" />
+                              Quick Start
+                            </h4>
+                            <div className="grid grid-cols-2 gap-2">
+                              {[
+                                {
+                                  name: "Welcome",
+                                  icon: "👋",
+                                  subject: "Welcome, {{name}}!",
+                                  content:
+                                    "<p>Hi {{name}},</p><p>Welcome aboard! We're excited to have you.</p><p>Best regards</p>",
+                                },
+                                {
+                                  name: "Thank You",
+                                  icon: "🙏",
+                                  subject: "Thank you, {{name}}!",
+                                  content:
+                                    "<p>Dear {{name}},</p><p>Thank you so much for your support!</p><p>Warm regards</p>",
+                                },
+                                {
+                                  name: "Meeting",
+                                  icon: "📅",
+                                  subject: "Meeting Request: {{topic}}",
+                                  content:
+                                    "<p>Hi {{name}},</p><p>I'd like to schedule a meeting to discuss {{topic}}.</p><p>Would any of these times work for you?</p><p>Best</p>",
+                                },
+                                {
+                                  name: "Follow-up",
+                                  icon: "🔄",
+                                  subject: "Following up: {{topic}}",
+                                  content:
+                                    "<p>Hi {{name}},</p><p>I wanted to follow up on {{topic}}.</p><p>Have you had a chance to think about it?</p><p>Best</p>",
+                                },
+                                {
+                                  name: "Reminder",
+                                  icon: "⏰",
+                                  subject: "Reminder: {{event}}",
+                                  content:
+                                    "<p>Hi {{name}},</p><p>This is a friendly reminder about {{event}}.</p><p>See you soon!</p>",
+                                },
+                                {
+                                  name: "Invitation",
+                                  icon: "🎉",
+                                  subject: "You're Invited: {{event}}",
+                                  content:
+                                    "<p>Dear {{name}},</p><p>You're invited to {{event}}!</p><p>We hope to see you there.</p><p>Best regards</p>",
+                                },
+                              ]
+                                .filter(
+                                  (qt) =>
+                                    qt.name
+                                      .toLowerCase()
+                                      .includes(templateSearch.toLowerCase()) ||
+                                    qt.subject
+                                      .toLowerCase()
+                                      .includes(templateSearch.toLowerCase()),
+                                )
+                                .map((qt, idx) => (
+                                  <button
+                                    key={idx}
+                                    onClick={() => {
+                                      setSubject(qt.subject);
+                                      setContent(qt.content);
+                                      setShowTemplateDialog(false);
+                                      toast.success(
+                                        `"${qt.name}" template applied`,
+                                      );
+                                    }}
+                                    className="flex items-center gap-2 p-3 rounded-lg border hover:bg-muted/50 transition-colors text-left"
+                                  >
+                                    <span className="text-lg">{qt.icon}</span>
+                                    <span className="text-sm font-medium">
+                                      {qt.name}
+                                    </span>
+                                  </button>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Link to full templates page */}
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => {
+                            setShowTemplateDialog(false);
+                            router.push("/templates");
+                          }}
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          Browse All Templates
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="subject">Subject</Label>
+            <Input
+              id="subject"
+              placeholder="Enter email subject..."
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Email Body</Label>
+            <LazyRichTextEditor
+              content={content}
+              onChange={setContent}
+              placeholder="Compose your email..."
+            />
+          </div>
+
+          {/* Attachments */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Paperclip className="h-4 w-4" />
+              Attachments
+              <span className="text-xs text-muted-foreground font-normal">
+                (Gmail limit: 25MB total)
+              </span>
+            </Label>
+
+            {/* Total size warning */}
+            {(() => {
+              const totalSize = attachments.reduce(
+                (sum, a) => sum + (a.fileSize || 0),
+                0,
+              );
+              const totalMB = totalSize / 1024 / 1024;
+              if (totalMB > 20) {
+                return (
+                  <div
+                    className={`text-xs p-2 rounded ${totalMB > 25 ? "bg-destructive/10 text-destructive" : "bg-warning/10 text-warning"}`}
+                  >
+                    {totalMB > 25
+                      ? `⚠️ Total size (${totalMB.toFixed(1)}MB) exceeds Gmail's 25MB limit!`
+                      : `⚠️ Total size: ${totalMB.toFixed(1)}MB (approaching 25MB limit)`}
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            <div className="flex flex-wrap gap-2">
+              {attachments.map((file, index) => (
+                <Badge
+                  key={file.tempId || index}
+                  variant={file.isProcessing ? "outline" : "secondary"}
+                  className={`flex items-center gap-2 py-2 ${file.isProcessing ? "animate-pulse" : ""}`}
+                >
+                  {file.isProcessing ? (
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Paperclip className="h-3 w-3" />
+                  )}
+                  {file.name}
+                  {file.fileSize && (
+                    <span className="text-xs text-muted-foreground">
+                      ({(file.fileSize / 1024 / 1024).toFixed(1)}MB)
+                    </span>
+                  )}
+                  {file.isProcessing && (
+                    <span className="text-xs text-muted-foreground">
+                      {file.fileSize >= LARGE_FILE_THRESHOLD
+                        ? "uploading..."
+                        : "encoding..."}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => removeAttachment(index)}
+                    className="hover:text-destructive"
+                    disabled={file.isProcessing}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={(e) =>
+                    e.target.files && handleFileUpload(e.target.files)
+                  }
+                  disabled={isUploading}
+                />
+                <Badge
+                  variant="outline"
+                  className="flex items-center gap-2 py-2 cursor-pointer hover:bg-muted"
+                >
+                  {isUploading ? (
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Upload className="h-3 w-3" />
+                  )}
+                  Add Files
+                </Badge>
+              </label>
+            </div>
+          </div>
+
+          {/* Personalized Attachments Toggle */}
+          <div className="space-y-4 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-base flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Personalized Attachments
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Send a unique file to each recipient (e.g. certificates,
+                  invoices)
+                </p>
+              </div>
+              <Switch
+                checked={showPersonalizedAttachments}
+                onCheckedChange={(checked) => {
+                  setShowPersonalizedAttachments(checked);
+                  if (!checked) {
+                    setPdfColumn(null);
+                  } else if (csvHeaders.length > 0 && !pdfColumn) {
+                    // Try to auto-detect or default to first
+                    const detected = detectPdfColumn(csvHeaders);
+                    setPdfColumn(detected || csvHeaders[0]);
+                  }
+                }}
+              />
+            </div>
+
+            {showPersonalizedAttachments && (
+              <div className="p-4 border rounded-lg bg-muted/30 space-y-4 animate-in fade-in slide-in-from-top-2">
+                {csvData.length === 0 ? (
+                  <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                    <AlertCircle className="h-4 w-4" />
+                    <span className="text-sm">
+                      Please upload a CSV file in the Recipients tab first.
+                    </span>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Select Attachment Column</Label>
+                    <select
+                      value={pdfColumn || ""}
+                      onChange={(e) => setPdfColumn(e.target.value || null)}
+                      className="w-full p-2 text-sm border rounded-md bg-background"
+                    >
+                      <option value="">Select a column...</option>
+                      {csvHeaders.map((header) => (
+                        <option key={header} value={header}>
+                          {header}{" "}
+                          {isPdfUrl(csvData[0]?.[header])
+                            ? "(Detected Link)"
+                            : ""}
+                        </option>
+                      ))}
+                    </select>
+                    {pdfColumn && (
+                      <div className="flex items-center gap-2 text-xs text-green-600 dark:text-green-400">
+                        <CheckCircle className="h-3 w-3" />
+                        <span>
+                          {
+                            csvData.filter((row) => isPdfUrl(row[pdfColumn]))
+                              .length
+                          }{" "}
+                          valid links found in {csvData.length} rows
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Email Signature */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Pen className="h-4 w-4" />
+              Email Signature
+            </Label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant={selectedSignature === null ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setSelectedSignature(null)}
+              >
+                No Signature
+              </Button>
+              {signatures.map((sig) => (
+                <Button
+                  key={sig.$id}
+                  variant={
+                    selectedSignature === sig.$id ? "secondary" : "outline"
+                  }
+                  size="sm"
+                  onClick={() => setSelectedSignature(sig.$id!)}
+                >
+                  {sig.name}
+                  {sig.is_default && (
+                    <Badge variant="secondary" className="ml-1 text-xs">
+                      Default
+                    </Badge>
+                  )}
+                </Button>
+              ))}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push("/settings/signatures")}
+              >
+                Manage Signatures
+              </Button>
+            </div>
+          </div>
+
+          {/* Email Options Card */}
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                Email Options
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Email Type Selector */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Email Type</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsMarketing(false)}
+                    disabled={!!searchParams.get("abTestId")}
+                    className={`relative flex flex-col items-start gap-2 p-4 rounded-xl border-2 transition-all text-left ${
+                      !isMarketing
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-muted hover:border-muted-foreground/30 hover:bg-muted/50"
+                    } ${searchParams.get("abTestId") ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    {!isMarketing && (
+                      <div className="absolute top-3 right-3">
+                        <CheckCircle className="h-4 w-4 text-primary" />
+                      </div>
+                    )}
+                    <div
+                      className={`p-2 rounded-lg ${!isMarketing ? "bg-primary/10" : "bg-muted"}`}
+                    >
+                      <Send className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Transactional</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Important emails like receipts or confirmations. Always
+                        delivered, even to unsubscribed users.
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsMarketing(true)}
+                    disabled={!!searchParams.get("abTestId")}
+                    className={`relative flex flex-col items-start gap-2 p-4 rounded-xl border-2 transition-all text-left ${
+                      isMarketing
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-muted hover:border-muted-foreground/30 hover:bg-muted/50"
+                    } ${searchParams.get("abTestId") ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    {isMarketing && (
+                      <div className="absolute top-3 right-3">
+                        <CheckCircle className="h-4 w-4 text-primary" />
+                      </div>
+                    )}
+                    <div
+                      className={`p-2 rounded-lg ${isMarketing ? "bg-primary/10" : "bg-muted"}`}
+                    >
+                      <Mail className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">Marketing</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Promotional emails with unsubscribe link. Respects user
+                        preferences.
+                      </p>
+                    </div>
+                  </button>
+                </div>
+                {searchParams.get("abTestId") && (
+                  <p className="text-xs text-primary font-medium flex items-center gap-1.5">
+                    <AlertCircle className="h-3.5 w-3.5" />
+                    Marketing mode is required for A/B testing
+                  </p>
+                )}
+                {/* Analytics info */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+                  <Eye className="h-3.5 w-3.5 flex-shrink-0" />
+                  <span>
+                    All emails include open and click tracking for analytics
+                  </span>
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t" />
+
+              {/* Toggle Options */}
+              <div className="space-y-4">
+                {/* Save as Draft Toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`p-2 rounded-lg ${saveAsDraft ? "bg-primary/10" : "bg-muted"}`}
+                    >
+                      <Save className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <Label
+                        htmlFor="draft-toggle"
+                        className="font-medium cursor-pointer"
+                      >
+                        Save as Draft
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Save without sending — send later from Drafts
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    id="draft-toggle"
+                    checked={saveAsDraft}
+                    onCheckedChange={setSaveAsDraft}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Preview Tab */}
@@ -3099,6 +3350,7 @@ export function ComposeForm() {
                       /\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i,
                     ) ? (
                     <div className="flex items-center justify-center p-8 max-h-[60vh] overflow-auto">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={previewAttachmentUrl}
                         alt="Attachment preview"
