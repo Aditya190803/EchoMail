@@ -3,6 +3,8 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { signIn } from "next-auth/react";
 
 import { emailSendLogger } from "@/lib/client-logger";
+import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
+import { getCookie } from "@/lib/utils";
 import type { TokenStatus } from "@/types/auth";
 import type {
   EmailResult,
@@ -146,6 +148,9 @@ export function useEmailSend(): UseEmailSendResult {
 
   // Campaign ID for persistence
   const campaignIdRef = useRef<string>("");
+
+  // Tracking enabled flag
+  const trackingEnabledRef = useRef<boolean>(true);
 
   // Check for saved campaign on mount
   useEffect(() => {
@@ -523,10 +528,36 @@ export function useEmailSend(): UseEmailSendResult {
       "invalid address",
       "Email too large",
       "413",
+      "Recipient unsubscribed",
+      "unsubscribed",
       "may have been sent", // Don't retry if email might have been sent (timeout with large attachment)
       "check your Gmail Sent folder", // Same as above
     ];
     return !nonRetryableErrors.some((e) =>
+      errorMessage.toLowerCase().includes(e.toLowerCase()),
+    );
+  };
+
+  /**
+   * Determines if an error is "persistent" and should stop the entire campaign.
+   * Persistent errors are those that will likely affect all subsequent emails.
+   */
+  const isPersistentError = (errorMessage: string): boolean => {
+    const persistentErrors = [
+      "Session expired",
+      "Unauthorized",
+      "401",
+      "403",
+      "Forbidden",
+      "Permission denied",
+      "Invalid credentials",
+      "Access token expired",
+      "Quota exceeded",
+      "Daily limit reached",
+      "Invalid Grant",
+      "Bad Request",
+    ];
+    return persistentErrors.some((e) =>
       errorMessage.toLowerCase().includes(e.toLowerCase()),
     );
   };
@@ -536,6 +567,7 @@ export function useEmailSend(): UseEmailSendResult {
     email: PersonalizedEmailData,
     index: number,
     _totalEmails: number,
+    isTransactional: boolean = false,
   ): Promise<EmailResult> => {
     let lastError = "";
     let _lastStatusCode: number | undefined;
@@ -607,11 +639,18 @@ export function useEmailSend(): UseEmailSendResult {
           originalRowData: email.originalRowData || {},
           attachments: email.attachments || [],
           personalizedAttachment: email.personalizedAttachment || undefined,
+          campaignId: campaignIdRef.current,
+          isTransactional,
+          trackingEnabled: trackingEnabledRef.current,
         };
 
+        const csrfToken = getCookie(CSRF_TOKEN_NAME);
         const response = await fetch("/api/send-single-email", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+          },
           body: JSON.stringify(payload),
         });
 
@@ -743,6 +782,7 @@ export function useEmailSend(): UseEmailSendResult {
         options?.checkTokenEveryN ?? DEFAULT_TOKEN_CHECK_INTERVAL;
       const campaignSubject = options?.campaignSubject;
       currentDelayRef.current = delayBetweenEmails;
+      trackingEnabledRef.current = options?.trackingEnabled ?? true;
 
       shouldStopRef.current = false;
       setIsStopping(false);
@@ -809,6 +849,7 @@ export function useEmailSend(): UseEmailSendResult {
         status: "in-progress",
         startedAt: new Date().toISOString(),
         subject: campaignSubject,
+        isTransactional: options?.isTransactional,
       };
       saveCampaignState(campaignState);
 
@@ -939,7 +980,12 @@ export function useEmailSend(): UseEmailSendResult {
             status: `Sending ${i + 1}/${totalEmails}: ${email.to}`,
           });
 
-          const result = await sendSingleEmailWithRetry(email, i, totalEmails);
+          const result = await sendSingleEmailWithRetry(
+            email,
+            i,
+            totalEmails,
+            options?.isTransactional || false,
+          );
           results.push({ ...result, index: i });
 
           // Update campaign state
@@ -971,64 +1017,76 @@ export function useEmailSend(): UseEmailSendResult {
             continue; // Already handled above
           }
 
-          // If email failed after all retries, stop sending remaining emails
+          // If email failed after all retries, check if we should stop the campaign
           if (result.status === "error") {
-            emailSendLogger.error(
-              `Stopping email campaign due to persistent error`,
-              undefined,
-              { error: result.error },
-            );
+            const isPersistent = isPersistentError(result.error || "");
 
-            // Mark remaining emails as skipped
-            const remainingEmails = personalizedEmails.slice(i + 1);
-            remainingEmailsRef.current = remainingEmails;
-            setFailedEmails([email, ...remainingEmails]);
-
-            for (let j = 0; j < remainingEmails.length; j++) {
-              const remainingEmail = remainingEmails[j];
-              const remainingIndex = i + 1 + j;
-              results.push({
-                email: remainingEmail.to,
-                status: "skipped",
-                error: "Skipped due to previous error",
-                index: remainingIndex,
-              });
-              setSendStatus((prev) =>
-                prev.map((s) =>
-                  s.index === remainingIndex
-                    ? {
-                        ...s,
-                        status: "skipped" as const,
-                        error:
-                          "Skipped - campaign stopped due to previous error",
-                      }
-                    : s,
-                ),
+            if (isPersistent) {
+              emailSendLogger.error(
+                `Stopping email campaign due to persistent error`,
+                undefined,
+                { error: result.error },
               );
+
+              // Mark remaining emails as skipped
+              const remainingEmails = personalizedEmails.slice(i + 1);
+              remainingEmailsRef.current = remainingEmails;
+              setFailedEmails([email, ...remainingEmails]);
+
+              for (let j = 0; j < remainingEmails.length; j++) {
+                const remainingEmail = remainingEmails[j];
+                const remainingIndex = i + 1 + j;
+                results.push({
+                  email: remainingEmail.to,
+                  status: "skipped",
+                  error: "Skipped due to previous error",
+                  index: remainingIndex,
+                });
+                setSendStatus((prev) =>
+                  prev.map((s) =>
+                    s.index === remainingIndex
+                      ? {
+                          ...s,
+                          status: "skipped" as const,
+                          error:
+                            "Skipped - campaign stopped due to previous error",
+                        }
+                      : s,
+                  ),
+                );
+              }
+
+              // Update campaign state
+              campaignState.status = "paused";
+              saveCampaignState(campaignState);
+
+              setStoppedDueToError(true);
+              setError(
+                `Campaign stopped due to persistent error: ${result.error}. ${remainingEmails.length} emails were not sent. You can retry them later.`,
+              );
+
+              setProgress((prev) => ({
+                ...prev,
+                status: `⚠️ Stopped! ${results.filter((r) => r.status === "success").length} sent, 1 failed, ${remainingEmails.length} skipped`,
+              }));
+
+              setHasSavedCampaign(true);
+              setSavedCampaignInfo({
+                subject: campaignSubject,
+                remaining: remainingEmails.length + 1,
+                total: totalEmails,
+              });
+              break;
+            } else {
+              // Non-persistent error (e.g. invalid email, unsubscribed)
+              // Just log it and continue with the next email
+              emailSendLogger.warn(
+                `Email failed but continuing campaign`,
+                undefined,
+                { to: email.to, error: result.error },
+              );
+              continue;
             }
-
-            // Update campaign state
-            campaignState.status = "paused";
-            saveCampaignState(campaignState);
-
-            setStoppedDueToError(true);
-            setError(
-              `Campaign stopped: ${result.error}. ${remainingEmails.length} emails were not sent. You can retry them later.`,
-            );
-
-            setProgress((prev) => ({
-              ...prev,
-              status: `⚠️ Stopped! ${results.filter((r) => r.status === "success").length} sent, 1 failed, ${remainingEmails.length} skipped`,
-            }));
-
-            setHasSavedCampaign(true);
-            setSavedCampaignInfo({
-              subject: campaignSubject,
-              remaining: remainingEmails.length + 1,
-              total: totalEmails,
-            });
-
-            break;
           }
 
           // Wait between emails to avoid rate limits (using configurable delay)
@@ -1049,18 +1107,40 @@ export function useEmailSend(): UseEmailSendResult {
           !shouldStopRef.current &&
           results.length === personalizedEmails.length;
 
-        if (allProcessed && errorCount === 0) {
-          // All sent successfully - clear saved state
-          campaignState.status = "completed";
-          saveCampaignState(campaignState);
-          clearCampaignState();
-
+        if (allProcessed) {
           const sent = results.filter((r) => r.status === "success").length;
 
-          setProgress((prev) => ({
-            ...prev,
-            status: `✅ Done! ${sent} emails sent successfully`,
-          }));
+          if (errorCount === 0) {
+            // All sent successfully - clear saved state
+            campaignState.status = "completed";
+            saveCampaignState(campaignState);
+            clearCampaignState();
+
+            setProgress((prev) => ({
+              ...prev,
+              status: `✅ Done! ${sent} emails sent successfully`,
+            }));
+          } else {
+            // Some or all failed
+            campaignState.status = "paused";
+            saveCampaignState(campaignState);
+
+            const statusMsg =
+              sent === 0
+                ? `❌ Failed! All ${errorCount} emails failed to send.`
+                : `⚠️ Finished with errors! ${sent} sent, ${errorCount} failed.`;
+
+            setProgress((prev) => ({
+              ...prev,
+              status: statusMsg,
+            }));
+
+            if (sent === 0) {
+              setError(
+                `All emails failed to send. Last error: ${results[results.length - 1].error}`,
+              );
+            }
+          }
         }
 
         return results;
@@ -1113,7 +1193,10 @@ export function useEmailSend(): UseEmailSendResult {
         return [];
       }
 
-      return sendEmails(emailsToSend, { campaignSubject: state.subject });
+      return sendEmails(emailsToSend, {
+        campaignSubject: state.subject,
+        isTransactional: state.isTransactional,
+      });
     } catch (e) {
       emailSendLogger.error(
         "Error resuming campaign",

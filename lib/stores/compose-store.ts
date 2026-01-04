@@ -348,13 +348,35 @@ export const useComposeStore = create<ComposeState>()(
 
         // Draft actions
         saveDraft: async () => {
-          // Implementation would call the draft API
           const { formData, draftId } = get();
           try {
-            // TODO: Implement actual draft saving via API
-            console.log("Saving draft:", { formData, draftId });
+            const payload = {
+              subject: formData.subject,
+              content: formData.content,
+              recipients: formData.recipients,
+              attachments: formData.attachments,
+              saved_at: new Date().toISOString(),
+              id: draftId, // Only used for PUT
+            };
+
+            const method = draftId ? "PUT" : "POST";
+            const response = await fetch("/api/appwrite/draft-emails", {
+              method,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || "Failed to save draft");
+            }
+
+            const result = await response.json();
+            const newDraftId = result.$id;
+
             set({
               isDraft: true,
+              draftId: newDraftId,
               lastSavedAt: new Date(),
               hasUnsavedChanges: false,
             });
@@ -364,11 +386,34 @@ export const useComposeStore = create<ComposeState>()(
         },
 
         loadDraft: async (draftId: string) => {
-          // Implementation would load draft from API
           try {
-            // TODO: Implement actual draft loading via API
-            console.log("Loading draft:", draftId);
-            set({ draftId, isDraft: true });
+            const response = await fetch(
+              `/api/appwrite/draft-emails?id=${draftId}`,
+            );
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.error || "Failed to load draft");
+            }
+
+            const draft = await response.json();
+
+            set({
+              formData: {
+                subject: draft.subject || "",
+                content: draft.content || "",
+                recipients: draft.recipients || [],
+                attachments: draft.attachments || [],
+                templateId: draft.templateId,
+                signatureId: draft.signatureId,
+                scheduledAt: draft.scheduledAt
+                  ? new Date(draft.scheduledAt)
+                  : undefined,
+              },
+              draftId: draft.$id,
+              isDraft: true,
+              lastSavedAt: draft.saved_at ? new Date(draft.saved_at) : null,
+              hasUnsavedChanges: false,
+            });
           } catch (error) {
             console.error("Failed to load draft:", error);
           }
