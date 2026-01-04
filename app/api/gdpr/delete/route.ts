@@ -28,6 +28,7 @@ export async function DELETE(_request: NextRequest) {
       webhooks: 0,
       attachments: 0,
       ab_tests: 0,
+      tracking_events: 0,
       audit_logs: 0,
       consent_records: 0,
       errors: [] as string[],
@@ -96,6 +97,7 @@ export async function DELETE(_request: NextRequest) {
       deleteUserDocuments(config.unsubscribesCollectionId, "unsubscribes"),
       deleteUserDocuments(config.webhooksCollectionId, "webhooks"),
       deleteUserDocuments(config.abTestsCollectionId, "ab_tests"),
+      deleteUserDocuments(config.trackingEventsCollectionId, "tracking_events"),
     ]);
 
     // Third group - GDPR/compliance collections (optional)

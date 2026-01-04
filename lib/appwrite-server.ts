@@ -1,46 +1,36 @@
 import { Client, Databases, Storage, Query, ID } from "node-appwrite";
 
+import { env } from "@/lib/env";
 import type { AttachmentData, EmailResult } from "@/types/campaign";
 
 // Server-side Appwrite configuration - lazy loaded to avoid build-time errors
 const getAppwriteConfig = () => ({
-  endpoint: process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!,
-  projectId: process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!,
-  apiKey: process.env.APPWRITE_API_KEY!,
-  databaseId: process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-  contactsCollectionId:
-    process.env.NEXT_PUBLIC_APPWRITE_CONTACTS_COLLECTION_ID!,
-  campaignsCollectionId:
-    process.env.NEXT_PUBLIC_APPWRITE_CAMPAIGNS_COLLECTION_ID!,
-  templatesCollectionId:
-    process.env.NEXT_PUBLIC_APPWRITE_TEMPLATES_COLLECTION_ID!,
+  endpoint: env.NEXT_PUBLIC_APPWRITE_ENDPOINT,
+  projectId: env.NEXT_PUBLIC_APPWRITE_PROJECT_ID,
+  apiKey: env.APPWRITE_API_KEY,
+  databaseId: env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
+  contactsCollectionId: env.NEXT_PUBLIC_APPWRITE_CONTACTS_COLLECTION_ID,
+  campaignsCollectionId: env.NEXT_PUBLIC_APPWRITE_CAMPAIGNS_COLLECTION_ID,
+  templatesCollectionId: env.NEXT_PUBLIC_APPWRITE_TEMPLATES_COLLECTION_ID,
   templateVersionsCollectionId:
-    process.env.NEXT_PUBLIC_APPWRITE_TEMPLATE_VERSIONS_COLLECTION_ID ||
-    "template_versions",
+    env.NEXT_PUBLIC_APPWRITE_TEMPLATE_VERSIONS_COLLECTION_ID,
   contactGroupsCollectionId:
-    process.env.NEXT_PUBLIC_APPWRITE_CONTACT_GROUPS_COLLECTION_ID!,
-  attachmentsBucketId: process.env.NEXT_PUBLIC_APPWRITE_ATTACHMENTS_BUCKET_ID!,
+    env.NEXT_PUBLIC_APPWRITE_CONTACT_GROUPS_COLLECTION_ID,
+  attachmentsBucketId: env.NEXT_PUBLIC_APPWRITE_ATTACHMENTS_BUCKET_ID,
   // Additional feature collections
-  draftEmailsCollectionId:
-    process.env.NEXT_PUBLIC_APPWRITE_DRAFT_EMAILS_COLLECTION_ID!,
-  signaturesCollectionId:
-    process.env.NEXT_PUBLIC_APPWRITE_SIGNATURES_COLLECTION_ID!,
-  unsubscribesCollectionId:
-    process.env.NEXT_PUBLIC_APPWRITE_UNSUBSCRIBES_COLLECTION_ID!,
-  webhooksCollectionId:
-    process.env.NEXT_PUBLIC_APPWRITE_WEBHOOKS_COLLECTION_ID!,
+  draftEmailsCollectionId: env.NEXT_PUBLIC_APPWRITE_DRAFT_EMAILS_COLLECTION_ID,
+  signaturesCollectionId: env.NEXT_PUBLIC_APPWRITE_SIGNATURES_COLLECTION_ID,
+  unsubscribesCollectionId: env.NEXT_PUBLIC_APPWRITE_UNSUBSCRIBES_COLLECTION_ID,
+  webhooksCollectionId: env.NEXT_PUBLIC_APPWRITE_WEBHOOKS_COLLECTION_ID,
   trackingEventsCollectionId:
-    process.env.NEXT_PUBLIC_APPWRITE_TRACKING_EVENTS_COLLECTION_ID!,
-  abTestsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_AB_TESTS_COLLECTION_ID!,
+    env.NEXT_PUBLIC_APPWRITE_TRACKING_EVENTS_COLLECTION_ID,
+  abTestsCollectionId: env.NEXT_PUBLIC_APPWRITE_AB_TESTS_COLLECTION_ID,
   // GDPR & Compliance collections
-  auditLogsCollectionId:
-    process.env.NEXT_PUBLIC_APPWRITE_AUDIT_LOGS_COLLECTION_ID || "",
-  consentsCollectionId:
-    process.env.NEXT_PUBLIC_APPWRITE_CONSENTS_COLLECTION_ID || "",
+  auditLogsCollectionId: env.NEXT_PUBLIC_APPWRITE_AUDIT_LOGS_COLLECTION_ID,
+  consentsCollectionId: env.NEXT_PUBLIC_APPWRITE_CONSENTS_COLLECTION_ID,
   // Team/Organization collections
-  teamsCollectionId: process.env.NEXT_PUBLIC_APPWRITE_TEAMS_COLLECTION_ID || "",
-  teamMembersCollectionId:
-    process.env.NEXT_PUBLIC_APPWRITE_TEAM_MEMBERS_COLLECTION_ID || "",
+  teamsCollectionId: env.NEXT_PUBLIC_APPWRITE_TEAMS_COLLECTION_ID,
+  teamMembersCollectionId: env.NEXT_PUBLIC_APPWRITE_TEAM_MEMBERS_COLLECTION_ID,
 });
 
 // Lazy initialization for client and services

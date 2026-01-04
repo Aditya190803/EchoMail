@@ -9,6 +9,9 @@
  * @see {@link /docs/ADR/002-email-service-extraction.md} for architecture decision
  */
 
+import { generateRecipientId } from "@/lib/analytics";
+import { databases, config, ID } from "@/lib/appwrite-server";
+import { fetchFileFromUrl } from "@/lib/attachment-fetcher";
 import {
   sendEmailViaAPI,
   replacePlaceholders,
@@ -20,6 +23,8 @@ import {
 } from "@/lib/gmail";
 import { emailLogger } from "@/lib/logger";
 
+import { VerificationService } from "./verification-service";
+
 /**
  * Email recipient with personalization data
  */
@@ -30,6 +35,11 @@ export interface EmailRecipient {
   name?: string;
   /** Additional custom fields for personalization */
   customFields?: Record<string, string>;
+  /** Optional personalized attachment for this specific recipient */
+  personalizedAttachment?: {
+    url: string;
+    fileName?: string;
+  };
 }
 
 /**
@@ -54,6 +64,16 @@ export interface SendOptions {
   delayBetweenEmails?: number;
   /** Whether to use bulk optimization for identical content */
   useBulkOptimization?: boolean;
+  /** Tracking configuration */
+  tracking?: {
+    enabled: boolean;
+    campaignId?: string;
+    userEmail: string;
+  };
+  /** Optional callback to check if a recipient is unsubscribed */
+  checkUnsubscribe?: (email: string) => Promise<boolean>;
+  /** Whether to verify email addresses before sending */
+  verifyBeforeSending?: boolean;
   /** Callback for progress updates */
   onProgress?: (sent: number, total: number, currentEmail: string) => void;
   /** Callback for individual email results */
@@ -149,6 +169,36 @@ export class EmailService {
   }
 
   /**
+   * Verify a list of recipients
+   * @param recipients - Array of recipients to verify
+   * @returns Object with valid and invalid recipients
+   */
+  async verifyRecipients(recipients: EmailRecipient[]): Promise<{
+    valid: EmailRecipient[];
+    invalid: { recipient: EmailRecipient; reason: string }[];
+  }> {
+    const valid: EmailRecipient[] = [];
+    const invalid: { recipient: EmailRecipient; reason: string }[] = [];
+
+    const emails = recipients.map((r) => r.email);
+    const verificationResults = await VerificationService.verifyBatch(emails);
+
+    for (const recipient of recipients) {
+      const result = verificationResults.get(recipient.email);
+      if (result?.isValid) {
+        valid.push(recipient);
+      } else {
+        invalid.push({
+          recipient,
+          reason: result?.reason || "Unknown verification error",
+        });
+      }
+    }
+
+    return { valid, invalid };
+  }
+
+  /**
    * Send a single email with personalization
    *
    * @param recipient - Email recipient with optional personalization data
@@ -160,6 +210,11 @@ export class EmailService {
     recipient: EmailRecipient,
     content: EmailContent,
     attachments?: AttachmentData[],
+    tracking?: {
+      campaignId: string;
+      userEmail: string;
+      enabled?: boolean;
+    },
   ): Promise<EmailResult> {
     try {
       // Build personalization data from recipient
@@ -187,7 +242,27 @@ export class EmailService {
       // Pre-resolve attachments if needed
       const resolvedAttachments = attachments
         ? await preResolveAttachments(attachments)
-        : undefined;
+        : [];
+
+      // Handle personalized attachment if present
+      if (recipient.personalizedAttachment) {
+        try {
+          const fileData = await fetchFileFromUrl(
+            recipient.personalizedAttachment.url,
+          );
+          resolvedAttachments.push({
+            name: recipient.personalizedAttachment.fileName || "attachment",
+            data: fileData.base64,
+            type: fileData.mimeType,
+          });
+        } catch (error) {
+          emailLogger.error("Failed to fetch personalized attachment", {
+            url: recipient.personalizedAttachment.url,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          // Continue sending without the personalized attachment
+        }
+      }
 
       // Send the email
       const result = await sendEmailViaAPI(
@@ -196,7 +271,11 @@ export class EmailService {
         personalizedSubject,
         personalizedBody,
         resolvedAttachments,
+        tracking,
       );
+
+      // Record "sent" event
+      await this.recordEvent("sent", recipient.email, tracking);
 
       emailLogger.info("Single email sent successfully", {
         to: recipient.email,
@@ -211,6 +290,10 @@ export class EmailService {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
+
+      // Record "failed" event
+      await this.recordEvent("failed", recipient.email, tracking, errorMessage);
+
       emailLogger.error(
         "Failed to send single email",
         undefined,
@@ -246,15 +329,46 @@ export class EmailService {
       attachments = [],
       delayBetweenEmails = this.defaultDelayMs,
       useBulkOptimization = true,
+      tracking,
+      checkUnsubscribe,
+      verifyBeforeSending = false,
       onProgress,
       onEmailResult,
     } = options;
 
+    let activeRecipients = [...recipients];
     const results: EmailResult[] = [];
+
+    // Verify recipients if requested
+    if (verifyBeforeSending) {
+      const { valid, invalid } = await this.verifyRecipients(recipients);
+      activeRecipients = valid;
+
+      // Add invalid recipients to results
+      for (const item of invalid) {
+        results.push({
+          email: item.recipient.email,
+          status: "skipped",
+          error: `Verification failed: ${item.reason}`,
+        });
+        onEmailResult?.(
+          item.recipient.email,
+          false,
+          `Verification failed: ${item.reason}`,
+        );
+      }
+
+      emailLogger.info("Verification completed", {
+        total: recipients.length,
+        valid: valid.length,
+        invalid: invalid.length,
+      });
+    }
+
     const total = recipients.length;
 
     emailLogger.info("Starting email campaign", {
-      recipientCount: total,
+      recipientCount: activeRecipients.length,
       hasAttachments: attachments.length > 0,
       useBulkOptimization,
     });
@@ -266,30 +380,39 @@ export class EmailService {
 
       // Check if we can use bulk optimization
       // (all emails have same subject/body with no placeholders)
+      // ALSO if tracking is enabled, we can't use bulk optimization because each email needs a unique pixel/links
+      // AND if we need to check unsubscribes per-recipient, we can't use bulk optimization
       const hasPlaceholders =
         content.subject.includes("{{") || content.body.includes("{{");
 
-      const canUseBulkOptimization = useBulkOptimization && !hasPlaceholders;
+      const canUseBulkOptimization =
+        useBulkOptimization &&
+        !hasPlaceholders &&
+        !tracking?.enabled &&
+        !checkUnsubscribe;
 
       if (canUseBulkOptimization) {
         // Use template-based bulk sending for maximum efficiency
         await this.sendBulkWithTemplate(
-          recipients,
+          activeRecipients,
           content,
           resolvedAttachments,
           delayBetweenEmails,
           results,
+          tracking,
           onProgress,
           onEmailResult,
         );
       } else {
         // Use individual sending for personalized content
         await this.sendBulkPersonalized(
-          recipients,
+          activeRecipients,
           content,
           resolvedAttachments,
           delayBetweenEmails,
           results,
+          tracking,
+          checkUnsubscribe,
           onProgress,
           onEmailResult,
         );
@@ -319,6 +442,185 @@ export class EmailService {
   }
 
   /**
+   * Send a batch of pre-personalized emails
+   *
+   * @param emails - Array of personalized emails
+   * @param options - Sending options
+   * @returns Campaign summary
+   */
+  async sendPersonalizedBatch(
+    emails: PersonalizedEmail[],
+    options: SendOptions = {},
+  ): Promise<CampaignSummary> {
+    const {
+      delayBetweenEmails = this.defaultDelayMs,
+      tracking,
+      checkUnsubscribe,
+      verifyBeforeSending = false,
+      onProgress,
+      onEmailResult,
+    } = options;
+
+    let activeEmails = [...emails];
+    const results: EmailResult[] = [];
+
+    // Verify recipients if requested
+    if (verifyBeforeSending) {
+      const recipientsToVerify = emails.map((e) => ({ email: e.to }));
+      const { invalid } = await this.verifyRecipients(recipientsToVerify);
+
+      const invalidEmails = new Set(invalid.map((i) => i.recipient.email));
+      activeEmails = emails.filter((e) => !invalidEmails.has(e.to));
+
+      // Add invalid recipients to results
+      for (const item of invalid) {
+        results.push({
+          email: item.recipient.email,
+          status: "skipped",
+          error: `Verification failed: ${item.reason}`,
+        });
+        onEmailResult?.(
+          item.recipient.email,
+          false,
+          `Verification failed: ${item.reason}`,
+        );
+      }
+
+      emailLogger.info("Verification completed", {
+        total: emails.length,
+        valid: activeEmails.length,
+        invalid: invalid.length,
+      });
+    }
+
+    const total = emails.length;
+
+    emailLogger.info("Starting personalized email batch", {
+      count: activeEmails.length,
+    });
+
+    try {
+      for (let i = 0; i < activeEmails.length; i++) {
+        const email = activeEmails[i];
+
+        // Check for unsubscribe if callback provided
+        if (checkUnsubscribe) {
+          const isUnsubscribed = await checkUnsubscribe(email.to);
+          if (isUnsubscribed) {
+            results.push({
+              email: email.to,
+              status: "skipped",
+              error: "Recipient has unsubscribed",
+            });
+            onEmailResult?.(email.to, false, "Recipient has unsubscribed");
+            onProgress?.(i + 1, total, email.to);
+            continue;
+          }
+        }
+
+        // Pre-resolve attachments for this specific email if any
+        const resolvedAttachments = email.attachments
+          ? await preResolveAttachments(email.attachments)
+          : [];
+
+        // Handle personalized attachment if present
+        if (email.personalizedAttachment) {
+          try {
+            const fileData = await fetchFileFromUrl(
+              email.personalizedAttachment.url,
+            );
+            resolvedAttachments.push({
+              name: email.personalizedAttachment.fileName || "attachment",
+              data: fileData.base64,
+              type: fileData.mimeType,
+            });
+          } catch (error) {
+            emailLogger.error("Failed to fetch personalized attachment", {
+              url: email.personalizedAttachment.url,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            // Continue sending without the personalized attachment
+          }
+        }
+
+        // Send the email
+        try {
+          const result = await sendEmailViaAPI(
+            this.accessToken,
+            email.to,
+            email.subject,
+            email.message,
+            resolvedAttachments,
+            tracking?.enabled
+              ? {
+                  campaignId: tracking.campaignId || "bulk-send-" + Date.now(),
+                  userEmail: tracking.userEmail,
+                }
+              : undefined,
+          );
+
+          const emailResult: EmailResult = {
+            email: email.to,
+            status: "success",
+            messageId: result.id,
+          };
+          results.push(emailResult);
+
+          // Record "sent" event
+          if (tracking?.enabled) {
+            await this.recordEvent("sent", email.to, {
+              campaignId: tracking.campaignId || "bulk-send-" + Date.now(),
+              userEmail: tracking.userEmail,
+            });
+          }
+
+          onEmailResult?.(email.to, true);
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
+
+          results.push({
+            email: email.to,
+            status: "error",
+            error: errorMessage,
+          });
+
+          // Record "failed" event
+          if (tracking?.enabled) {
+            await this.recordEvent(
+              "failed",
+              email.to,
+              {
+                campaignId: tracking.campaignId || "bulk-send-" + Date.now(),
+                userEmail: tracking.userEmail,
+              },
+              errorMessage,
+            );
+          }
+
+          onEmailResult?.(email.to, false, errorMessage);
+        }
+        onProgress?.(i + 1, total, email.to);
+
+        // Delay between emails (except last)
+        if (i < activeEmails.length - 1) {
+          await this.delay(delayBetweenEmails);
+        }
+      }
+    } finally {
+      clearAttachmentCache();
+    }
+
+    return {
+      total,
+      sent: results.filter((r) => r.status === "success").length,
+      failed: results.filter((r) => r.status === "error").length,
+      skipped: results.filter((r) => r.status === "skipped").length,
+      results,
+    };
+  }
+
+  /**
    * Internal: Send bulk emails using pre-built template (fastest)
    */
   private async sendBulkWithTemplate(
@@ -327,6 +629,11 @@ export class EmailService {
     attachments: AttachmentData[],
     delayMs: number,
     results: EmailResult[],
+    tracking?: {
+      enabled: boolean;
+      campaignId?: string;
+      userEmail: string;
+    },
     onProgress?: (sent: number, total: number, email: string) => void,
     onEmailResult?: (email: string, success: boolean, error?: string) => void,
   ): Promise<void> {
@@ -355,6 +662,15 @@ export class EmailService {
           email: recipient.email,
           status: "success",
         });
+
+        // Record "sent" event
+        if (tracking?.enabled) {
+          await this.recordEvent("sent", recipient.email, {
+            campaignId: tracking.campaignId || "bulk-send-" + Date.now(),
+            userEmail: tracking.userEmail,
+          });
+        }
+
         onEmailResult?.(recipient.email, true);
       } catch (error) {
         const errorMessage =
@@ -364,6 +680,20 @@ export class EmailService {
           status: "error",
           error: errorMessage,
         });
+
+        // Record "failed" event
+        if (tracking?.enabled) {
+          await this.recordEvent(
+            "failed",
+            recipient.email,
+            {
+              campaignId: tracking.campaignId || "bulk-send-" + Date.now(),
+              userEmail: tracking.userEmail,
+            },
+            errorMessage,
+          );
+        }
+
         onEmailResult?.(recipient.email, false, errorMessage);
       }
 
@@ -385,13 +715,44 @@ export class EmailService {
     attachments: AttachmentData[],
     delayMs: number,
     results: EmailResult[],
+    tracking?: {
+      enabled: boolean;
+      campaignId?: string;
+      userEmail: string;
+    },
+    checkUnsubscribe?: (email: string) => Promise<boolean>,
     onProgress?: (sent: number, total: number, email: string) => void,
     onEmailResult?: (email: string, success: boolean, error?: string) => void,
   ): Promise<void> {
     for (let i = 0; i < recipients.length; i++) {
       const recipient = recipients[i];
 
-      const result = await this.sendSingle(recipient, content, attachments);
+      // Check for unsubscribe if callback provided
+      if (checkUnsubscribe) {
+        const isUnsubscribed = await checkUnsubscribe(recipient.email);
+        if (isUnsubscribed) {
+          results.push({
+            email: recipient.email,
+            status: "skipped",
+            error: "Recipient has unsubscribed",
+          });
+          onEmailResult?.(recipient.email, false, "Recipient has unsubscribed");
+          onProgress?.(i + 1, recipients.length, recipient.email);
+          continue;
+        }
+      }
+
+      const result = await this.sendSingle(
+        recipient,
+        content,
+        attachments,
+        tracking?.enabled
+          ? {
+              campaignId: tracking.campaignId || "bulk-send-" + Date.now(),
+              userEmail: tracking.userEmail,
+            }
+          : undefined,
+      );
       results.push(result);
 
       onEmailResult?.(
@@ -439,6 +800,38 @@ export class EmailService {
     }
 
     return { valid, invalid };
+  }
+
+  /**
+   * Record a tracking event to Appwrite
+   */
+  private async recordEvent(
+    eventType: "sent" | "failed",
+    email: string,
+    tracking?: { campaignId: string; userEmail: string },
+    error?: string,
+  ) {
+    if (!tracking) {
+      return;
+    }
+    try {
+      await databases.createDocument(
+        config.databaseId,
+        config.trackingEventsCollectionId,
+        ID.unique(),
+        {
+          campaign_id: tracking.campaignId,
+          recipient_id: generateRecipientId(email),
+          email: email,
+          event_type: eventType,
+          user_email: tracking.userEmail,
+          created_at: new Date().toISOString(),
+          metadata: error ? JSON.stringify({ error }) : undefined,
+        },
+      );
+    } catch (err) {
+      emailLogger.error(`Failed to record ${eventType} event`, { error: err });
+    }
   }
 
   /**

@@ -18,9 +18,8 @@ import { COLORS, GMAIL_WRAPPER_STYLES } from "./types";
  */
 export const ELEMENT_STYLES = {
   // Paragraphs (converted to divs for Gmail compatibility)
-  // No margin - line breaks are handled by <br> tags
   paragraph: {
-    margin: "0",
+    margin: "0.5em 0",
     padding: "0",
   },
 
@@ -161,7 +160,7 @@ function styleObjectToString(styles: Record<string, string>): string {
  */
 const STYLE_PATTERNS = {
   // Paragraphs to divs
-  pOpen: /<p([^>]*)>/gi,
+  pOpen: /<p(\b[^>]*)>/gi,
   pClose: /<\/p>/gi,
 
   // Empty divs to br (Gmail style)

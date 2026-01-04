@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
     const email = searchParams.get("e");
     const userEmail = searchParams.get("u");
     const targetUrl = searchParams.get("url");
+    const recipientId = searchParams.get("r");
+    const linkId = searchParams.get("l");
 
     if (!targetUrl) {
       return NextResponse.redirect(new URL("/", request.url));
@@ -42,6 +44,8 @@ export async function GET(request: NextRequest) {
           ID.unique(),
           {
             campaign_id: campaignId,
+            recipient_id: recipientId || undefined,
+            link_id: linkId || undefined,
             email: decodeURIComponent(email),
             event_type: "click",
             link_url: decodeURIComponent(targetUrl),

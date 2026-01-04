@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
 import { authOptions } from "@/lib/auth";
+import { cache, CacheKeys, CacheTTL, getOrSet } from "@/lib/cache";
 import { apiLogger } from "@/lib/logger";
 import type { TemplateDocument } from "@/types/appwrite";
 
@@ -22,20 +23,30 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const response = await databases.listDocuments(
-      config.databaseId,
-      config.templatesCollectionId,
-      [
-        Query.equal("user_email", session.user.email),
-        Query.orderDesc("$updatedAt"),
-        Query.limit(100),
-      ],
+    const userEmail = session.user.email;
+    const cacheKey = CacheKeys.userTemplates(userEmail);
+
+    const result = await getOrSet(
+      cacheKey,
+      async () => {
+        const response = await databases.listDocuments(
+          config.databaseId,
+          config.templatesCollectionId,
+          [
+            Query.equal("user_email", userEmail),
+            Query.orderDesc("$updatedAt"),
+            Query.limit(100),
+          ],
+        );
+        return {
+          total: response.total,
+          documents: response.documents,
+        };
+      },
+      CacheTTL.DEFAULT,
     );
 
-    return NextResponse.json({
-      total: response.total,
-      documents: response.documents,
-    });
+    return NextResponse.json(result);
   } catch (error: unknown) {
     apiLogger.error(
       "Error fetching templates",
@@ -79,6 +90,9 @@ export async function POST(request: NextRequest) {
         updated_at: now,
       },
     );
+
+    // Invalidate cache
+    await cache.delete(CacheKeys.userTemplates(session.user.email));
 
     return NextResponse.json(result);
   } catch (error: unknown) {
@@ -179,6 +193,9 @@ export async function PUT(request: NextRequest) {
       },
     );
 
+    // Invalidate cache
+    await cache.delete(CacheKeys.userTemplates(session.user.email));
+
     return NextResponse.json(result);
   } catch (error: unknown) {
     apiLogger.error(
@@ -230,6 +247,9 @@ export async function DELETE(request: NextRequest) {
       config.templatesCollectionId,
       templateId,
     );
+
+    // Invalidate cache
+    await cache.delete(CacheKeys.userTemplates(session.user.email));
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

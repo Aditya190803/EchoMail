@@ -29,3 +29,21 @@ export function formatDate(date: string | Date): string {
     year: "numeric",
   }).format(new Date(date));
 }
+
+/**
+ * Get a cookie value by name (client-side)
+ *
+ * @param name - Name of the cookie to retrieve
+ * @returns Cookie value or undefined if not found
+ */
+export function getCookie(name: string): string | undefined {
+  if (typeof document === "undefined") {
+    return undefined;
+  }
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) {
+    return parts.pop()?.split(";").shift();
+  }
+  return undefined;
+}

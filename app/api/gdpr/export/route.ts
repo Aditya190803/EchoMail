@@ -36,61 +36,78 @@ export async function GET(request: NextRequest) {
     const userName = session.user.name || undefined;
 
     // Gather all user data from different collections
-    const [contacts, campaigns, templates, drafts, signatures, _groups] =
-      await Promise.all([
-        // Contacts
-        databases
-          .listDocuments(config.databaseId, config.contactsCollectionId, [
-            Query.equal("user_email", userEmail),
-            Query.limit(5000),
-          ])
-          .catch(() => ({ documents: [] })),
+    const [
+      contacts,
+      campaigns,
+      templates,
+      drafts,
+      signatures,
+      _groups,
+      trackingEvents,
+    ] = await Promise.all([
+      // Contacts
+      databases
+        .listDocuments(config.databaseId, config.contactsCollectionId, [
+          Query.equal("user_email", userEmail),
+          Query.limit(5000),
+        ])
+        .catch(() => ({ documents: [] })),
 
-        // Campaigns
-        databases
-          .listDocuments(config.databaseId, config.campaignsCollectionId, [
-            Query.equal("user_email", userEmail),
-            Query.limit(5000),
-          ])
-          .catch(() => ({ documents: [] })),
+      // Campaigns
+      databases
+        .listDocuments(config.databaseId, config.campaignsCollectionId, [
+          Query.equal("user_email", userEmail),
+          Query.limit(5000),
+        ])
+        .catch(() => ({ documents: [] })),
 
-        // Templates
-        databases
-          .listDocuments(config.databaseId, config.templatesCollectionId, [
-            Query.equal("user_email", userEmail),
-            Query.limit(5000),
-          ])
-          .catch(() => ({ documents: [] })),
+      // Templates
+      databases
+        .listDocuments(config.databaseId, config.templatesCollectionId, [
+          Query.equal("user_email", userEmail),
+          Query.limit(5000),
+        ])
+        .catch(() => ({ documents: [] })),
 
-        // Drafts
-        config.draftEmailsCollectionId
-          ? databases
-              .listDocuments(
-                config.databaseId,
-                config.draftEmailsCollectionId,
-                [Query.equal("user_email", userEmail), Query.limit(5000)],
-              )
-              .catch(() => ({ documents: [] }))
-          : { documents: [] },
+      // Drafts
+      config.draftEmailsCollectionId
+        ? databases
+            .listDocuments(config.databaseId, config.draftEmailsCollectionId, [
+              Query.equal("user_email", userEmail),
+              Query.limit(5000),
+            ])
+            .catch(() => ({ documents: [] }))
+        : { documents: [] },
 
-        // Signatures
-        config.signaturesCollectionId
-          ? databases
-              .listDocuments(config.databaseId, config.signaturesCollectionId, [
-                Query.equal("user_email", userEmail),
-                Query.limit(5000),
-              ])
-              .catch(() => ({ documents: [] }))
-          : { documents: [] },
+      // Signatures
+      config.signaturesCollectionId
+        ? databases
+            .listDocuments(config.databaseId, config.signaturesCollectionId, [
+              Query.equal("user_email", userEmail),
+              Query.limit(5000),
+            ])
+            .catch(() => ({ documents: [] }))
+        : { documents: [] },
 
-        // Contact Groups
-        databases
-          .listDocuments(config.databaseId, config.contactGroupsCollectionId, [
-            Query.equal("user_email", userEmail),
-            Query.limit(5000),
-          ])
-          .catch(() => ({ documents: [] })),
-      ]);
+      // Contact Groups
+      databases
+        .listDocuments(config.databaseId, config.contactGroupsCollectionId, [
+          Query.equal("user_email", userEmail),
+          Query.limit(5000),
+        ])
+        .catch(() => ({ documents: [] })),
+
+      // Tracking Events
+      config.trackingEventsCollectionId
+        ? databases
+            .listDocuments(
+              config.databaseId,
+              config.trackingEventsCollectionId,
+              [Query.equal("user_email", userEmail), Query.limit(5000)],
+            )
+            .catch(() => ({ documents: [] }))
+        : { documents: [] },
+    ]);
 
     // Get consent records if available
     let consentRecords: any[] = [];
@@ -166,6 +183,14 @@ export async function GET(request: NextRequest) {
           granted: doc.granted,
           granted_at: doc.granted_at,
           revoked_at: doc.revoked_at,
+        })),
+        tracking_events: trackingEvents.documents.map((doc: any) => ({
+          event_type: doc.event_type,
+          campaign_id: doc.campaign_id,
+          recipient_email: doc.recipient_email,
+          ip_address: doc.ip_address,
+          user_agent: doc.user_agent,
+          created_at: doc.created_at || doc.$createdAt,
         })),
       },
     };

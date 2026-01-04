@@ -39,11 +39,8 @@ export {
   convertEmojisToUnicode,
   sanitizeHTML,
   validateEmailContent,
+  injectTracking,
   EMOJI_NAME_MAP,
-  // Legacy aliases for backward compatibility
-  convertEmojiImagesToText,
-  cleanupEmojiImages,
-  sanitizeEmailHTML,
 } from "./utils";
 
 // Re-export inline styles
@@ -222,29 +219,4 @@ export function formatForPreview(html: string, preFormat = true): string {
       </div>
     </div>
   `;
-}
-
-// ============================================================================
-// LEGACY ALIASES (for backward compatibility during migration)
-// ============================================================================
-
-/**
- * @deprecated Use formatForEmail instead
- */
-export function formatEmailHTML(html: string): string {
-  return formatForEmail(html);
-}
-
-/**
- * @deprecated Use formatForEmail instead
- */
-export function formatGmailHTML(html: string): string {
-  return formatForEmail(html);
-}
-
-/**
- * @deprecated Use formatForPreview instead
- */
-export function getEmailPreviewHTML(html: string): string {
-  return formatForPreview(html);
 }

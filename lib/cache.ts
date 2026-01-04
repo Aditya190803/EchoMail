@@ -175,7 +175,15 @@ class UpstashCache implements CacheProvider {
       token: process.env.UPSTASH_REDIS_REST_TOKEN!,
     });
 
-    console.info("[Cache] Upstash Redis initialized");
+    // Check if URL is valid and not a placeholder
+    if (process.env.UPSTASH_REDIS_REST_URL?.includes("your-region")) {
+      this.isAvailable = false;
+      console.warn(
+        "[Cache] Upstash Redis URL is a placeholder. Caching disabled.",
+      );
+    } else {
+      console.info("[Cache] Upstash Redis initialized");
+    }
   }
 
   private getKey(key: string): string {
@@ -189,10 +197,35 @@ class UpstashCache implements CacheProvider {
 
     try {
       const fullKey = this.getKey(key);
-      const value = await this.client.get<T>(fullKey);
+      // Add a timeout to avoid long waits on network issues
+      const value = await Promise.race([
+        this.client.get<T>(fullKey),
+        new Promise<null>((_, reject) =>
+          setTimeout(() => reject(new Error("Upstash timeout")), 2000),
+        ),
+      ]);
       return value;
-    } catch (error) {
-      console.error("[Cache] Upstash get error:", error);
+    } catch (error: any) {
+      console.error("[Cache] Upstash get error:", error.message || error);
+
+      // If it's a connection error, temporarily disable the cache
+      if (
+        error.code === "ENOTFOUND" ||
+        error.message?.includes("ENOTFOUND") ||
+        error.message?.includes("timeout")
+      ) {
+        this.isAvailable = false;
+        console.warn(
+          "[Cache] Upstash connection failed. Disabling cache for this instance.",
+        );
+        // Re-enable after 5 minutes
+        setTimeout(
+          () => {
+            this.isAvailable = true;
+          },
+          5 * 60 * 1000,
+        );
+      }
       return null;
     }
   }
@@ -207,9 +240,31 @@ class UpstashCache implements CacheProvider {
       const ttl = ttlSeconds ?? this.config.defaultTTL;
 
       // Upstash setex: set with expiration
-      await this.client.setex(fullKey, ttl, JSON.stringify(value));
-    } catch (error) {
-      console.error("[Cache] Upstash set error:", error);
+      await Promise.race([
+        this.client.setex(fullKey, ttl, JSON.stringify(value)),
+        new Promise<void>((_, reject) =>
+          setTimeout(() => reject(new Error("Upstash timeout")), 2000),
+        ),
+      ]);
+    } catch (error: any) {
+      console.error("[Cache] Upstash set error:", error.message || error);
+
+      if (
+        error.code === "ENOTFOUND" ||
+        error.message?.includes("ENOTFOUND") ||
+        error.message?.includes("timeout")
+      ) {
+        this.isAvailable = false;
+        console.warn(
+          "[Cache] Upstash connection failed. Disabling cache for this instance.",
+        );
+        setTimeout(
+          () => {
+            this.isAvailable = true;
+          },
+          5 * 60 * 1000,
+        );
+      }
     }
   }
 
@@ -411,6 +466,7 @@ export const CacheKeys = {
   userContacts: (userEmail: string) => `contacts:${userEmail}`,
   userCampaigns: (userEmail: string) => `campaigns:${userEmail}`,
   userTemplates: (userEmail: string) => `templates:${userEmail}`,
+  userSignatures: (userEmail: string) => `signatures:${userEmail}`,
   campaign: (campaignId: string) => `campaign:${campaignId}`,
   template: (templateId: string) => `template:${templateId}`,
   userSettings: (userEmail: string) => `settings:${userEmail}`,

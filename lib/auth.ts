@@ -1,6 +1,7 @@
 import GoogleProvider from "next-auth/providers/google";
 
 import { authLogger } from "./logger";
+import { validateToken, trackRefreshTokenUsage } from "./token-security";
 
 import type { NextAuthOptions, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
@@ -17,13 +18,29 @@ interface RefreshedTokens {
 /**
  * Takes a token, and returns a new token with updated
  * `accessToken` and `accessTokenExpires`. If an error occurs,
- * returns the old token and an error property
+ * returns the old token and an error property.
+ *
+ * Implements refresh token rotation detection to prevent token theft.
  */
 async function refreshAccessToken(token: JWT): Promise<JWT> {
   try {
     const refreshToken = token.refreshToken as string | undefined;
     if (!refreshToken) {
       throw new Error("No refresh token available");
+    }
+
+    // Check for refresh token reuse (potential token theft)
+    // trackRefreshTokenUsage returns true if token was already used
+    const wasReused = trackRefreshTokenUsage(refreshToken);
+    if (wasReused) {
+      authLogger.warn("Refresh token reuse detected - potential token theft", {
+        userId: (token.user as User)?.email,
+      });
+      // Return error to force re-authentication
+      return {
+        ...token,
+        error: "RefreshAccessTokenError",
+      };
     }
 
     const url =
@@ -48,11 +65,13 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
       throw refreshedTokens;
     }
 
+    const newRefreshToken = refreshedTokens.refresh_token ?? refreshToken;
+
     return {
       ...token,
       accessToken: refreshedTokens.access_token,
       accessTokenExpires: Date.now() + refreshedTokens.expires_in * 1000,
-      refreshToken: refreshedTokens.refresh_token ?? refreshToken,
+      refreshToken: newRefreshToken,
     };
   } catch (error) {
     authLogger.error(
@@ -103,12 +122,24 @@ export const authOptions: NextAuthOptions = {
         };
       }
 
-      // Return previous token if the access token has not expired yet
-      if (Date.now() < (token.accessTokenExpires as number)) {
+      // Use TokenSecurity to validate the token
+      const validation = validateToken({
+        accessToken: token.accessToken as string,
+        accessTokenExpires: token.accessTokenExpires as number,
+        refreshToken: token.refreshToken as string,
+      });
+
+      // Return previous token if it's still valid and doesn't need refresh
+      if (!validation.needsRefresh) {
         return token;
       }
 
-      // Access token has expired, try to update it
+      // Access token has expired or is about to expire, try to update it
+      authLogger.info("Token needs refresh", {
+        reason: validation.error || "Expiring soon",
+        expiresIn: validation.expiresIn,
+      });
+
       return refreshAccessToken(token as JWT);
     },
     async session({ session, token }) {

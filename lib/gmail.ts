@@ -1,5 +1,6 @@
 import { serverStorageService } from "./appwrite-server";
 import { sanitizeHTML } from "./email-formatting";
+import { injectTracking } from "./email-formatting/utils";
 import { emailLogger } from "./logger";
 
 export interface AttachmentData {
@@ -280,6 +281,10 @@ export async function preBuildEmailTemplate(
 export async function sendEmailWithTemplate(
   accessToken: string,
   to: string,
+  tracking?: {
+    campaignId: string;
+    userEmail: string;
+  },
 ): Promise<any> {
   if (!cachedEmailTemplate) {
     throw new Error(
@@ -288,6 +293,16 @@ export async function sendEmailWithTemplate(
   }
 
   const validatedTo = validateAndSanitizeEmail(to);
+
+  // If tracking is requested for a templated email, we have a problem:
+  // The template is pre-built and shared. Tracking needs recipient-specific URLs.
+  // For now, we'll log a warning and skip tracking for templated sends,
+  // OR we could suggest using personalized sending if tracking is required.
+  if (tracking) {
+    emailLogger.warn(
+      "Tracking requested for templated email. Tracking is currently only supported for personalized sends.",
+    );
+  }
 
   // Build complete email with just header changes
   const email = [
@@ -485,6 +500,12 @@ export async function sendEmailViaAPI(
   subject: string,
   htmlBody: string,
   attachments?: AttachmentData[],
+  tracking?: {
+    campaignId: string;
+    userEmail: string;
+    enabled?: boolean;
+  },
+  isTransactional?: boolean,
 ) {
   // Validate and sanitize the recipient email
   const validatedTo = validateAndSanitizeEmail(to);
@@ -599,8 +620,26 @@ export async function sendEmailViaAPI(
   // Properly encode the subject line to handle UTF-8 characters
   const encodedSubject = encodeSubject(subject);
 
+  // Inject tracking if enabled
+  let processedHtmlBody = htmlBody;
+  if (tracking) {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+    processedHtmlBody = injectTracking(
+      htmlBody,
+      {
+        campaignId: tracking.campaignId,
+        recipientEmail: validatedTo,
+        userEmail: tracking.userEmail,
+        isTransactional: isTransactional,
+        trackingEnabled: tracking.enabled !== false,
+      },
+      baseUrl,
+    );
+  }
+
   // Sanitize and preserve authoring-time formatting
-  const sanitizedHtmlBody = sanitizeHTML(htmlBody);
+  const sanitizedHtmlBody = sanitizeHTML(processedHtmlBody);
   const zeroMarginCss =
     '<style type="text/css">html,body{margin:0!important;padding:0!important;width:100%!important;}table{border-collapse:collapse!important;border-spacing:0!important;}p{margin:0!important;padding:0!important;}*{margin:0!important;padding:0!important;}</style>';
 

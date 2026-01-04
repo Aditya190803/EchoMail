@@ -4,6 +4,9 @@
  * All database operations go through server-side API routes that use the Appwrite API key.
  */
 
+import { CSRF_TOKEN_NAME, CSRF_HEADER_NAME } from "./constants";
+import { getCookie } from "./utils";
+
 // ============================================
 // Type Definitions
 // ============================================
@@ -177,10 +180,13 @@ export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const csrfToken = getCookie(CSRF_TOKEN_NAME);
+
   const response = await fetch(endpoint, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
       ...options.headers,
     },
   });
@@ -259,6 +265,18 @@ export const campaignsService = {
     _userEmail: string,
   ): Promise<{ total: number; documents: EmailCampaign[] }> {
     return apiRequest("/api/appwrite/campaigns");
+  },
+
+  async get(id: string): Promise<EmailCampaign> {
+    const response = await apiRequest<{
+      total: number;
+      documents: EmailCampaign[];
+    }>("/api/appwrite/campaigns");
+    const campaign = response.documents.find((c) => c.$id === id);
+    if (!campaign) {
+      throw new Error("Campaign not found");
+    }
+    return campaign;
   },
 
   async delete(id: string): Promise<void> {
@@ -807,8 +825,12 @@ export const storageService = {
     const formData = new FormData();
     formData.append("files", file);
 
+    const csrfToken = getCookie(CSRF_TOKEN_NAME);
     const response = await fetch("/api/upload-attachment", {
       method: "POST",
+      headers: {
+        ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+      },
       body: formData,
     });
 
@@ -870,7 +892,13 @@ export const gdprService = {
     message: string;
     details: any;
   }> {
-    const response = await fetch("/api/gdpr/delete", { method: "DELETE" });
+    const csrfToken = getCookie(CSRF_TOKEN_NAME);
+    const response = await fetch("/api/gdpr/delete", {
+      method: "DELETE",
+      headers: {
+        ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+      },
+    });
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error || "Failed to delete data");

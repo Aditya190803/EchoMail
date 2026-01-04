@@ -4,10 +4,6 @@ import {
   formatForEmail,
   formatForEmailWithDetails,
   formatForPreview,
-  // Legacy aliases
-  formatEmailHTML,
-  formatGmailHTML,
-  getEmailPreviewHTML,
 } from "../index";
 
 describe("formatForEmail", () => {
@@ -168,31 +164,5 @@ describe("formatForPreview", () => {
 
     expect(result).toContain("<p>Already formatted</p>");
     expect(result).not.toContain("margin: 0.5em 0");
-  });
-});
-
-describe("Legacy aliases", () => {
-  it("formatEmailHTML should work as alias for formatForEmail", () => {
-    const input = "<p>Hello</p>";
-    const result = formatEmailHTML(input);
-
-    expect(result).toContain('<div dir="ltr"');
-    expect(result).toEqual(formatForEmail(input));
-  });
-
-  it("formatGmailHTML should work as alias for formatForEmail", () => {
-    const input = "<p>Hello</p>";
-    const result = formatGmailHTML(input);
-
-    expect(result).toContain('<div dir="ltr"');
-    expect(result).toEqual(formatForEmail(input));
-  });
-
-  it("getEmailPreviewHTML should work as alias for formatForPreview", () => {
-    const input = "<p>Hello</p>";
-    const result = getEmailPreviewHTML(input);
-
-    expect(result).toContain("Email Preview");
-    expect(result).toEqual(formatForPreview(input));
   });
 });

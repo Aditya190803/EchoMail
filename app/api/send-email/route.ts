@@ -2,64 +2,64 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getServerSession } from "next-auth";
 
-import { fetchFileFromUrl } from "@/lib/attachment-fetcher";
+import { databases, config, Query } from "@/lib/appwrite-server";
 import { authOptions } from "@/lib/auth";
-import {
-  sendEmailViaAPI,
-  replacePlaceholders,
-  preResolveAttachments,
-  clearAttachmentCache,
-  preBuildEmailTemplate,
-  sendEmailWithTemplate,
-} from "@/lib/gmail";
 import { apiLogger } from "@/lib/logger";
-
-interface EmailResult {
-  email: string;
-  status: "success" | "error";
-  error?: string;
-}
-
-interface PersonalizedAttachment {
-  url: string;
-  fileName?: string;
-}
-
-interface PersonalizedEmail {
-  to: string;
-  subject: string;
-  message: string;
-  originalRowData: Record<string, string>;
-  attachments?: any[];
-  personalizedAttachment?: PersonalizedAttachment; // Per-recipient file from URL
-}
+import { rateLimit, rateLimitUserEmail, RATE_LIMITS } from "@/lib/rate-limit";
+import {
+  EmailService,
+  type PersonalizedEmail,
+} from "@/lib/services/email-service";
 
 export async function POST(request: NextRequest) {
   try {
+    // Apply global IP-based rate limiting first
+    const rateLimitResponse = rateLimit(request, RATE_LIMITS.sendEmail);
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+
     const session = await getServerSession(authOptions);
 
-    apiLogger.debug("Session check", {
-      hasSession: !!session,
-      hasAccessToken: !!session?.accessToken,
-      hasUserEmail: !!session?.user?.email,
-    });
-
-    if (!session?.accessToken) {
-      return NextResponse.json(
-        { error: "Unauthorized - No access token" },
-        { status: 401 },
-      );
+    if (!session?.accessToken || !session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: "Unauthorized - No user email" },
-        { status: 401 },
-      );
-    }
+    const body = await request.json();
+    const {
+      campaignId,
+      trackingEnabled = true,
+      abTestId: _abTestId,
+      recipients,
+      subject,
+      content,
+      variants, // New: support for multiple variants
+    } = body;
 
-    const { personalizedEmails }: { personalizedEmails: PersonalizedEmail[] } =
-      await request.json();
+    let personalizedEmails: PersonalizedEmail[] = body.personalizedEmails;
+
+    // Handle A/B testing payload format (recipients, subject, content)
+    if (!personalizedEmails && recipients && Array.isArray(recipients)) {
+      if (variants && Array.isArray(variants) && variants.length > 0) {
+        // Distribute variants among recipients
+        personalizedEmails = recipients.map((to: string, index: number) => {
+          const variant = variants[index % variants.length];
+          return {
+            to,
+            subject: variant.subject || subject || "A/B Test Email",
+            message: variant.content || content || "",
+            originalRowData: {},
+          };
+        });
+      } else {
+        personalizedEmails = recipients.map((to: string) => ({
+          to,
+          subject: subject || "A/B Test Email",
+          message: content || "",
+          originalRowData: {},
+        }));
+      }
+    }
 
     if (
       !personalizedEmails ||
@@ -72,249 +72,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const results: EmailResult[] = [];
-
-    apiLogger.info(`Processing emails sequentially`, {
-      count: personalizedEmails.length,
-    });
-
-    // Check if any emails have personalized attachments (per-recipient PDFs)
-    const hasPersonalizedAttachments = personalizedEmails.some(
-      (e) => e.personalizedAttachment?.url,
+    // Apply per-user rate limiting based on number of emails
+    const userRateLimitResponse = rateLimitUserEmail(
+      session.user.email,
+      personalizedEmails.length,
     );
-
-    // Pre-resolve shared attachments ONCE before the send loop
-    // This prevents downloading the same attachment for each email
-    let resolvedAttachments: any[] = [];
-    const firstEmailWithAttachments = personalizedEmails.find(
-      (e) => e.attachments && e.attachments.length > 0,
-    );
-    if (firstEmailWithAttachments?.attachments) {
-      apiLogger.debug(`Pre-resolving shared attachments`, {
-        count: firstEmailWithAttachments.attachments.length,
-      });
-      try {
-        resolvedAttachments = await preResolveAttachments(
-          firstEmailWithAttachments.attachments,
-        );
-        apiLogger.debug(`Shared attachments pre-resolved successfully`);
-      } catch (error) {
-        apiLogger.error(
-          "Failed to pre-resolve attachments",
-          error instanceof Error ? error : undefined,
-        );
-        return NextResponse.json(
-          {
-            error: "Failed to process attachments",
-            details: error instanceof Error ? error.message : "Unknown error",
-          },
-          { status: 500 },
-        );
-      }
+    if (userRateLimitResponse) {
+      return userRateLimitResponse;
     }
 
-    // Check if all emails have the same subject/message (bulk mode - can use template optimization)
-    // BUT if there are personalized attachments, we can't use template optimization
-    const firstEmail = personalizedEmails[0];
-    const allSameContent = personalizedEmails.every(
-      (e) =>
-        e.subject === firstEmail.subject &&
-        e.message === firstEmail.message &&
-        Object.keys(e.originalRowData).length === 0, // No placeholders
+    const emailService = new EmailService(session.accessToken);
+
+    const summary = await emailService.sendPersonalizedBatch(
+      personalizedEmails,
+      {
+        verifyBeforeSending: true,
+        tracking: {
+          enabled: trackingEnabled,
+          campaignId: campaignId,
+          userEmail: session.user.email,
+        },
+        checkUnsubscribe: async (email: string) => {
+          const unsubscribeCheck = await databases.listDocuments(
+            config.databaseId,
+            config.unsubscribesCollectionId,
+            [
+              Query.equal("user_email", session.user.email!),
+              Query.equal("email", email.toLowerCase()),
+              Query.limit(1),
+            ],
+          );
+          return unsubscribeCheck.documents.length > 0;
+        },
+      },
     );
-
-    // Use optimized template-based sending ONLY if no personalized attachments
-    if (
-      allSameContent &&
-      personalizedEmails.length > 1 &&
-      !hasPersonalizedAttachments
-    ) {
-      apiLogger.info(`Using optimized template-based bulk sending`, {
-        recipientCount: personalizedEmails.length,
-      });
-
-      try {
-        // Pre-build the email template ONCE (includes base64 encoding of attachments)
-        await preBuildEmailTemplate(
-          session.accessToken,
-          firstEmail.subject,
-          firstEmail.message,
-          resolvedAttachments,
-        );
-
-        // Send to each recipient using the cached template (FAST - only swaps To header)
-        for (let i = 0; i < personalizedEmails.length; i++) {
-          const email = personalizedEmails[i];
-
-          try {
-            await sendEmailWithTemplate(session.accessToken, email.to);
-            results.push({ email: email.to, status: "success" });
-            apiLogger.debug(`Sent email`, {
-              index: i + 1,
-              total: personalizedEmails.length,
-              to: email.to,
-            });
-          } catch (error) {
-            const errorMessage =
-              error instanceof Error ? error.message : "Unknown error";
-            apiLogger.error(
-              `Failed to send email`,
-              error instanceof Error ? error : undefined,
-              { index: i + 1, total: personalizedEmails.length, to: email.to },
-            );
-            results.push({
-              email: email.to,
-              status: "error",
-              error: errorMessage,
-            });
-          }
-
-          // Wait 1 second between emails to avoid rate limiting
-          if (i < personalizedEmails.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-          }
-        }
-      } catch (error) {
-        apiLogger.error(
-          "Failed to build email template",
-          error instanceof Error ? error : undefined,
-        );
-        return NextResponse.json(
-          {
-            error: "Failed to build email template",
-            details: error instanceof Error ? error.message : "Unknown error",
-          },
-          { status: 500 },
-        );
-      }
-    } else {
-      // Personalized emails - need to build each one individually
-      // This handles: placeholders, personalized attachments, or both
-      apiLogger.info(`Using personalized sending mode`, {
-        hasPersonalizedAttachments,
-      });
-
-      for (let i = 0; i < personalizedEmails.length; i++) {
-        const email = personalizedEmails[i];
-
-        apiLogger.debug(`Processing email`, {
-          index: i + 1,
-          total: personalizedEmails.length,
-          to: email.to,
-          hasSharedAttachments: resolvedAttachments.length > 0,
-          hasPersonalizedAttachment: !!email.personalizedAttachment?.url,
-        });
-
-        try {
-          const personalizedSubject = replacePlaceholders(
-            email.subject,
-            email.originalRowData,
-          );
-          const personalizedMessage = replacePlaceholders(
-            email.message,
-            email.originalRowData,
-          );
-
-          // Build attachment list for this recipient
-          const recipientAttachments = [...resolvedAttachments];
-
-          // Fetch personalized attachment (file from Google Drive/OneDrive) if present
-          if (email.personalizedAttachment?.url) {
-            apiLogger.debug(`Fetching personalized file`, {
-              to: email.to,
-              url: email.personalizedAttachment.url,
-            });
-            try {
-              const recipientName =
-                email.originalRowData.name ||
-                email.originalRowData.Name ||
-                email.to.split("@")[0];
-              const file = await fetchFileFromUrl(
-                email.personalizedAttachment.url,
-                recipientName,
-                email.personalizedAttachment.fileName,
-              );
-
-              recipientAttachments.push({
-                name: file.fileName,
-                type: file.mimeType,
-                data: file.base64,
-              });
-
-              apiLogger.debug(`Fetched personalized file`, {
-                fileName: file.fileName,
-                sizeKB: (file.buffer.length / 1024).toFixed(1),
-              });
-            } catch (fileError) {
-              apiLogger.error(
-                `Failed to fetch personalized file`,
-                fileError instanceof Error ? fileError : undefined,
-                { to: email.to },
-              );
-              // Continue sending without the personalized attachment, but log the error
-              results.push({
-                email: email.to,
-                status: "error",
-                error: `Failed to fetch personalized file: ${fileError instanceof Error ? fileError.message : "Unknown error"}`,
-              });
-              continue; // Skip to next recipient
-            }
-          }
-
-          await sendEmailViaAPI(
-            session!.accessToken!,
-            email.to,
-            personalizedSubject,
-            personalizedMessage,
-            recipientAttachments,
-          );
-
-          results.push({
-            email: email.to,
-            status: "success",
-          });
-
-          apiLogger.info(`Successfully sent email`, {
-            index: i + 1,
-            total: personalizedEmails.length,
-            to: email.to,
-          });
-        } catch (error) {
-          const errorMessage =
-            error instanceof Error ? error.message : "Unknown error";
-          apiLogger.error(
-            `Failed to send email`,
-            error instanceof Error ? error : undefined,
-            { index: i + 1, total: personalizedEmails.length, to: email.to },
-          );
-
-          results.push({
-            email: email.to,
-            status: "error",
-            error: errorMessage,
-          });
-        }
-
-        // Wait 1 second between emails to avoid rate limiting
-        if (i < personalizedEmails.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-        }
-      }
-    }
-
-    // Always save campaign to Firebase, regardless of email success/failure
-    const successCount = results.filter((r) => r.status === "success").length;
-    const failedCount = results.filter((r) => r.status === "error").length;
-
-    // Clear attachment cache after campaign completes
-    clearAttachmentCache();
 
     return NextResponse.json({
-      results,
+      results: summary.results,
       summary: {
-        total: personalizedEmails.length,
-        sent: successCount,
-        failed: failedCount,
+        total: summary.total,
+        sent: summary.sent,
+        failed: summary.failed,
+        skipped: summary.skipped,
+        successRate:
+          summary.total > 0 ? (summary.sent / summary.total) * 100 : 0,
       },
     });
   } catch (error) {
@@ -323,7 +124,10 @@ export async function POST(request: NextRequest) {
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: "Failed to process email request" },
+      {
+        error: "Failed to process email request",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 },
     );
   }

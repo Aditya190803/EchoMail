@@ -1,5 +1,8 @@
 "use client";
 
+import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
+import { getCookie } from "@/lib/utils";
+
 /**
  * Client-side Email Formatting
  *
@@ -15,8 +18,6 @@ export {
   convertEmojisToUnicode,
   validateEmailContent,
   // Legacy aliases
-  convertEmojiImagesToText,
-  cleanupEmojiImages,
 } from "./utils";
 
 export type { ValidationResult } from "./types";
@@ -42,10 +43,12 @@ export type { ValidationResult } from "./types";
  */
 export async function getEmailPreview(html: string): Promise<string> {
   try {
+    const csrfToken = getCookie(CSRF_TOKEN_NAME);
     const response = await fetch("/api/format-email-preview", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
       },
       body: JSON.stringify({ htmlContent: html }),
     });
@@ -125,22 +128,3 @@ export function sanitizeForDisplay(html: string): string {
     .replace(/javascript:/gi, "")
     .trim();
 }
-
-// ============================================================================
-// LEGACY ALIASES (for backward compatibility during migration)
-// ============================================================================
-
-/**
- * @deprecated Use getEmailPreview instead
- */
-export const getEmailPreviewHTML = getEmailPreview;
-
-/**
- * @deprecated Use getInstantPreview instead
- */
-export const getBasicEmailHTML = getInstantPreview;
-
-/**
- * @deprecated Use getInstantPreview instead
- */
-export const getInstantEmailPreview = getInstantPreview;

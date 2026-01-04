@@ -18,12 +18,54 @@ interface DraftEmailDocument extends DraftDocument {
 }
 
 // GET /api/appwrite/draft-emails - List draft emails for the authenticated user
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
 
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+
+    if (id) {
+      // Fetch single draft
+      const doc = (await databases.getDocument(
+        config.databaseId,
+        config.draftEmailsCollectionId,
+        id,
+      )) as DraftEmailDocument;
+
+      if (doc.user_email !== session.user.email) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      }
+
+      return NextResponse.json({
+        $id: doc.$id,
+        subject: doc.subject || "",
+        content: doc.content || "",
+        recipients:
+          typeof doc.recipients === "string"
+            ? JSON.parse(doc.recipients)
+            : doc.recipients || [],
+        saved_at: doc.saved_at,
+        status: doc.status || "pending",
+        user_email: doc.user_email || "",
+        attachments: doc.attachments
+          ? typeof doc.attachments === "string"
+            ? JSON.parse(doc.attachments)
+            : doc.attachments
+          : [],
+        csv_data: doc.csv_data
+          ? typeof doc.csv_data === "string"
+            ? JSON.parse(doc.csv_data)
+            : doc.csv_data
+          : [],
+        created_at: doc.created_at || doc.$createdAt,
+        sent_at: doc.sent_at,
+        error: doc.error,
+      });
     }
 
     const response = await databases.listDocuments(
@@ -44,20 +86,20 @@ export async function GET(_request: NextRequest) {
       content: doc.content || "",
       recipients:
         typeof doc.recipients === "string"
-          ? JSON.parse(doc.recipients)
-          : doc.recipients || [],
+          ? (JSON.parse(doc.recipients) as unknown[])
+          : [],
       saved_at: doc.saved_at,
       status: doc.status || "pending",
       user_email: doc.user_email || "",
       attachments: doc.attachments
         ? typeof doc.attachments === "string"
-          ? JSON.parse(doc.attachments)
-          : doc.attachments
+          ? (JSON.parse(doc.attachments) as unknown[])
+          : (doc.attachments as unknown[])
         : [],
       csv_data: doc.csv_data
         ? typeof doc.csv_data === "string"
-          ? JSON.parse(doc.csv_data)
-          : doc.csv_data
+          ? (JSON.parse(doc.csv_data) as unknown[])
+          : (doc.csv_data as unknown[])
         : [],
       created_at: doc.created_at || doc.$createdAt,
       sent_at: doc.sent_at,

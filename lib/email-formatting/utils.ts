@@ -5,6 +5,8 @@
  * Contains emoji conversion, HTML sanitization, and validation.
  */
 
+import { generateLinkId, generateRecipientId } from "../analytics";
+
 import type { EmojiMap, ValidationResult } from "./types";
 
 // ============================================================================
@@ -280,7 +282,8 @@ const SANITIZE_PATTERNS = {
   // Security: Remove dangerous content
   scriptTags: /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
   eventHandlers: /\s(on\w+)=["'][^"']*["']/gi,
-  javascriptUrls: /\sjavascript:[^"\s>]*/gi,
+  javascriptUrls:
+    /(?:href|src|action|background|content|data|dynsrc|lowsrc)=["']?javascript:[^"\s>]*["']?/gi,
   dataUrls: /\sdata:[^"\s>]*/gi,
   vbscriptUrls: /\svbscript:[^"\s>]*/gi,
 
@@ -461,25 +464,112 @@ export function validateEmailContent(html: string): ValidationResult {
 }
 
 // ============================================================================
-// LEGACY ALIASES (for backward compatibility during migration)
+// TRACKING INJECTION
 // ============================================================================
 
 /**
- * @deprecated Use convertEmojisToUnicode instead
+ * Injects tracking pixel and wraps links for analytics
+ *
+ * @param html - HTML content to process
+ * @param params - Tracking parameters (campaignId, recipientEmail, userEmail, isTransactional)
+ * @param baseUrl - Base URL of the application
+ * @returns HTML with tracking injected
  */
-export const convertEmojiImagesToText = convertEmojisToUnicode;
+export function injectTracking(
+  html: string,
+  params: {
+    campaignId: string;
+    recipientEmail: string;
+    userEmail: string;
+    isTransactional?: boolean;
+    trackingEnabled?: boolean;
+  },
+  baseUrl: string,
+): string {
+  if (!html) {
+    return "";
+  }
 
-/**
- * @deprecated Use convertEmojisToUnicode instead
- */
-export const cleanupEmojiImages = convertEmojisToUnicode;
+  const {
+    campaignId,
+    recipientEmail,
+    userEmail,
+    isTransactional,
+    trackingEnabled = true,
+  } = params;
 
-/**
- * @deprecated Use sanitizeHTML instead
- */
-export const sanitizeEmailHTML = sanitizeHTML;
+  // Note: We still inject tracking for transactional emails for analytics
+  // Only the unsubscribe link is skipped for transactional emails
 
-/**
- * @deprecated Use sanitizeHTML instead
- */
-export const sanitizeBasicHTML = sanitizeHTML;
+  const encodedRecipient = encodeURIComponent(recipientEmail || "");
+  const encodedUser = encodeURIComponent(userEmail || "");
+  const recipientId = generateRecipientId(recipientEmail);
+
+  let result = html;
+
+  // 1. Inject Open Tracking Pixel (1x1 transparent GIF)
+  if (trackingEnabled) {
+    const openTrackUrl = `${baseUrl}/api/track/open?c=${campaignId}&e=${encodedRecipient}&u=${encodedUser}&r=${recipientId}`;
+    const pixelTag = `<img src="${openTrackUrl}" width="1" height="1" style="display:none !important; visibility:hidden !important; opacity:0 !important;" alt="" />`;
+
+    // Append before </body> if exists, otherwise at the end
+    if (result.includes("</body>")) {
+      result = result.replace("</body>", `${pixelTag}</body>`);
+    } else {
+      result = `${result}${pixelTag}`;
+    }
+  }
+
+  // 2. Wrap Links for Click Tracking
+  // Matches <a ... href="URL" ...> but avoids mailto:, tel:, and anchor links
+  if (trackingEnabled) {
+    const linkRegex = /<a\s+(?:[^>]*?\s+)?href="([^"]+)"([^>]*?)>/gi;
+
+    result = result.replace(linkRegex, (match, url, rest) => {
+      // Skip non-http links
+      if (!url.startsWith("http")) {
+        return match;
+      }
+
+      // Skip already tracked links or internal tracking links
+      if (
+        url.includes("/api/track/click") ||
+        url.includes("/api/unsubscribe")
+      ) {
+        return match;
+      }
+
+      // Extract linkId from data-link-id attribute if present
+      const linkIdMatch = rest.match(/data-link-id="([^"]+)"/);
+      const linkId = linkIdMatch ? linkIdMatch[1] : generateLinkId();
+
+      const encodedUrl = encodeURIComponent(url);
+      const clickTrackUrl = `${baseUrl}/api/track/click?url=${encodedUrl}&c=${campaignId}&e=${encodedRecipient}&u=${encodedUser}&r=${recipientId}&l=${linkId}`;
+
+      // Remove data-link-id from the final HTML to keep it clean
+      const cleanedRest = rest.replace(/data-link-id="[^"]*"/, "");
+
+      return `<a href="${clickTrackUrl}"${cleanedRest}>`;
+    });
+  }
+
+  // 3. Inject Unsubscribe Link if not present
+  // Skip for transactional emails - they should always be delivered
+  if (!isTransactional && !result.toLowerCase().includes("unsubscribe")) {
+    const unsubscribeUrl = `${baseUrl}/api/unsubscribe?e=${encodedRecipient}&u=${encodedUser}`;
+    const unsubscribeTag = `
+      <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eeeeee; text-align: center; font-size: 12px; color: #999999;">
+        <p>You are receiving this email because you are on our mailing list.</p>
+        <p><a href="${unsubscribeUrl}" style="color: #999999; text-decoration: underline;">Unsubscribe</a> from this list.</p>
+      </div>
+    `;
+
+    if (result.includes("</body>")) {
+      result = result.replace("</body>", `${unsubscribeTag}</body>`);
+    } else {
+      result = `${result}${unsubscribeTag}`;
+    }
+  }
+
+  return result;
+}

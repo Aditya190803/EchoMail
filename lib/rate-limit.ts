@@ -1,6 +1,7 @@
 /**
  * Rate limiting utility for API routes
  * Implements a simple in-memory rate limiter with sliding window
+ * Supports both IP-based and user-based rate limiting
  */
 
 interface RateLimitEntry {
@@ -17,6 +18,12 @@ interface RateLimitConfig {
 // In-memory store for rate limiting (use Redis in production for multi-instance)
 const rateLimitStore = new Map<string, RateLimitEntry>();
 
+// Per-user daily email count store
+const userDailyEmailCount = new Map<
+  string,
+  { count: number; resetTime: number }
+>();
+
 // Cleanup old entries periodically
 let cleanupInterval: NodeJS.Timeout | null = null;
 
@@ -32,6 +39,12 @@ function startCleanup() {
         rateLimitStore.delete(key);
       }
     }
+    // Clean up daily email counts
+    for (const [key, entry] of userDailyEmailCount.entries()) {
+      if (now > entry.resetTime) {
+        userDailyEmailCount.delete(key);
+      }
+    }
   }, 60000); // Clean up every minute
 }
 
@@ -39,10 +52,16 @@ function startCleanup() {
  * Default rate limit configurations for different endpoint types
  */
 export const RATE_LIMITS = {
-  // Strict limit for email sending
+  // Strict limit for email sending (per IP)
   sendEmail: {
     windowMs: 60 * 1000, // 1 minute
     maxRequests: 10,
+  },
+  // Per-user email sending limits
+  sendEmailPerUser: {
+    windowMs: 60 * 1000, // 1 minute
+    maxRequests: 30, // 30 emails per minute per user
+    maxEmailsPerDay: 500, // 500 emails per day per user
   },
   // Moderate limit for auth endpoints
   auth: {
@@ -204,4 +223,125 @@ export function addRateLimitHeaders(
     statusText: response.statusText,
     headers,
   });
+}
+
+/**
+ * Per-user rate limiting result
+ */
+export interface UserRateLimitResult extends RateLimitResult {
+  dailyRemaining?: number;
+  dailyResetTime?: number;
+}
+
+/**
+ * Check per-user rate limit for email sending
+ * Enforces both per-minute and daily limits
+ * @param userEmail The user's email address
+ * @param emailCount Number of emails being sent in this request
+ * @returns Rate limit result
+ */
+export function checkUserEmailRateLimit(
+  userEmail: string,
+  emailCount: number = 1,
+): UserRateLimitResult {
+  startCleanup();
+
+  const now = Date.now();
+  const config = RATE_LIMITS.sendEmailPerUser;
+
+  // Check per-minute limit
+  const minuteKey = `user:${userEmail}:minute:${Math.floor(now / config.windowMs)}`;
+  const minuteEntry = rateLimitStore.get(minuteKey);
+
+  if (minuteEntry && minuteEntry.count + emailCount > config.maxRequests) {
+    const retryAfter = Math.ceil((minuteEntry.resetTime - now) / 1000);
+    return {
+      allowed: false,
+      remaining: Math.max(0, config.maxRequests - minuteEntry.count),
+      resetTime: minuteEntry.resetTime,
+      retryAfter,
+    };
+  }
+
+  // Check daily limit
+  const dayKey = `user:${userEmail}:daily`;
+  let dailyEntry = userDailyEmailCount.get(dayKey);
+
+  if (!dailyEntry) {
+    // Reset at midnight UTC
+    const tomorrow = new Date();
+    tomorrow.setUTCHours(24, 0, 0, 0);
+    dailyEntry = { count: 0, resetTime: tomorrow.getTime() };
+  }
+
+  const maxDaily = config.maxEmailsPerDay || 500;
+
+  if (dailyEntry.count + emailCount > maxDaily) {
+    const retryAfter = Math.ceil((dailyEntry.resetTime - now) / 1000);
+    return {
+      allowed: false,
+      remaining: 0,
+      resetTime: dailyEntry.resetTime,
+      retryAfter,
+      dailyRemaining: Math.max(0, maxDaily - dailyEntry.count),
+      dailyResetTime: dailyEntry.resetTime,
+    };
+  }
+
+  // Update counts
+  if (minuteEntry) {
+    minuteEntry.count += emailCount;
+  } else {
+    rateLimitStore.set(minuteKey, {
+      count: emailCount,
+      resetTime: now + config.windowMs,
+    });
+  }
+
+  dailyEntry.count += emailCount;
+  userDailyEmailCount.set(dayKey, dailyEntry);
+
+  return {
+    allowed: true,
+    remaining: config.maxRequests - (minuteEntry?.count || emailCount),
+    resetTime: now + config.windowMs,
+    dailyRemaining: maxDaily - dailyEntry.count,
+    dailyResetTime: dailyEntry.resetTime,
+  };
+}
+
+/**
+ * Per-user rate limit middleware for email sending
+ * Returns null if allowed, Response if rate limited
+ */
+export function rateLimitUserEmail(
+  userEmail: string,
+  emailCount: number = 1,
+): Response | null {
+  const result = checkUserEmailRateLimit(userEmail, emailCount);
+
+  if (!result.allowed) {
+    return new Response(
+      JSON.stringify({
+        error: "Too Many Emails",
+        message:
+          result.dailyRemaining === 0
+            ? `Daily email limit reached. You can send more emails after ${new Date(result.dailyResetTime!).toLocaleString()}.`
+            : "Email rate limit exceeded. Please slow down and try again.",
+        retryAfter: result.retryAfter,
+        dailyRemaining: result.dailyRemaining,
+      }),
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(result.retryAfter || 60),
+          "X-RateLimit-Remaining": String(result.remaining),
+          "X-RateLimit-Daily-Remaining": String(result.dailyRemaining || 0),
+        },
+      },
+    );
+  }
+
+  return null;
 }

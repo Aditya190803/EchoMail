@@ -33,6 +33,7 @@ export async function GET(request: NextRequest) {
     const campaignId = searchParams.get("c");
     const email = searchParams.get("e");
     const userEmail = searchParams.get("u");
+    const recipientId = searchParams.get("r");
 
     // Record the open event if we have the required parameters
     if (campaignId && email && userEmail) {
@@ -43,6 +44,7 @@ export async function GET(request: NextRequest) {
           ID.unique(),
           {
             campaign_id: campaignId,
+            recipient_id: recipientId || undefined,
             email: decodeURIComponent(email),
             event_type: "open",
             user_agent: request.headers.get("user-agent") || undefined,

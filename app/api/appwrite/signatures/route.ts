@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
 import { authOptions } from "@/lib/auth";
+import { cache, CacheKeys, CacheTTL, getOrSet } from "@/lib/cache";
 import { apiLogger } from "@/lib/logger";
 import type { SignatureDocument } from "@/types/appwrite";
 
@@ -19,18 +20,53 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const defaultOnly = searchParams.get("default") === "true";
+    const userEmail = session.user.email;
 
-    const queries = [
-      Query.equal("user_email", session.user.email),
-      Query.orderDesc("$updatedAt"),
-    ];
+    // Use cache for non-default-only requests (full list)
+    if (!defaultOnly) {
+      const cacheKey = CacheKeys.userSignatures(userEmail);
+      const result = await getOrSet(
+        cacheKey,
+        async () => {
+          const queries = [
+            Query.equal("user_email", userEmail),
+            Query.orderDesc("$updatedAt"),
+            Query.limit(20),
+          ];
 
-    if (defaultOnly) {
-      queries.push(Query.equal("is_default", true));
-      queries.push(Query.limit(1));
-    } else {
-      queries.push(Query.limit(20));
+          const response = await databases.listDocuments(
+            config.databaseId,
+            config.signaturesCollectionId,
+            queries,
+          );
+
+          const documents = (
+            response.documents as unknown as SignatureDocument[]
+          ).map((doc) => ({
+            $id: doc.$id,
+            name: doc.name || "",
+            content: doc.content || "",
+            is_default: doc.is_default || false,
+            user_email: doc.user_email || "",
+            created_at: doc.created_at || doc.$createdAt,
+            updated_at: doc.updated_at || doc.$updatedAt,
+          }));
+
+          return { total: response.total, documents };
+        },
+        CacheTTL.DEFAULT,
+      );
+
+      return NextResponse.json(result);
     }
+
+    // For default-only, we still query directly to ensure accuracy
+    const queries = [
+      Query.equal("user_email", userEmail),
+      Query.orderDesc("$updatedAt"),
+      Query.equal("is_default", true),
+      Query.limit(1),
+    ];
 
     const response = await databases.listDocuments(
       config.databaseId,
@@ -112,6 +148,9 @@ export async function POST(request: NextRequest) {
         created_at: now,
       },
     );
+
+    // Invalidate cache
+    await cache.delete(CacheKeys.userSignatures(session.user.email));
 
     return NextResponse.json(result);
   } catch (error: unknown) {
@@ -200,6 +239,9 @@ export async function PUT(request: NextRequest) {
       updateData,
     );
 
+    // Invalidate cache
+    await cache.delete(CacheKeys.userSignatures(session.user.email));
+
     return NextResponse.json(result);
   } catch (error: unknown) {
     apiLogger.error(
@@ -251,6 +293,9 @@ export async function DELETE(request: NextRequest) {
       config.signaturesCollectionId,
       signatureId,
     );
+
+    // Invalidate cache
+    await cache.delete(CacheKeys.userSignatures(session.user.email));
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

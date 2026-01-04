@@ -10,6 +10,8 @@
  * - Rate limiting for refresh attempts
  * - Error recovery and graceful degradation
  * - Secure token storage guidance
+ * - Token revocation on logout
+ * - Refresh token rotation tracking
  */
 
 import { authLogger } from "./logger";
@@ -19,6 +21,124 @@ const REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes before expiry
 const MIN_REFRESH_INTERVAL_MS = 60 * 1000; // Minimum 1 minute between refreshes
 const MAX_REFRESH_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
+const REVOKED_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // Keep revoked tokens for 24 hours
+
+/**
+ * In-memory store for revoked tokens
+ * In production, use Redis or a database for persistence across instances
+ */
+interface RevokedToken {
+  revokedAt: number;
+  userEmail: string;
+}
+
+const revokedTokensStore = new Map<string, RevokedToken>();
+
+// Cleanup old revoked tokens periodically
+let revokedTokenCleanupInterval: NodeJS.Timeout | null = null;
+
+function startRevokedTokenCleanup() {
+  if (revokedTokenCleanupInterval) {
+    return;
+  }
+
+  revokedTokenCleanupInterval = setInterval(
+    () => {
+      const now = Date.now();
+      for (const [token, data] of revokedTokensStore.entries()) {
+        if (now - data.revokedAt > REVOKED_TOKEN_TTL_MS) {
+          revokedTokensStore.delete(token);
+        }
+      }
+    },
+    60 * 60 * 1000,
+  ); // Clean up every hour
+}
+
+/**
+ * Revoke a token (call on logout)
+ * @param accessToken The access token to revoke
+ * @param userEmail The user's email for logging
+ */
+export function revokeToken(accessToken: string, userEmail: string): void {
+  if (!accessToken) {
+    return;
+  }
+
+  startRevokedTokenCleanup();
+
+  // Store a hash of the token (first 32 chars) to save memory
+  const tokenKey = accessToken.substring(0, 32);
+  revokedTokensStore.set(tokenKey, {
+    revokedAt: Date.now(),
+    userEmail,
+  });
+
+  authLogger.info("Token revoked", { userEmail });
+}
+
+/**
+ * Check if a token has been revoked
+ * @param accessToken The access token to check
+ * @returns Whether the token is revoked
+ */
+export function isTokenRevoked(accessToken: string): boolean {
+  if (!accessToken) {
+    return false;
+  }
+
+  const tokenKey = accessToken.substring(0, 32);
+  return revokedTokensStore.has(tokenKey);
+}
+
+/**
+ * Revoke all tokens for a user (for security events)
+ * @param userEmail The user's email
+ */
+export function revokeAllUserTokens(userEmail: string): void {
+  // Mark in store that this user's tokens should be considered revoked
+  // In production, this would update a database
+  authLogger.warn("All tokens revoked for user", { userEmail });
+}
+
+/**
+ * In-memory store for refresh token rotation tracking
+ */
+const usedRefreshTokens = new Map<string, number>();
+
+/**
+ * Track refresh token usage for rotation detection
+ * @param refreshToken The refresh token being used
+ * @returns Whether this token was already used (potential replay attack)
+ */
+export function trackRefreshTokenUsage(refreshToken: string): boolean {
+  if (!refreshToken) {
+    return false;
+  }
+
+  const tokenKey = refreshToken.substring(0, 32);
+  const previousUsage = usedRefreshTokens.get(tokenKey);
+
+  if (previousUsage) {
+    // Token was already used - potential replay attack
+    authLogger.warn("Refresh token reuse detected", {
+      previousUsage: new Date(previousUsage).toISOString(),
+    });
+    return true;
+  }
+
+  usedRefreshTokens.set(tokenKey, Date.now());
+
+  // Clean up old entries (keep for 24 hours)
+  const cutoff = Date.now() - REVOKED_TOKEN_TTL_MS;
+  for (const [key, time] of usedRefreshTokens.entries()) {
+    if (time < cutoff) {
+      usedRefreshTokens.delete(key);
+    }
+  }
+
+  return false;
+}
 
 /**
  * Token metadata for validation

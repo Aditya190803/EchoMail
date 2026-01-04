@@ -4,9 +4,10 @@
  */
 
 import { cookies } from "next/headers";
+import type { NextResponse } from "next/server";
 
-const CSRF_TOKEN_NAME = "csrf_token";
-const CSRF_HEADER_NAME = "x-csrf-token";
+import { CSRF_TOKEN_NAME, CSRF_HEADER_NAME } from "./constants";
+
 const TOKEN_LENGTH = 32;
 
 /**
@@ -21,16 +22,36 @@ function generateToken(): string {
 }
 
 /**
- * Get or create CSRF token from cookies
+ * Get CSRF token from cookies
  * Call this in server components or API routes to get the current token
  */
-export async function getCSRFToken(): Promise<string> {
+export async function getCSRFToken(): Promise<string | undefined> {
   const cookieStore = await cookies();
-  let token = cookieStore.get(CSRF_TOKEN_NAME)?.value;
+  return cookieStore.get(CSRF_TOKEN_NAME)?.value;
+}
 
-  if (!token) {
-    token = generateToken();
-    // Token will be set via setCSRFCookie in the response
+/**
+ * Set CSRF token in cookies
+ * This can only be called in Server Actions, Route Handlers, or Middleware/Proxy
+ */
+export async function setCSRFToken(response?: NextResponse): Promise<string> {
+  const token = generateToken();
+
+  if (response) {
+    response.cookies.set(CSRF_TOKEN_NAME, token, {
+      path: "/",
+      sameSite: "strict",
+      secure: true,
+      httpOnly: false,
+    });
+  } else {
+    const cookieStore = await cookies();
+    cookieStore.set(CSRF_TOKEN_NAME, token, {
+      path: "/",
+      sameSite: "strict",
+      secure: true,
+      httpOnly: false,
+    });
   }
 
   return token;
@@ -54,19 +75,48 @@ export async function validateCSRFToken(request: Request): Promise<boolean> {
   const headerToken = request.headers.get(CSRF_HEADER_NAME);
 
   // Get token from cookie
-  const cookieHeader = request.headers.get("cookie");
-  const cookieToken = cookieHeader
-    ?.split(";")
-    .find((c) => c.trim().startsWith(`${CSRF_TOKEN_NAME}=`))
-    ?.split("=")[1]
-    ?.trim();
+  let cookieToken: string | undefined;
+
+  // Try to use NextRequest cookies if available
+  if (
+    "cookies" in request &&
+    typeof (request as any).cookies.get === "function"
+  ) {
+    cookieToken = (request as any).cookies.get(CSRF_TOKEN_NAME)?.value;
+  }
+
+  // Fallback to manual parsing of cookie header
+  if (!cookieToken) {
+    const cookieHeader = request.headers.get("cookie");
+    cookieToken = cookieHeader
+      ?.split(";")
+      .find((c) => c.trim().startsWith(`${CSRF_TOKEN_NAME}=`))
+      ?.split("=")[1]
+      ?.trim();
+  }
+
+  // Debug logging for validation failures
+  if (
+    !headerToken ||
+    !cookieToken ||
+    !timingSafeEqual(headerToken, cookieToken)
+  ) {
+    console.error("[CSRF] Validation failed:", {
+      hasHeader: !!headerToken,
+      hasCookie: !!cookieToken,
+      match:
+        headerToken && cookieToken
+          ? timingSafeEqual(headerToken, cookieToken)
+          : false,
+      path: (request as any).nextUrl?.pathname || "unknown",
+    });
+  }
 
   // Both must exist and match
   if (!headerToken || !cookieToken) {
     return false;
   }
 
-  // Constant-time comparison to prevent timing attacks
   return timingSafeEqual(headerToken, cookieToken);
 }
 
