@@ -15,7 +15,6 @@ import {
   XCircle,
   Clock,
   Plus,
-  History,
   ArrowRight,
   Zap,
   Target,
@@ -32,6 +31,7 @@ import {
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
+import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,6 @@ import type { EmailCampaign } from "@/lib/appwrite";
 import { campaignsService } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 import { getEmailPreview } from "@/lib/email-formatting/client";
-
 
 // Helper to get authenticated attachment URL
 const getAttachmentUrl = (attachment: {
@@ -82,6 +81,7 @@ export default function DashboardPage() {
   >("all");
   const [formattedPreviewHtml, setFormattedPreviewHtml] = useState<string>("");
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -141,6 +141,7 @@ export default function DashboardPage() {
   };
 
   const duplicateCampaign = (campaign: EmailCampaign) => {
+    setIsDuplicating(true);
     const duplicateData = {
       subject: `${campaign.subject} (Copy)`,
       content: campaign.content || "",
@@ -236,7 +237,9 @@ export default function DashboardPage() {
 
   // Fetch campaigns function
   const fetchCampaigns = useCallback(async () => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
 
     try {
       const response = await campaignsService.listByUser(session.user.email);
@@ -257,7 +260,9 @@ export default function DashboardPage() {
 
   // Initial fetch and real-time subscription
   useEffect(() => {
-    if (!session?.user?.email) {return;}
+    if (!session?.user?.email) {
+      return;
+    }
 
     // Initial fetch
     fetchCampaigns();
@@ -272,15 +277,17 @@ export default function DashboardPage() {
     );
 
     return () => {
-      if (unsubscribe) {unsubscribe();}
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, [session?.user?.email, fetchCampaigns]);
 
   if (status === "loading" || !isMounted || isLoading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background flex flex-col">
         <Navbar />
-        <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+        <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
           {/* Welcome Section Skeleton */}
           <div className="mb-8">
             <Skeleton className="h-8 w-64 mb-2" />
@@ -350,7 +357,9 @@ export default function DashboardPage() {
     );
   }
 
-  if (status === "unauthenticated") {return null;}
+  if (status === "unauthenticated") {
+    return null;
+  }
 
   const totalSent = emailHistory.reduce((sum, c) => sum + c.sent, 0);
   const totalRecipients = emailHistory.reduce(
@@ -408,18 +417,18 @@ export default function DashboardPage() {
       href: "/contacts",
     },
     {
-      title: "Email History",
-      description: "View sent campaigns and delivery status",
-      icon: History,
-      href: "/history",
+      title: "Email Insights",
+      description: "View sent campaigns and their performance",
+      icon: BarChart3,
+      href: "/insights",
     },
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
 
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-2">
@@ -660,7 +669,7 @@ export default function DashboardPage() {
                 {emailHistory.length > 5 && (
                   <div className="text-center pt-4">
                     <Button asChild variant="outline">
-                      <Link href="/history" className="gap-2">
+                      <Link href="/insights" className="gap-2">
                         View All Campaigns
                         <ArrowRight className="h-4 w-4" />
                       </Link>
@@ -709,13 +718,18 @@ export default function DashboardPage() {
                   <Button
                     variant="outline"
                     size="sm"
+                    disabled={isDuplicating}
                     onClick={() => {
                       duplicateCampaign(selectedCampaign);
                       setSelectedCampaign(null);
                     }}
                   >
-                    <Copy className="h-4 w-4 mr-2" />
-                    Duplicate
+                    {isDuplicating ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Copy className="h-4 w-4 mr-2" />
+                    )}
+                    {isDuplicating ? "Loading..." : "Duplicate"}
                   </Button>
                 </div>
               )}
@@ -1041,6 +1055,8 @@ export default function DashboardPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Footer />
     </div>
   );
 }

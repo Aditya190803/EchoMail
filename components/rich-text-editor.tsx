@@ -57,6 +57,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { generateLinkId } from "@/lib/analytics";
 import { convertEmojisToUnicode } from "@/lib/email-formatting/client";
 
 interface RichTextEditorProps {
@@ -90,6 +91,26 @@ const HIGHLIGHT_COLORS = [
   { name: "Orange", color: "#fed7aa" },
   { name: "Gray", color: "#e5e7eb" },
 ];
+
+const CustomLink = Link.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      "data-link-id": {
+        default: null,
+        parseHTML: (element) => element.getAttribute("data-link-id"),
+        renderHTML: (attributes) => {
+          if (!attributes["data-link-id"]) {
+            return {};
+          }
+          return {
+            "data-link-id": attributes["data-link-id"],
+          };
+        },
+      },
+    };
+  },
+});
 
 export function RichTextEditor({
   content,
@@ -210,7 +231,7 @@ export function RichTextEditor({
       TextAlign.configure({
         types: ["heading", "paragraph"],
       }),
-      Link.configure({
+      CustomLink.configure({
         openOnClick: false, // Don't open on regular click (allows editing)
         autolink: true, // Automatically detect and convert URLs to links
         linkOnPaste: true, // Convert pasted URLs to links
@@ -362,6 +383,12 @@ export function RichTextEditor({
 
         // Handle plain text pasting (no HTML available)
         if (textData && !htmlData) {
+          // Check if it's just a URL - let TipTap's linkOnPaste handle it
+          const urlRegex = /^(https?:\/\/[^\s]+)$/i;
+          if (urlRegex.test(textData.trim())) {
+            return false; // Let TipTap handle URL pasting natively
+          }
+
           const sanitized = textData
             .normalize("NFC")
             .replace(/[\u2018\u2019]/g, "'")
@@ -370,13 +397,19 @@ export function RichTextEditor({
             .replace(/[\u2026]/g, "...")
             .replace(/\r\n/g, "\n");
 
+          // Auto-detect URLs in the pasted text and convert to links
+          const urlPattern = /(https?:\/\/[^\s<]+)/gi;
           const lines = sanitized.split("\n");
           const content = lines
             .map((line, index) => {
+              // Replace URLs with anchor tags
+              const linkedLine = line.replace(urlPattern, (url) => {
+                return `<a href="${url}" target="_blank" rel="noopener noreferrer nofollow">${url}</a>`;
+              });
               if (index === lines.length - 1) {
-                return line;
+                return linkedLine;
               }
-              return line + "<br>";
+              return linkedLine + "<br>";
             })
             .join("");
 
@@ -389,6 +422,47 @@ export function RichTextEditor({
     },
   });
 
+  // Helper function to convert plain text URLs to links in HTML content
+  const processUrlsInContent = useCallback((html: string): string => {
+    if (!html) {
+      return html;
+    }
+
+    // Don't process if content is empty or just a paragraph
+    if (html === "<p></p>" || html === "") {
+      return html;
+    }
+
+    // URL regex pattern - match URLs not already inside href or src attributes
+    const urlPattern = /(?<!href=["']|src=["'])(https?:\/\/[^\s<>"']+)/gi;
+
+    // First, let's identify which URLs are already wrapped in anchor tags
+    // by temporarily replacing them with placeholders
+    let processed = html;
+    const existingLinks: string[] = [];
+
+    // Extract existing anchor tags
+    processed = processed.replace(
+      /<a\s[^>]*href=["'][^"']*["'][^>]*>.*?<\/a>/gi,
+      (match) => {
+        existingLinks.push(match);
+        return `{{EXISTING_LINK_${existingLinks.length - 1}}}`;
+      },
+    );
+
+    // Now convert any remaining plain URLs to links
+    processed = processed.replace(urlPattern, (url) => {
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer nofollow" class="text-blue-600 underline cursor-pointer">${url}</a>`;
+    });
+
+    // Restore existing links
+    existingLinks.forEach((link, index) => {
+      processed = processed.replace(`{{EXISTING_LINK_${index}}}`, link);
+    });
+
+    return processed;
+  }, []);
+
   // Sync content prop with editor when it changes externally (e.g., loading draft data)
   useEffect(() => {
     if (editor && content !== undefined) {
@@ -400,17 +474,25 @@ export function RichTextEditor({
 
       if (isCurrentEmpty && !isNewEmpty) {
         // Editor is empty but we have new content - set it
-        editor.commands.setContent(content, { emitUpdate: false });
+        // Process URLs to convert plain text URLs to links
+        const processedContent = processUrlsInContent(content);
+        editor.commands.setContent(processedContent, { emitUpdate: false });
       } else if (content && currentContent !== content && !editor.isFocused) {
         // Content changed externally and editor is not focused - update it
-        editor.commands.setContent(content, { emitUpdate: false });
+        // Process URLs to convert plain text URLs to links
+        const processedContent = processUrlsInContent(content);
+        editor.commands.setContent(processedContent, { emitUpdate: false });
       }
     }
-  }, [editor, content]);
+  }, [editor, content, processUrlsInContent]);
 
   const addLink = useCallback(() => {
     if (linkUrl && editor) {
-      editor.chain().focus().setLink({ href: linkUrl }).run();
+      editor
+        .chain()
+        .focus()
+        .setLink({ href: linkUrl, "data-link-id": generateLinkId() } as any)
+        .run();
       setLinkUrl("");
       setIsLinkDialogOpen(false);
     }
