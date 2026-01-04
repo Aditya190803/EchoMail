@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+import { EMAIL_REGEX } from "@/lib/constants";
 import { replacePlaceholders } from "@/lib/gmail";
 
 // Mock the fetch API
@@ -81,8 +82,6 @@ describe("Gmail Utilities", () => {
   });
 
   describe("Email validation", () => {
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
     it("should validate correct email formats", () => {
       const validEmails = [
         "test@example.com",
@@ -92,7 +91,7 @@ describe("Gmail Utilities", () => {
       ];
 
       validEmails.forEach((email) => {
-        expect(emailRegex.test(email)).toBe(true);
+        expect(EMAIL_REGEX.test(email)).toBe(true);
       });
     });
 
@@ -106,7 +105,7 @@ describe("Gmail Utilities", () => {
       ];
 
       invalidEmails.forEach((email) => {
-        expect(emailRegex.test(email)).toBe(false);
+        expect(EMAIL_REGEX.test(email)).toBe(false);
       });
     });
   });

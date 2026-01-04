@@ -8,6 +8,12 @@
 // ============================================
 
 /**
+ * CSRF Protection Constants
+ */
+export const CSRF_TOKEN_NAME = "csrf_token";
+export const CSRF_HEADER_NAME = "x-csrf-token";
+
+/**
  * Default timeout for API requests in milliseconds
  */
 export const API_TIMEOUT_MS = 30000;

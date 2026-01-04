@@ -5,6 +5,23 @@
 
 import { z } from "zod";
 
+import { EMAIL_REGEX } from "./constants";
+
+// ============================================
+// Simple Validation Helpers
+// ============================================
+
+/**
+ * Quick email validation using centralized regex
+ * For Zod-based validation, use emailSchema instead
+ */
+export function isValidEmail(email: string): boolean {
+  if (!email || typeof email !== "string") {
+    return false;
+  }
+  return EMAIL_REGEX.test(email.trim());
+}
+
 // ============================================
 // Common Validation Schemas
 // ============================================
