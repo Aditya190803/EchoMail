@@ -79,6 +79,14 @@ const collections = [
       { key: "campaign_type", type: "string", size: 50, required: false },
       { key: "attachments", type: "string", size: 100000, required: false },
       { key: "send_results", type: "string", size: 1000000, required: false },
+      { key: "open_rate", type: "double", required: false, default: 0 },
+      { key: "click_rate", type: "double", required: false, default: 0 },
+      {
+        key: "tracking_enabled",
+        type: "boolean",
+        required: false,
+        default: true,
+      },
       { key: "created_at", type: "string", size: 50, required: false },
     ],
     indexes: [
@@ -109,7 +117,7 @@ const collections = [
     name: "Template Versions",
     attributes: [
       { key: "template_id", type: "string", size: 255, required: true },
-      { key: "version", type: "integer", required: true, default: 1 },
+      { key: "version", type: "integer", required: false, default: 1 },
       { key: "name", type: "string", size: 255, required: true },
       { key: "subject", type: "string", size: 500, required: false },
       { key: "content", type: "string", size: 100000, required: false },
@@ -172,6 +180,11 @@ const collections = [
     ],
     indexes: [
       { key: "user_email_idx", type: "key", attributes: ["user_email"] },
+      {
+        key: "user_default_idx",
+        type: "key",
+        attributes: ["user_email", "is_default"],
+      },
     ],
   },
   {
@@ -181,11 +194,17 @@ const collections = [
       { key: "email", type: "string", size: 255, required: true },
       { key: "reason", type: "string", size: 1000, required: false },
       { key: "user_email", type: "string", size: 255, required: true },
+      { key: "unsubscribed_at", type: "string", size: 50, required: false },
       { key: "created_at", type: "string", size: 50, required: false },
     ],
     indexes: [
       { key: "user_email_idx", type: "key", attributes: ["user_email"] },
       { key: "email_idx", type: "key", attributes: ["email"] },
+      {
+        key: "user_email_composite_idx",
+        type: "key",
+        attributes: ["user_email", "email"],
+      },
     ],
   },
   {
@@ -210,6 +229,8 @@ const collections = [
     name: "Tracking Events",
     attributes: [
       { key: "campaign_id", type: "string", size: 255, required: true },
+      { key: "recipient_id", type: "string", size: 255, required: false },
+      { key: "link_id", type: "string", size: 255, required: false },
       { key: "email", type: "string", size: 255, required: true },
       { key: "event_type", type: "string", size: 50, required: true },
       { key: "link_url", type: "string", size: 2000, required: false },
@@ -220,6 +241,7 @@ const collections = [
     ],
     indexes: [
       { key: "campaign_id_idx", type: "key", attributes: ["campaign_id"] },
+      { key: "recipient_id_idx", type: "key", attributes: ["recipient_id"] },
       { key: "user_email_idx", type: "key", attributes: ["user_email"] },
       { key: "event_type_idx", type: "key", attributes: ["event_type"] },
     ],
@@ -281,7 +303,7 @@ const collections = [
       { key: "name", type: "string", size: 255, required: true },
       { key: "description", type: "string", size: 1000, required: false },
       { key: "owner_email", type: "string", size: 255, required: true },
-      { key: "settings", type: "string", size: 10000, required: false }, // JSON string for team settings
+      { key: "settings", type: "string", size: 4096, required: false }, // JSON string for team settings
       { key: "created_at", type: "string", size: 50, required: false },
       { key: "updated_at", type: "string", size: 50, required: false },
     ],
@@ -316,7 +338,7 @@ const collections = [
       { key: "action", type: "string", size: 100, required: true }, // login, data_export, email_sent, settings_changed, etc.
       { key: "resource_type", type: "string", size: 100, required: false }, // contact, campaign, template, etc.
       { key: "resource_id", type: "string", size: 255, required: false },
-      { key: "details", type: "string", size: 10000, required: false }, // JSON string with additional details
+      { key: "details", type: "string", size: 4096, required: false }, // JSON string with additional details
       { key: "ip_address", type: "string", size: 50, required: false },
       { key: "user_agent", type: "string", size: 1000, required: false },
       { key: "created_at", type: "string", size: 50, required: false },
@@ -334,7 +356,7 @@ const collections = [
     attributes: [
       { key: "user_email", type: "string", size: 255, required: true },
       { key: "consent_type", type: "string", size: 100, required: true }, // email_tracking, data_analytics, marketing, data_retention
-      { key: "granted", type: "boolean", required: true, default: false },
+      { key: "granted", type: "boolean", required: false, default: false },
       { key: "granted_at", type: "string", size: 50, required: false },
       { key: "revoked_at", type: "string", size: 50, required: false },
       { key: "ip_address", type: "string", size: 50, required: false },
@@ -422,57 +444,101 @@ async function createCollection(collection: (typeof collections)[0]) {
     }
   }
 
-  // Create attributes
-  for (const attr of collection.attributes) {
-    try {
-      if (attr.type === "string") {
-        await databases.createStringAttribute(
-          config.databaseId,
-          collection.id,
-          attr.key,
-          attr.size!,
-          attr.required,
-          attr.default as string | undefined,
-        );
-      } else if (attr.type === "integer") {
-        await databases.createIntegerAttribute(
-          config.databaseId,
-          collection.id,
-          attr.key,
-          attr.required,
-          undefined,
-          undefined,
-          attr.default as number | undefined,
-        );
-      } else if (attr.type === "boolean") {
-        await databases.createBooleanAttribute(
-          config.databaseId,
-          collection.id,
-          attr.key,
-          attr.required,
-          attr.default as boolean | undefined,
-        );
+  // Get existing attributes to avoid redundant calls
+  const existingAttrs: string[] = await databases
+    .listAttributes(config.databaseId, collection.id)
+    .then((res) => res.attributes.map((a: any) => a.key))
+    .catch(() => [] as string[]);
+
+  // Create attributes in parallel
+  const attrPromises = collection.attributes
+    .filter((attr) => !existingAttrs.includes(attr.key))
+    .map(async (attr) => {
+      try {
+        if (attr.type === "string") {
+          await databases.createStringAttribute(
+            config.databaseId,
+            collection.id,
+            attr.key,
+            attr.size!,
+            attr.required,
+            attr.default as string | undefined,
+          );
+        } else if (attr.type === "integer") {
+          await databases.createIntegerAttribute(
+            config.databaseId,
+            collection.id,
+            attr.key,
+            attr.required,
+            undefined,
+            undefined,
+            attr.default as number | undefined,
+          );
+        } else if (attr.type === "boolean") {
+          await databases.createBooleanAttribute(
+            config.databaseId,
+            collection.id,
+            attr.key,
+            attr.required,
+            attr.default as boolean | undefined,
+          );
+        } else if (attr.type === "double") {
+          await databases.createFloatAttribute(
+            config.databaseId,
+            collection.id,
+            attr.key,
+            attr.required,
+            undefined,
+            undefined,
+            attr.default as number | undefined,
+          );
+        }
+        console.log(`  ✅ Attribute "${attr.key}" created`);
+      } catch (error: any) {
+        if (error.code === 409) {
+          console.log(`  ℹ️  Attribute "${attr.key}" already exists`);
+        } else {
+          console.error(
+            `  ❌ Failed to create attribute "${attr.key}":`,
+            error.message,
+          );
+        }
       }
-      console.log(`  ✅ Attribute "${attr.key}" created`);
-      await sleep(500); // Wait for attribute to be ready
-    } catch (error: any) {
-      if (error.code === 409) {
-        console.log(`  ℹ️  Attribute "${attr.key}" already exists`);
-      } else {
-        console.error(
-          `  ❌ Failed to create attribute "${attr.key}":`,
-          error.message,
-        );
-      }
-    }
-  }
+    });
+
+  await Promise.all(attrPromises);
 
   // Wait for all attributes to be available
   console.log("  ⏳ Waiting for attributes to be available...");
-  await sleep(3000);
+  let allAvailable = false;
+  let attempts = 0;
+  while (!allAvailable && attempts < 30) {
+    const result = await databases.listAttributes(
+      config.databaseId,
+      collection.id,
+    );
+    allAvailable = result.attributes.every(
+      (attr: any) => attr.status === "available",
+    );
+    if (!allAvailable) {
+      await sleep(1000);
+      attempts++;
+    }
+  }
+
+  // Get existing indexes
+  const existingIndexes: string[] = await databases
+    .listIndexes(config.databaseId, collection.id)
+    .then((res) => res.indexes.map((i: any) => i.key))
+    .catch(() => [] as string[]);
 
   // Create indexes
   for (const index of collection.indexes || []) {
+    if (existingIndexes.includes(index.key)) {
+      console.log(`  ℹ️  Index "${index.key}" already exists`);
+      continue;
+    }
+
     try {
       await databases.createIndex(
         config.databaseId,
@@ -482,7 +548,6 @@ async function createCollection(collection: (typeof collections)[0]) {
         index.attributes,
       );
       console.log(`  ✅ Index "${index.key}" created`);
-      await sleep(500);
     } catch (error: any) {
       if (error.code === 409) {
         console.log(`  ℹ️  Index "${index.key}" already exists`);
