@@ -26,11 +26,13 @@ This document provides comprehensive documentation for all API endpoints availab
 All API endpoints require authentication via NextAuth.js session. The user must be signed in with Google OAuth to access the API.
 
 ### Session Check
+
 All endpoints verify the session using:
+
 ```typescript
-const session = await getServerSession(authOptions)
+const session = await getServerSession(authOptions);
 if (!session?.user?.email) {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
 ```
 
@@ -41,11 +43,13 @@ if (!session?.user?.email) {
 Base URL: `/api/appwrite/contacts`
 
 ### List Contacts
+
 ```
 GET /api/appwrite/contacts
 ```
 
 **Response:**
+
 ```json
 {
   "total": 100,
@@ -64,6 +68,7 @@ GET /api/appwrite/contacts
 ```
 
 ### Create Contact
+
 ```
 POST /api/appwrite/contacts
 Content-Type: application/json
@@ -77,6 +82,7 @@ Content-Type: application/json
 ```
 
 ### Delete Contact
+
 ```
 DELETE /api/appwrite/contacts?id={documentId}
 ```
@@ -88,11 +94,13 @@ DELETE /api/appwrite/contacts?id={documentId}
 Base URL: `/api/appwrite/campaigns`
 
 ### List Campaigns
+
 ```
 GET /api/appwrite/campaigns
 ```
 
 **Response:**
+
 ```json
 {
   "total": 50,
@@ -112,7 +120,45 @@ GET /api/appwrite/campaigns
 }
 ```
 
+### Get Campaign Statistics
+
+```
+GET /api/activity/campaign-stats?campaignId={campaignId}&advanced=true
+```
+
+**Parameters:**
+
+- `campaignId` (required): The ID of the campaign.
+- `advanced` (optional): Set to `true` to include time-series, device, and location data.
+
+**Response:**
+
+```json
+{
+  "sent": 100,
+  "opened": 45,
+  "clicked": 12,
+  "bounced": 2,
+  "openRate": 45.0,
+  "clickRate": 12.0,
+  "timeSeries": [
+    { "date": "2025-01-01", "opens": 10, "clicks": 2 },
+    { "date": "2025-01-02", "opens": 15, "clicks": 5 }
+  ],
+  "devices": {
+    "Desktop": 30,
+    "Mobile": 15
+  },
+  "locations": {
+    "United States": 25,
+    "India": 10,
+    "United Kingdom": 5
+  }
+}
+```
+
 ### Create Campaign
+
 ```
 POST /api/appwrite/campaigns
 Content-Type: application/json
@@ -136,11 +182,13 @@ Content-Type: application/json
 Base URL: `/api/appwrite/templates`
 
 ### List Templates
+
 ```
 GET /api/appwrite/templates
 ```
 
 ### Create Template
+
 ```
 POST /api/appwrite/templates
 Content-Type: application/json
@@ -154,6 +202,7 @@ Content-Type: application/json
 ```
 
 ### Update Template
+
 ```
 PUT /api/appwrite/templates
 Content-Type: application/json
@@ -167,6 +216,7 @@ Content-Type: application/json
 ```
 
 ### Delete Template
+
 ```
 DELETE /api/appwrite/templates?id={templateId}
 ```
@@ -178,11 +228,13 @@ DELETE /api/appwrite/templates?id={templateId}
 Base URL: `/api/appwrite/contact-groups`
 
 ### List Groups
+
 ```
 GET /api/appwrite/contact-groups
 ```
 
 ### Create Group
+
 ```
 POST /api/appwrite/contact-groups
 Content-Type: application/json
@@ -196,6 +248,7 @@ Content-Type: application/json
 ```
 
 ### Update Group
+
 ```
 PUT /api/appwrite/contact-groups
 Content-Type: application/json
@@ -208,6 +261,7 @@ Content-Type: application/json
 ```
 
 ### Delete Group
+
 ```
 DELETE /api/appwrite/contact-groups?id={groupId}
 ```
@@ -219,11 +273,13 @@ DELETE /api/appwrite/contact-groups?id={groupId}
 Base URL: `/api/appwrite/draft-emails`
 
 ### List Drafts
+
 ```
 GET /api/appwrite/draft-emails
 ```
 
 ### Create Draft
+
 ```
 POST /api/appwrite/draft-emails
 Content-Type: application/json
@@ -237,6 +293,7 @@ Content-Type: application/json
 ```
 
 ### Update Draft
+
 ```
 PUT /api/appwrite/draft-emails
 Content-Type: application/json
@@ -249,6 +306,7 @@ Content-Type: application/json
 ```
 
 ### Delete Draft
+
 ```
 DELETE /api/appwrite/draft-emails?id={draftId}
 ```
@@ -260,16 +318,19 @@ DELETE /api/appwrite/draft-emails?id={draftId}
 Base URL: `/api/appwrite/signatures`
 
 ### List Signatures
+
 ```
 GET /api/appwrite/signatures
 ```
 
 ### Get Default Signature
+
 ```
 GET /api/appwrite/signatures?default=true
 ```
 
 ### Create Signature
+
 ```
 POST /api/appwrite/signatures
 Content-Type: application/json
@@ -282,6 +343,7 @@ Content-Type: application/json
 ```
 
 ### Update Signature
+
 ```
 PUT /api/appwrite/signatures
 Content-Type: application/json
@@ -295,6 +357,7 @@ Content-Type: application/json
 ```
 
 ### Set as Default
+
 ```
 PUT /api/appwrite/signatures
 Content-Type: application/json
@@ -306,6 +369,7 @@ Content-Type: application/json
 ```
 
 ### Delete Signature
+
 ```
 DELETE /api/appwrite/signatures?id={signatureId}
 ```
@@ -317,16 +381,19 @@ DELETE /api/appwrite/signatures?id={signatureId}
 Base URL: `/api/appwrite/unsubscribes`
 
 ### List Unsubscribes
+
 ```
 GET /api/appwrite/unsubscribes
 ```
 
 ### Check if Email is Unsubscribed
+
 ```
 GET /api/appwrite/unsubscribes?check={email}
 ```
 
 **Response:**
+
 ```json
 {
   "isUnsubscribed": true
@@ -334,6 +401,7 @@ GET /api/appwrite/unsubscribes?check={email}
 ```
 
 ### Create Unsubscribe
+
 ```
 POST /api/appwrite/unsubscribes
 Content-Type: application/json
@@ -345,6 +413,7 @@ Content-Type: application/json
 ```
 
 ### Filter Unsubscribed Emails
+
 ```
 PATCH /api/appwrite/unsubscribes
 Content-Type: application/json
@@ -355,13 +424,15 @@ Content-Type: application/json
 ```
 
 **Response:**
+
 ```json
 {
-  "emails": ["email1@example.com"]  // Only non-unsubscribed emails
+  "emails": ["email1@example.com"] // Only non-unsubscribed emails
 }
 ```
 
 ### Delete Unsubscribe
+
 ```
 DELETE /api/appwrite/unsubscribes?id={unsubscribeId}
 ```
@@ -373,11 +444,13 @@ DELETE /api/appwrite/unsubscribes?id={unsubscribeId}
 Base URL: `/api/appwrite/webhooks`
 
 ### List Webhooks
+
 ```
 GET /api/appwrite/webhooks
 ```
 
 ### Create Webhook
+
 ```
 POST /api/appwrite/webhooks
 Content-Type: application/json
@@ -392,6 +465,7 @@ Content-Type: application/json
 ```
 
 ### Update Webhook
+
 ```
 PUT /api/appwrite/webhooks
 Content-Type: application/json
@@ -404,6 +478,7 @@ Content-Type: application/json
 ```
 
 ### Delete Webhook
+
 ```
 DELETE /api/appwrite/webhooks?id={webhookId}
 ```
@@ -415,16 +490,19 @@ DELETE /api/appwrite/webhooks?id={webhookId}
 Base URL: `/api/appwrite/ab-tests`
 
 ### List A/B Tests
+
 ```
 GET /api/appwrite/ab-tests
 ```
 
 ### Get Single Test
+
 ```
 GET /api/appwrite/ab-tests?id={testId}
 ```
 
 ### Create A/B Test
+
 ```
 POST /api/appwrite/ab-tests
 Content-Type: application/json
@@ -441,6 +519,7 @@ Content-Type: application/json
 ```
 
 ### Update A/B Test
+
 ```
 PUT /api/appwrite/ab-tests
 Content-Type: application/json
@@ -452,6 +531,7 @@ Content-Type: application/json
 ```
 
 ### Complete A/B Test
+
 ```
 PUT /api/appwrite/ab-tests
 Content-Type: application/json
@@ -463,6 +543,7 @@ Content-Type: application/json
 ```
 
 ### Delete A/B Test
+
 ```
 DELETE /api/appwrite/ab-tests?id={testId}
 ```
@@ -474,11 +555,13 @@ DELETE /api/appwrite/ab-tests?id={testId}
 Base URL: `/api/teams`
 
 ### List Teams
+
 ```
 GET /api/teams
 ```
 
 **Response:**
+
 ```json
 {
   "total": 2,
@@ -502,6 +585,7 @@ GET /api/teams
 ```
 
 ### Create Team
+
 ```
 POST /api/teams
 Content-Type: application/json
@@ -513,6 +597,7 @@ Content-Type: application/json
 ```
 
 ### Update Team
+
 ```
 PUT /api/teams
 Content-Type: application/json
@@ -527,6 +612,7 @@ Content-Type: application/json
 ```
 
 ### Delete Team
+
 ```
 DELETE /api/teams?id={teamId}
 ```
@@ -536,11 +622,13 @@ DELETE /api/teams?id={teamId}
 Base URL: `/api/teams/members`
 
 #### List Members
+
 ```
 GET /api/teams/members?team_id={teamId}
 ```
 
 #### Invite Member
+
 ```
 POST /api/teams/members
 Content-Type: application/json
@@ -553,6 +641,7 @@ Content-Type: application/json
 ```
 
 #### Update Member Role
+
 ```
 PUT /api/teams/members
 Content-Type: application/json
@@ -564,6 +653,7 @@ Content-Type: application/json
 ```
 
 #### Remove Member
+
 ```
 DELETE /api/teams/members?id={memberId}
 ```
@@ -573,11 +663,13 @@ DELETE /api/teams/members?id={memberId}
 ## GDPR API
 
 ### Export User Data
+
 ```
 GET /api/gdpr/export
 ```
 
 Downloads a JSON file containing all user data including:
+
 - Profile information
 - Contacts
 - Campaigns
@@ -587,11 +679,13 @@ Downloads a JSON file containing all user data including:
 - Consent records
 
 ### Delete All User Data
+
 ```
 DELETE /api/gdpr/delete
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -613,11 +707,13 @@ DELETE /api/gdpr/delete
 Base URL: `/api/gdpr/consent`
 
 #### Get Consents
+
 ```
 GET /api/gdpr/consent
 ```
 
 #### Update Consent
+
 ```
 POST /api/gdpr/consent
 Content-Type: application/json
@@ -633,11 +729,13 @@ Content-Type: application/json
 Base URL: `/api/gdpr/audit-logs`
 
 #### List Audit Logs
+
 ```
 GET /api/gdpr/audit-logs?limit=100&offset=0&resource_type=contact
 ```
 
 **Query Parameters:**
+
 - `limit` - Number of records (default: 100)
 - `offset` - Pagination offset (default: 0)
 - `action` - Filter by action type
@@ -646,6 +744,7 @@ GET /api/gdpr/audit-logs?limit=100&offset=0&resource_type=contact
 - `end_date` - Filter to date
 
 #### Create Audit Log
+
 ```
 POST /api/gdpr/audit-logs
 Content-Type: application/json
@@ -663,21 +762,42 @@ Content-Type: application/json
 ## Email Sending API
 
 ### Send Email Campaign
+
 ```
 POST /api/send-email
 Content-Type: application/json
 
 {
-  "subject": "Newsletter",
-  "htmlContent": "<p>Email content...</p>",
-  "recipients": [
-    { "email": "recipient@example.com", "name": "John" }
+  "recipients": ["user1@example.com", "user2@example.com"],
+  "subject": "Main Subject",
+  "content": "<p>Main content...</p>",
+  "variants": [
+    { "subject": "Variant A", "content": "<p>Content A</p>" },
+    { "subject": "Variant B", "content": "<p>Content B</p>" }
   ],
-  "attachments": []
+  "verifyBeforeSending": true,
+  "trackingEnabled": true
+}
+```
+
+**OR (Personalized Format):**
+
+```json
+{
+  "personalizedEmails": [
+    {
+      "to": "recipient@example.com",
+      "subject": "Hello {{name}}",
+      "message": "<p>Hi {{name}}, ...</p>",
+      "originalRowData": { "name": "John" }
+    }
+  ],
+  "verifyBeforeSending": true
 }
 ```
 
 ### Send Single Email
+
 ```
 POST /api/send-single-email
 Content-Type: application/json
@@ -690,6 +810,7 @@ Content-Type: application/json
 ```
 
 ### Send Draft Email
+
 ```
 POST /api/send-draft
 Content-Type: application/json
@@ -704,6 +825,7 @@ Content-Type: application/json
 ## File Upload API
 
 ### Upload Attachment
+
 ```
 POST /api/upload-attachment
 Content-Type: multipart/form-data
@@ -712,6 +834,7 @@ files: [File objects]
 ```
 
 **Response:**
+
 ```json
 {
   "uploads": [
@@ -740,16 +863,16 @@ All API endpoints return consistent error responses:
 
 ### HTTP Status Codes
 
-| Code | Description |
-|------|-------------|
-| 200 | Success |
-| 201 | Created |
-| 400 | Bad Request - Invalid input |
-| 401 | Unauthorized - Not authenticated |
-| 403 | Forbidden - Not allowed |
-| 404 | Not Found |
-| 500 | Internal Server Error |
-| 503 | Service Unavailable |
+| Code | Description                      |
+| ---- | -------------------------------- |
+| 200  | Success                          |
+| 201  | Created                          |
+| 400  | Bad Request - Invalid input      |
+| 401  | Unauthorized - Not authenticated |
+| 403  | Forbidden - Not allowed          |
+| 404  | Not Found                        |
+| 500  | Internal Server Error            |
+| 503  | Service Unavailable              |
 
 ---
 
@@ -766,6 +889,7 @@ Most list endpoints support pagination through `limit` and `offset` parameters. 
 ## Changelog
 
 ### Version 1.0.0 (November 2025)
+
 - Initial API documentation
 - GDPR compliance endpoints added
 - Team/Organization support added

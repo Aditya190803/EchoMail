@@ -188,7 +188,7 @@ UPSTASH_REDIS_REST_TOKEN=your-upstash-token
 4. Create OAuth 2.0 credentials
 5. Add authorized redirect URIs:
    - `http://localhost:3000/api/auth/callback/google` (development)
-   - `https://yourdomain.com/api/auth/callback/google` (production)
+   - `https://echomail.adityamer.live/api/auth/callback/google` (production)
 
 ### 5. Set Up Appwrite
 
@@ -316,7 +316,7 @@ Error: invalid_grant
 
 - Ensure redirect URIs in Google Cloud Console match exactly:
   - Development: `http://localhost:3000/api/auth/callback/google`
-  - Production: `https://yourdomain.com/api/auth/callback/google`
+  - Production: `https://echomail.adityamer.live/api/auth/callback/google`
 - Note: URIs are case-sensitive and must not have trailing slashes
 
 **Problem:** "Access blocked: This app's request is invalid"

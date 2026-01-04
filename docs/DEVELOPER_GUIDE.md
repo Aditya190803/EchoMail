@@ -43,11 +43,13 @@ cd EchoMail
 ### 2. Install Dependencies
 
 Using Bun (recommended):
+
 ```bash
 bun install
 ```
 
 Using npm:
+
 ```bash
 npm install
 ```
@@ -55,6 +57,7 @@ npm install
 ### 3. Configure Environment
 
 Copy the example environment file:
+
 ```bash
 cp .env.example .env.local
 ```
@@ -64,6 +67,7 @@ See [Environment Configuration](#environment-configuration) for details.
 ### 4. Set Up Appwrite Collections
 
 Run the setup script:
+
 ```bash
 bun run appwrite:setup
 ```
@@ -128,6 +132,7 @@ EchoMail/
 ## Technology Stack
 
 ### Frontend
+
 - **Next.js 15** - React framework with App Router
 - **React 18** - UI library
 - **TypeScript** - Type-safe JavaScript
@@ -137,17 +142,20 @@ EchoMail/
 - **Lucide Icons** - Icon library
 
 ### Backend
+
 - **Next.js API Routes** - Serverless API endpoints
 - **NextAuth.js** - Authentication
 - **Appwrite** - Backend-as-a-Service (Database, Storage)
 - **Gmail API** - Email sending
 
 ### Testing
+
 - **Vitest** - Unit testing
 - **Playwright** - End-to-end testing
 - **Testing Library** - Component testing
 
 ### Development Tools
+
 - **ESLint** - Code linting
 - **Prettier** - Code formatting
 - **TypeScript** - Static type checking
@@ -231,11 +239,38 @@ Run the setup script to create all collections:
 bun run appwrite:setup
 ```
 
+This script will:
+
+1. Create the database (if it doesn't exist)
+2. Create all required collections (Contacts, Campaigns, Templates, Drafts, Tracking, etc.)
+3. Add attributes to each collection
+4. Create necessary indexes
+
+### Required Collections
+
+| Collection          | Purpose                                    |
+| ------------------- | ------------------------------------------ |
+| `contacts`          | Stores recipient information               |
+| `campaigns`         | Stores email campaign history and stats    |
+| `templates`         | Stores reusable email templates            |
+| `template_versions` | Stores version history for templates       |
+| `contact_groups`    | Organizes contacts into segments           |
+| `draft_emails`      | Stores in-progress email compositions      |
+| `signatures`        | Stores user email signatures               |
+| `unsubscribes`      | Tracks users who opted out of emails       |
+| `tracking_events`   | Logs opens and clicks for analytics        |
+| `ab_tests`          | Stores A/B test configuration and results  |
+| `audit_logs`        | Tracks security and administrative actions |
+| `consents`          | Stores GDPR consent records                |
+| `teams`             | Manages organization/team entities         |
+| `team_members`      | Maps users to teams with roles             |
+
 ### Manual Setup
 
 If you prefer manual setup, create the following collections:
 
 #### Contacts Collection
+
 - `email` (string, required)
 - `name` (string)
 - `company` (string)
@@ -244,6 +279,7 @@ If you prefer manual setup, create the following collections:
 - `created_at` (string)
 
 #### Campaigns Collection
+
 - `subject` (string, required)
 - `content` (string)
 - `recipients` (string) - JSON array
@@ -286,7 +322,8 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
-          scope: "openid email profile https://www.googleapis.com/auth/gmail.send ...",
+          scope:
+            "openid email profile https://www.googleapis.com/auth/gmail.send ...",
           access_type: "offline",
           prompt: "consent",
         },
@@ -294,24 +331,24 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   // ...
-}
+};
 ```
 
 ### Using Authentication in API Routes
 
 ```typescript
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
-  const session = await getServerSession(authOptions)
-  
+  const session = await getServerSession(authOptions);
+
   if (!session?.user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // User is authenticated
-  const userEmail = session.user.email
+  const userEmail = session.user.email;
 }
 ```
 
@@ -403,25 +440,25 @@ bun run test:e2e:headed
 
 ```typescript
 // tests/unit/example.test.ts
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect } from "vitest";
 
-describe('Example', () => {
-  it('should work', () => {
-    expect(1 + 1).toBe(2)
-  })
-})
+describe("Example", () => {
+  it("should work", () => {
+    expect(1 + 1).toBe(2);
+  });
+});
 ```
 
 #### E2E Test Example
 
 ```typescript
 // tests/e2e/example.spec.ts
-import { test, expect } from '@playwright/test'
+import { test, expect } from "@playwright/test";
 
-test('homepage loads', async ({ page }) => {
-  await page.goto('/')
-  await expect(page).toHaveTitle(/EchoMail/)
-})
+test("homepage loads", async ({ page }) => {
+  await page.goto("/");
+  await expect(page).toHaveTitle(/EchoMail/);
+});
 ```
 
 ---
@@ -438,6 +475,7 @@ test('homepage loads', async ({ page }) => {
 ### Manual Deployment
 
 1. Build the application:
+
    ```bash
    bun run build
    ```
@@ -550,15 +588,18 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 ### Common Issues
 
 #### "Collection not found"
+
 - Run `bun run appwrite:setup` to create collections
 - Verify collection IDs in `.env.local`
 
 #### "Unauthorized" errors
+
 - Check Google OAuth credentials
 - Verify `NEXTAUTH_SECRET` is set
 - Ensure `NEXTAUTH_URL` matches your domain
 
 #### Build errors
+
 - Clear `.next` folder: `rm -rf .next`
 - Reinstall dependencies: `rm -rf node_modules && bun install`
 
@@ -570,4 +611,4 @@ Follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ---
 
-*Last updated: November 2025*
+_Last updated: November 2025_
