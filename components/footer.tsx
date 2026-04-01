@@ -8,18 +8,16 @@ export function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="w-full border-t bg-card mt-auto">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <footer className="w-full border-t bg-background mt-auto">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-md shadow-primary/20">
-                <Mail className="h-5 w-5 text-white" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+                <Mail className="h-4 w-4" />
               </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                EchoMail
-              </span>
+              <span className="text-xl font-bold tracking-tight">EchoMail</span>
             </div>
             <p className="text-sm text-muted-foreground max-w-md">
               Send personalized emails at scale with EchoMail's powerful Gmail
@@ -29,38 +27,32 @@ export function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h3 className="font-semibold text-foreground mb-4">Quick Links</h3>
-            <ul className="space-y-2">
+            <h3 className="font-semibold text-foreground mb-4 text-sm">
+              Product
+            </h3>
+            <ul className="space-y-3">
               <li>
                 <Link
-                  href="/dashboard"
-                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                  href="/#features"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  Dashboard
+                  Features
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/compose"
-                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                  href="/#how-it-works"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  Compose
+                  How it Works
                 </Link>
               </li>
               <li>
                 <Link
-                  href="/contacts"
-                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                  href="/api-docs"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  Contacts
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/insights"
-                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
-                >
-                  Insights
+                  API Documentation
                 </Link>
               </li>
             </ul>
@@ -68,12 +60,14 @@ export function Footer() {
 
           {/* Legal */}
           <div>
-            <h3 className="font-semibold text-foreground mb-4">Legal</h3>
-            <ul className="space-y-2">
+            <h3 className="font-semibold text-foreground mb-4 text-sm">
+              Legal
+            </h3>
+            <ul className="space-y-3">
               <li>
                 <Link
                   href="/tos"
-                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Terms of Service
                 </Link>
@@ -81,7 +75,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/privacy"
-                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Privacy Policy
                 </Link>
@@ -89,9 +83,9 @@ export function Footer() {
               <li>
                 <Link
                   href="/settings/gdpr"
-                  className="text-sm text-muted-foreground hover:text-primary transition-colors"
+                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  Privacy & Data (GDPR)
+                  GDPR Information
                 </Link>
               </li>
             </ul>
@@ -99,7 +93,7 @@ export function Footer() {
         </div>
 
         {/* Bottom bar */}
-        <div className="mt-8 pt-6 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="mt-12 pt-8 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
             © {currentYear} EchoMail. All rights reserved.
           </p>

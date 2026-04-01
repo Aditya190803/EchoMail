@@ -27,8 +27,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-
-
 const features = [
   {
     icon: Users,
@@ -224,7 +222,10 @@ export default function HomePage() {
             {features.map((feature, index) => {
               const Icon = feature.icon;
               return (
-                <Card key={index} hover className="border-0 shadow-lg">
+                <Card
+                  key={index}
+                  className="border-0 shadow-lg hover:shadow-xl transition-all"
+                >
                   <CardContent className="p-6">
                     <div
                       className={`inline-flex p-3 rounded-xl ${feature.bgColor} mb-4`}
@@ -308,7 +309,7 @@ export default function HomePage() {
       {/* CTA Section */}
       <section className="py-20 lg:py-32">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <Card className="bg-gradient-to-br from-primary/10 via-accent/10 to-secondary/10 border-0 shadow-2xl">
+          <Card className="bg-muted border-0 shadow-lg">
             <CardContent className="p-8 md:p-12 text-center">
               <div className="inline-flex p-4 rounded-full bg-success/10 mb-6">
                 <CheckCircle className="h-10 w-10 text-success" />
