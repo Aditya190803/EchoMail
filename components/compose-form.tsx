@@ -1596,45 +1596,48 @@ export function ComposeForm() {
         </div>
       )}
 
-      <Tabs
-        value={activeTab}
-        onValueChange={setActiveTab}
-        className="space-y-4 md:space-y-6"
-      >
-        <TabsList className="grid w-full grid-cols-3 h-auto">
-          <TabsTrigger
-            value="recipients"
-            className="flex items-center gap-1 md:gap-2 py-2 md:py-3 text-xs md:text-sm"
-          >
-            <Users className="h-3 w-3 md:h-4 md:w-4" />
-            <span className="hidden xs:inline">Recipients</span>
-            {recipients.length > 0 && (
-              <Badge
-                variant="secondary"
-                className="ml-1 text-[10px] md:text-xs px-1 md:px-2"
-              >
-                {recipients.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger
-            value="compose"
-            className="flex items-center gap-1 md:gap-2 py-2 md:py-3 text-xs md:text-sm"
-          >
-            <Mail className="h-3 w-3 md:h-4 md:w-4" />
-            <span className="hidden xs:inline">Compose</span>
-          </TabsTrigger>
-          <TabsTrigger
-            value="preview"
-            className="flex items-center gap-1 md:gap-2 py-2 md:py-3 text-xs md:text-sm"
-          >
-            <Eye className="h-3 w-3 md:h-4 md:w-4" />
-            <span className="hidden xs:inline">Preview</span>
-          </TabsTrigger>
-        </TabsList>
+      <div className="w-full rounded-xl border bg-card shadow-xl overflow-hidden min-h-[600px] flex flex-col">
+        {/* Browser Chrome Title Bar */}
+        <div className="flex items-center gap-2 px-4 py-3 bg-muted/60 border-b">
+          <div className="flex gap-1.5 shrink-0">
+            <span className="h-3 w-3 rounded-full bg-red-400" />
+            <span className="h-3 w-3 rounded-full bg-yellow-400" />
+            <span className="h-3 w-3 rounded-full bg-green-400" />
+          </div>
+          <div className="flex-1 mx-3" />
+        </div>
 
-        {/* Recipients Tab */}
-        <TabsContent value="recipients" className="space-y-6">
+        {/* Step Tabs */}
+        <div className="flex border-b bg-muted/30 shrink-0">
+          {[
+            { id: "recipients", label: "Recipients", icon: Users, dotColor: "#3b82f6" },
+            { id: "compose",    label: "Compose",    icon: Mail,  dotColor: "#8b5cf6" },
+            { id: "preview",    label: "Preview",    icon: Eye,   dotColor: "#10b981" },
+          ].map((s, i) => {
+            const Icon = s.icon;
+            const isActive = s.id === activeTab;
+            return (
+              <button
+                key={s.id}
+                onClick={() => setActiveTab(s.id)}
+                className={`flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-all duration-200 border-b-2 ${
+                  isActive
+                    ? "border-primary text-foreground bg-background/60"
+                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-background/40"
+                }`}
+              >
+                <Icon className="h-4 w-4" style={isActive ? { color: s.dotColor } : {}} />
+                <span className="hidden sm:inline">{s.label}</span>
+                <span className="sm:hidden text-[10px]">{i + 1}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Main Panel */}
+        <div className="p-4 md:p-6 lg:p-8 flex-1 min-h-0 overflow-y-auto">
+          {/* Recipients Tab */}
+          <div className={activeTab === "recipients" ? "block space-y-6" : "hidden"}>
           {/* Manual Email Entry */}
           <Card>
             <CardHeader>
@@ -1902,10 +1905,10 @@ export function ComposeForm() {
               </CardContent>
             </Card>
           )}
-        </TabsContent>
+          </div>
 
-        {/* Compose Tab */}
-        <TabsContent value="compose" className="space-y-4">
+          {/* Compose Tab */}
+          <div className={activeTab === "compose" ? "block space-y-6" : "hidden"}>
           {/* Template & HTML Import */}
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="text-sm text-muted-foreground">
@@ -2543,16 +2546,16 @@ export function ComposeForm() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+          </div>
 
-        {/* Preview Tab */}
-        <TabsContent value="preview">
+          {/* Preview Tab */}
+          <div className={activeTab === "preview" ? "block" : "hidden"}>
           <Card>
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Eye className="h-5 w-5" />
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Eye className="h-4 w-4" />
                     Email Preview
                   </CardTitle>
                   <CardDescription>
@@ -2953,8 +2956,9 @@ export function ComposeForm() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-      </Tabs>
+          </div>
+        </div>
+      </div>
 
       {/* Send Button */}
       <div className="flex items-center justify-between pt-4 border-t">

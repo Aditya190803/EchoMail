@@ -851,8 +851,7 @@ export default function TemplatesPage() {
                 return (
                   <Card
                     key={template.$id}
-                    hover
-                    className="group flex flex-col"
+                    className="group flex flex-col hover:border-primary/50 transition-colors"
                   >
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">

@@ -77,6 +77,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader, PageShell, EmptyState } from "@/components/ui/page-shell";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { generateWeekOverWeekComparison } from "@/lib/activity/comparison";
@@ -515,92 +516,61 @@ export default function HistoryPage() {
 
   if (status === "loading" || isLoadingData) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-1 container mx-auto px-4 py-8">
-          {/* Header Skeleton */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-            <div>
-              <Skeleton className="h-8 w-48 mb-2" />
-              <Skeleton className="h-5 w-64" />
-            </div>
-            <Skeleton className="h-10 w-40" />
+      <PageShell>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <Skeleton className="h-8 w-48 mb-2" />
+            <Skeleton className="h-5 w-64" />
           </div>
-
-          {/* Stats Grid Skeleton */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            {[1, 2, 3, 4].map((i) => (
-              <Card key={i}>
-                <CardContent className="p-4">
-                  <Skeleton className="h-4 w-24 mb-2" />
-                  <Skeleton className="h-8 w-16" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Campaigns List Skeleton */}
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <Card key={i}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex-1">
-                      <Skeleton className="h-5 w-64 mb-2" />
-                      <Skeleton className="h-4 w-32" />
-                    </div>
-                    <Skeleton className="h-6 w-20 rounded-full" />
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                    <Skeleton className="h-12 w-full" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </main>
-      </div>
+          <Skeleton className="h-10 w-40" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardContent className="p-4">
+                <Skeleton className="h-4 w-24 mb-2" />
+                <Skeleton className="h-8 w-16" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-40 w-full rounded-xl" />
+          ))}
+        </div>
+      </PageShell>
     );
   }
 
   if (!historyData || historyData.totalCampaigns === 0) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <div className="flex-1 flex flex-col items-center justify-center px-4 py-24">
-          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-            <History className="w-8 h-8 text-muted-foreground" />
-          </div>
-          <h2 className="text-xl font-semibold mb-2">No Emails Sent Yet</h2>
-          <p className="text-muted-foreground text-center mb-6 max-w-sm">
-            Start sending campaigns to see your email history and performance
-            insights here.
-          </p>
-          <Button asChild>
-            <Link href="/compose">
-              <Plus className="h-4 w-4 mr-2" />
-              Create Campaign
-            </Link>
-          </Button>
-        </div>
-      </div>
+      <PageShell>
+        <EmptyState
+          icon={<History className="w-8 h-8" />}
+          title="No Emails Sent Yet"
+          description="Start sending campaigns to see your email history and performance insights here."
+          action={
+            <Button asChild>
+              <Link href="/compose">
+                <Plus className="h-4 w-4 mr-2" />
+                Create Campaign
+              </Link>
+            </Button>
+          }
+        />
+      </PageShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-              Insights & History
-            </h1>
-            <p className="text-muted-foreground">
-              Track your campaign performance and delivery metrics
-            </p>
-          </div>
-          <div className="flex gap-2">
+    <>
+    <PageShell>
+      <PageHeader
+        title="Insights & History"
+        description="Track your campaign performance and delivery metrics"
+        actions={
+          <>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" disabled={isExporting}>
@@ -620,25 +590,30 @@ export default function HistoryPage() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button asChild>
+            <Button asChild className="shadow-sm">
               <Link href="/compose">
                 <Plus className="h-4 w-4 mr-2" />
                 New Campaign
               </Link>
             </Button>
-          </div>
-        </div>
+          </>
+        }
+      />
 
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
-          className="space-y-8"
+          className="space-y-4 md:space-y-6"
         >
-          <TabsList className="grid w-full max-w-md grid-cols-3">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
-            <TabsTrigger value="tracking">Tracking</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:pb-0 hide-scrollbar">
+            <TabsList className="inline-flex w-auto min-w-full sm:min-w-0 h-10 p-1 bg-muted/30">
+              <TabsTrigger value="overview" className="rounded-md">Overview</TabsTrigger>
+              <TabsTrigger value="campaigns" className="rounded-md">Campaigns</TabsTrigger>
+              <TabsTrigger value="heatmap" className="rounded-md">Heatmap</TabsTrigger>
+              <TabsTrigger value="recipients" className="rounded-md">Recipients</TabsTrigger>
+              <TabsTrigger value="tracking" className="rounded-md">Raw Events</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="overview" className="space-y-8">
             {/* Stats Grid */}
@@ -1319,8 +1294,92 @@ export default function HistoryPage() {
               </CardContent>
             </Card>
           </TabsContent>
+          <TabsContent value="heatmap" className="space-y-6">
+            <h2 className="text-lg font-semibold">Send-Time Heatmap</h2>
+            {heatmap && (
+              <HeatmapWidget
+                links={heatmap.links}
+                totalClicks={heatmap.totalClicks}
+                title="When do your recipients open emails?"
+              />
+            )}
+            {!heatmap && (
+              <p className="text-sm text-muted-foreground italic">Not enough open data yet.</p>
+            )}
+          </TabsContent>
+
+          <TabsContent value="recipients" className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Recipients Leaderboard</h2>
+            </div>
+            
+            <div className="border rounded-xl bg-card overflow-hidden">
+              <div className="p-4 border-b flex flex-col md:flex-row justify-between items-center bg-muted/10 gap-3">
+                <div className="flex gap-2 w-full md:w-auto">
+                    <Input
+                      placeholder="Search recipients…"
+                      value={recipientSearch}
+                      onChange={(e) => setRecipientSearch(e.target.value)}
+                      className="max-w-xs h-9 bg-background"
+                    />
+                </div>
+              </div>
+              <div className="divide-y divide-border overflow-x-auto min-h-[300px]">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-muted/30 text-xs uppercase text-muted-foreground whitespace-nowrap">
+                    <tr>
+                      <th className="px-6 py-3 font-medium">Recipient</th>
+                      <th className="px-6 py-3 font-medium">Status</th>
+                      <th className="px-6 py-3 font-medium">Clicks</th>
+                      <th className="px-6 py-3 font-medium text-right">Last Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {/* Aggregating all recipients across campaigns is heavy, doing a simple map over all events to get stats per email */}
+                    {(() => {
+                        const recs: Record<string, { opens: number, clicks: number, lastAction: Date }> = {};
+                        allTrackingEvents.forEach(e => {
+                          if (e.email) {
+                            if (!recs[e.email]) recs[e.email] = { opens: 0, clicks: 0, lastAction: new Date(0) };
+                            if (e.event_type === "open") recs[e.email].opens++;
+                            if (e.event_type === "click") recs[e.email].clicks++;
+                            
+                            const t = new Date(e.created_at);
+                            if (t > recs[e.email].lastAction) recs[e.email].lastAction = t;
+                          }
+                        });
+                        
+                        const entries = Object.entries(recs)
+                          .filter(([email]) => email.toLowerCase().includes(recipientSearch.toLowerCase()))
+                          .sort((a,b) => b[1].lastAction.getTime() - a[1].lastAction.getTime());
+                        
+                        if (entries.length === 0) return (
+                          <tr><td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">No recipients found</td></tr>
+                        );
+                        
+                        return entries.map(([email, stats]) => (
+                          <tr key={email} className="hover:bg-muted/10 transition-colors">
+                             <td className="px-6 py-3 font-medium text-foreground">{email}</td>
+                             <td className="px-6 py-3">
+                                <Badge variant={stats.opens > 0 ? "success" : "secondary"} className="font-normal capitalize text-xs">
+                                  {stats.opens > 0 ? "Opened" : "Not Opened"}
+                                </Badge>
+                             </td>
+                             <td className="px-6 py-3 text-muted-foreground">{stats.clicks} clicks</td>
+                             <td className="px-6 py-3 text-right whitespace-nowrap text-muted-foreground">
+                               {stats.lastAction.getTime() > 0 ? formatDate(stats.lastAction.toISOString()) : "Never"}
+                             </td>
+                          </tr>
+                        ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </TabsContent>
+
         </Tabs>
-      </main>
+      </PageShell>
 
       {/* Full Campaign Details Modal */}
       <Dialog
@@ -1938,6 +1997,6 @@ export default function HistoryPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

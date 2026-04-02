@@ -23,7 +23,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       status === "unauthenticated" ||
       (status === "authenticated" && session?.error)
     ) {
-      router.push("/");
+      if (typeof window !== "undefined") {
+        router.push(`/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
+      } else {
+        router.push("/auth/signin");
+      }
     }
   }, [status, session?.error, router]);
 
@@ -43,15 +47,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-2 px-4 shadow-none border-b-[0px]">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-        </header>
-        <div className="flex-1 overflow-auto">{children}</div>
-      </SidebarInset>
-    </SidebarProvider>
+    <div className="flex h-screen w-full flex-col overflow-hidden bg-background max-w-[100vw]">
+      <main className="flex-1 overflow-auto">{children}</main>
+    </div>
   );
 }
