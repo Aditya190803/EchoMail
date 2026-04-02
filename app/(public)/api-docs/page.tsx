@@ -19,12 +19,12 @@ export default function ApiDocsPage() {
       <main className="flex-1 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-8">
         <header className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-            API Documentation
+            API & Webhooks Documentation
           </h1>
           <p className="text-muted-foreground">
-            Interactive API documentation for the EchoMail email campaign
-            platform. All endpoints require authentication via NextAuth.js
-            session.
+            Interactive API and Webhooks documentation for the EchoMail email
+            campaign platform. API endpoints require authentication via active
+            session or API keys. Webhooks can be configured in your account settings.
           </p>
         </header>
 

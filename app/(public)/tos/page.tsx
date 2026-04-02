@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
-
 import {
-  ArrowLeft,
+  
   FileText,
   Shield,
   AlertTriangle,
@@ -12,39 +10,11 @@ import {
   Gavel,
 } from "lucide-react";
 
-import { Footer } from "@/components/footer";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function TermsOfServicePage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="sm" asChild>
-                <Link href="/" className="flex items-center gap-2">
-                  <ArrowLeft className="h-4 w-4" />
-                  Back
-                </Link>
-              </Button>
-            </div>
-            <Link href="/" className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-md shadow-primary/20">
-                <Mail className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                EchoMail
-              </span>
-            </Link>
-            <ThemeToggle />
-          </div>
-        </nav>
-      </header>
-
       {/* Main Content */}
       <main className="flex-1 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-8">
         <div className="max-w-4xl mx-auto">
@@ -278,8 +248,6 @@ export default function TermsOfServicePage() {
           </Card>
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 }
