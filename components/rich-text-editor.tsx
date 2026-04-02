@@ -64,6 +64,7 @@ interface RichTextEditorProps {
   content: string;
   onChange: (content: string) => void;
   placeholder?: string;
+  className?: string;
 }
 
 // Common colors for text and highlight
@@ -116,6 +117,7 @@ export function RichTextEditor({
   content,
   onChange,
   placeholder = "",
+  className = "",
 }: RichTextEditorProps) {
   const [linkUrl, setLinkUrl] = useState("");
   const [imageUrl, setImageUrl] = useState("");
@@ -697,7 +699,7 @@ export function RichTextEditor({
 
   return (
     <div
-      className="border rounded-lg overflow-visible relative bg-white dark:bg-zinc-900"
+      className={`border rounded-lg overflow-visible relative bg-white dark:bg-zinc-900 ${className}`}
       suppressHydrationWarning
     >
       {/* Toolbar */}

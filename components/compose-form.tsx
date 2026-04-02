@@ -41,19 +41,16 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
 import {
+  StickyActionBar,
+  type ComposeSectionId,
+} from "@/components/compose/sticky-action-bar";
+import {
   LazyRichTextEditor,
   LazyCSVUpload,
   LazyEmailClientPreview,
 } from "@/components/lazy-components";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -65,6 +62,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/ui/page-shell";
 import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
@@ -228,15 +226,15 @@ export function ComposeForm() {
     useState<{
       [email: string]: AttachmentMetadata | null;
     }>({});
-  const [isLoadingAttachmentMetadata, setIsLoadingAttachmentMetadata] =
+  const [_isLoadingAttachmentMetadata, setIsLoadingAttachmentMetadata] =
     useState(false);
   const [showAttachmentPreview, setShowAttachmentPreview] = useState(false);
-  const [previewAttachmentUrl, setPreviewAttachmentUrl] = useState<
+  const [previewAttachmentUrl, _setPreviewAttachmentUrl] = useState<
     string | null
   >(null);
 
   // Draft state
-  const [hasDraft, setHasDraft] = useState(false);
+  const [_hasDraft, setHasDraft] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [draftSyncStatus, setDraftSyncStatus] =
@@ -266,7 +264,7 @@ export function ComposeForm() {
     clearSavedCampaign,
     hasSavedCampaign,
     savedCampaignInfo,
-    quotaInfo,
+    quotaInfo: _quotaInfo,
   } = useEmailSend();
 
   // Load template or campaign content if templateId is provided
@@ -1450,8 +1448,47 @@ export function ComposeForm() {
     }
   };
 
+  const stepMeta = {
+    recipients: {
+      label: "Recipients",
+      desc: "Choose who receives this campaign",
+      icon: <Users className="h-4 w-4" />,
+    },
+    compose: {
+      label: "Compose",
+      desc: "Write your subject and message",
+      icon: <Pen className="h-4 w-4" />,
+    },
+    preview: {
+      label: "Preview",
+      desc: "Check rendering and personalization",
+      icon: <Eye className="h-4 w-4" />,
+    },
+  } as const;
+
+  const activeStep =
+    stepMeta[activeTab as keyof typeof stepMeta] ?? stepMeta.compose;
+  const activeSection = activeTab as ComposeSectionId;
+
   return (
-    <div className="space-y-6">
+    <div className="relative space-y-8 pb-32">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 -top-8 h-64 -z-10"
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 60% at 55% 0%, oklch(0.6231 0.188 259.8145 / 0.12) 0%, transparent 70%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.025]"
+        style={{
+          backgroundImage:
+            "radial-gradient(var(--color-foreground) 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+        }}
+      />
       {/* Resume Campaign Banner */}
       {hasSavedCampaign && savedCampaignInfo && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 sm:p-4 bg-warning/10 border border-warning/30 rounded-lg">
@@ -1498,66 +1535,61 @@ export function ComposeForm() {
         </div>
       )}
 
-      {/* Draft Status Bar */}
-      {(hasDraft || lastSaved || hasUnsavedChanges || subject || content) && (
-        <div
-          className={`flex flex-col xs:flex-row items-start xs:items-center justify-between gap-2 p-2 sm:p-3 rounded-lg transition-colors ${
-            hasUnsavedChanges
-              ? "bg-warning/10 border border-warning/30"
-              : draftSyncStatus === "saved"
-                ? "bg-success/10 border border-success/30"
-                : "bg-muted/50"
-          }`}
-        >
-          <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm">
-            {/* Sync Status Indicator */}
+      <PageHeader
+        title="New Campaign"
+        description={
+          <div className="flex items-center gap-1.5 sm:gap-2 text-sm mt-1 sm:mt-0">
             {draftSyncStatus === "saving" || isSavingDraft ? (
               <>
-                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 animate-spin text-primary" />
+                <RefreshCw className="h-4 w-4 animate-spin text-primary" />
                 <span className="text-muted-foreground">Saving...</span>
               </>
             ) : draftSyncStatus === "saved" ? (
               <>
-                <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-success" />
+                <CheckCircle className="h-4 w-4 text-success" />
                 <span className="text-success">
                   Saved {lastSaved ? getTimeAgo(lastSaved) : ""}
                 </span>
               </>
             ) : draftSyncStatus === "error" ? (
               <>
-                <XCircle className="h-3 w-3 sm:h-4 sm:w-4 text-destructive" />
+                <XCircle className="h-4 w-4 text-destructive" />
                 <span className="text-destructive">Failed to save</span>
               </>
             ) : hasUnsavedChanges ? (
               <>
-                <AlertCircle className="h-3 w-3 sm:h-4 sm:w-4 text-warning" />
+                <AlertCircle className="h-4 w-4 text-warning" />
                 <span className="text-warning">Unsaved changes</span>
               </>
             ) : lastSaved ? (
               <>
-                <Save className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
+                <Save className="h-4 w-4 text-muted-foreground" />
                 <span className="text-muted-foreground">
                   Draft saved {getTimeAgo(lastSaved)}
                 </span>
               </>
-            ) : (
-              <>
-                <Save className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Draft</span>
-              </>
-            )}
-
-            {/* Keyboard shortcut hint */}
-            <span className="hidden sm:inline text-xs text-muted-foreground ml-2">
-              (Ctrl+S to save)
+            ) : null}
+            {!isSavingDraft &&
+              draftSyncStatus !== "saving" &&
+              draftSyncStatus !== "saved" &&
+              draftSyncStatus !== "error" &&
+              !hasUnsavedChanges &&
+              !lastSaved && (
+                <>
+                  <Save className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">Draft</span>
+                </>
+              )}
+            <span className="hidden sm:inline text-xs text-muted-foreground opacity-50">
+              (Ctrl+S)
             </span>
           </div>
-
-          <div className="flex items-center gap-2 self-end xs:self-auto">
+        }
+        actions={
+          <div className="flex items-center gap-2">
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="h-7 text-xs"
               onClick={() => {
                 saveDraft();
                 toast.success("Draft saved");
@@ -1565,7 +1597,7 @@ export function ComposeForm() {
               disabled={isSavingDraft || !hasUnsavedChanges}
             >
               <Save className="h-4 w-4 mr-2" />
-              Save Now
+              Save Draft
             </Button>
             <Button
               variant="ghost"
@@ -1587,23 +1619,23 @@ export function ComposeForm() {
                   toast.success("Draft cleared");
                 }
               }}
-              className="text-destructive hover:text-destructive"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
             >
-              <Trash2 className="h-4 w-4" />
+              Discard
             </Button>
           </div>
-        </div>
-      )}
+        }
+      />
 
       <div className="flex flex-col md:flex-row gap-6 md:gap-8 min-h-[600px] w-full">
         {/* Step Indicator Sidebar */}
         <div className="w-full md:w-64 shrink-0">
           <div className="sticky top-8 space-y-4">
-            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider mb-6">
-              Campaign Steps
+            <h3 className="font-semibold text-xs text-muted-foreground uppercase tracking-wider mb-5">
+              Steps
             </h3>
             <div className="relative">
-              <div className="absolute left-4 top-4 bottom-4 w-0.5 bg-border hidden md:block" />
+              <div className="absolute left-4 top-4 bottom-4 w-0.5 border-l border-dashed border-border/70 hidden md:block" />
               <div className="flex justify-between md:block space-y-0 md:space-y-6 relative z-10 overflow-x-auto overflow-y-hidden md:overflow-visible pb-2 md:pb-0 px-1">
                 {[
                   {
@@ -1617,34 +1649,31 @@ export function ComposeForm() {
                     label: "Preview",
                     desc: "Check how it looks",
                   },
-                  { id: "send", label: "Send", desc: "Final review & blast" },
                 ].map((s, i) => {
                   const isActive = s.id === activeTab;
                   const stepIndex = [
                     "recipients",
                     "compose",
                     "preview",
-                    "send",
                   ].indexOf(s.id);
                   const currentIndex = [
                     "recipients",
                     "compose",
                     "preview",
-                    "send",
                   ].indexOf(activeTab);
                   const isCompleted = stepIndex < currentIndex;
                   return (
                     <button
                       key={s.id}
                       onClick={() => setActiveTab(s.id)}
-                      className="flex items-center md:items-start gap-4 md:w-full min-w-max pr-4 md:pr-0 pl-1 md:pl-0 text-left transition-all group outline-none"
+                      className="flex items-center md:items-start gap-3 md:gap-4 md:w-full min-w-max pr-4 md:pr-0 pl-1 md:pl-0 text-left transition-all group outline-none"
                     >
                       <div
                         className={`mt-0.5 flex h-8 w-8 items-center justify-center rounded-full border-2 transition-colors shrink-0 ${
                           isActive
-                            ? "border-primary bg-primary text-primary-foreground shadow-[0_0_0_4px_hsl(var(--primary)/0.15)] ring-2 ring-transparent"
+                            ? "border-primary bg-primary text-primary-foreground shadow-[0_0_0_4px_hsl(var(--primary)/0.15)]"
                             : isCompleted
-                              ? "border-primary bg-primary/10 text-primary"
+                              ? "border-primary/50 bg-primary/10 text-primary"
                               : "border-muted-foreground/30 text-muted-foreground group-hover:border-muted-foreground/60"
                         }`}
                       >
@@ -1679,36 +1708,54 @@ export function ComposeForm() {
 
         {/* Main Panel Wrapper */}
         <div className="flex-1 min-w-0 flex flex-col w-full rounded-xl border bg-card shadow-sm overflow-hidden h-fit">
-          {/* Browser Chrome Title Bar */}
-          <div className="flex items-center gap-2 px-4 py-3 bg-muted/60 border-b">
-            <div className="flex gap-1.5 shrink-0">
-              <span className="h-3 w-3 rounded-full bg-red-400" />
-              <span className="h-3 w-3 rounded-full bg-yellow-400" />
-              <span className="h-3 w-3 rounded-full bg-green-400" />
+          {/* Panel chrome */}
+          <div className="px-4 md:px-6 lg:px-8 py-3 border-b bg-muted/10">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex items-center justify-center h-8 w-8 rounded-lg border bg-background/60 text-primary">
+                    {activeStep.icon}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">
+                      {activeStep.label}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {activeStep.desc}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="shrink-0 hidden sm:flex items-center gap-2">
+                <Badge variant="outline" className="bg-background/60">
+                  Step{" "}
+                  {["recipients", "compose", "preview"].indexOf(activeTab) + 1}
+                  /3
+                </Badge>
+              </div>
             </div>
-            <div className="flex-1 mx-3" />
           </div>
 
-          <div className="p-4 md:p-6 lg:p-8 flex-1 min-h-0 overflow-y-auto">
+          <div className="p-4 md:p-6 lg:p-8 pb-28 flex-1 min-h-0 overflow-y-auto space-y-6">
             {/* Recipients Tab */}
-            <div
-              className={
-                activeTab === "recipients" ? "block space-y-6" : "hidden"
-              }
-            >
-              {/* Manual Email Entry */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Mail className="h-4 w-4" />
-                    Add Recipients Manually
-                  </CardTitle>
-                  <CardDescription>
-                    Add recipients one by one with their name for
-                    personalization
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
+            <div className={activeTab === "recipients" ? "block" : "hidden"}>
+              <div className="divide-y divide-border/70 -mx-4 md:-mx-6 lg:-mx-8">
+                {/* Manual Email Entry */}
+                <section className="px-4 md:px-6 lg:px-8 py-6">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="h-9 w-9 rounded-xl border bg-muted/20 flex items-center justify-center text-muted-foreground">
+                      <Mail className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-foreground">
+                        Add recipients manually
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Add recipients one by one. Names can be used for
+                        personalisation.
+                      </p>
+                    </div>
+                  </div>
                   {/* Input Row */}
                   <div className="flex gap-2 items-end">
                     <div className="flex-1 space-y-1">
@@ -1783,26 +1830,37 @@ export function ComposeForm() {
                       </div>
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </section>
 
-              {/* CSV Import with visual cue */}
-              <Card className="border-primary/30 bg-primary/5">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <FileSpreadsheet className="h-4 w-4" />
-                    Import from CSV
-                    <Badge variant="secondary" className="ml-2">
-                      Recommended for bulk
-                    </Badge>
-                  </CardTitle>
-                  <CardDescription>
-                    Need more fields like company, title, or custom data? Use a
-                    CSV file for full personalization with placeholders like{" "}
-                    {"{name}"}, {"{company}"}, etc.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
+                {/* CSV Import */}
+                <section className="px-4 md:px-6 lg:px-8 py-6 bg-primary/[0.035]">
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="h-9 w-9 rounded-xl border bg-background/60 flex items-center justify-center text-primary">
+                        <FileSpreadsheet className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-sm font-semibold text-foreground">
+                            Import from CSV
+                          </h3>
+                          <Badge variant="secondary">Best for bulk</Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Use a CSV to unlock full personalisation with fields
+                          like{" "}
+                          <span className="font-mono text-[13px]">
+                            {"{name}"}
+                          </span>
+                          ,{" "}
+                          <span className="font-mono text-[13px]">
+                            {"{company}"}
+                          </span>
+                          , and more.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                   <LazyCSVUpload onDataLoad={handleCsvData} csvData={csvData} />
                   {csvData.length > 0 && (
                     <div className="mt-4 space-y-3">
@@ -1813,22 +1871,24 @@ export function ComposeForm() {
                       {/* PDF/Certificate Column Selector moved to Compose tab */}
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </section>
 
-              {/* Contact Groups */}
-              {groups.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <Tag className="h-4 w-4" />
-                      Select Contact Groups
-                    </CardTitle>
-                    <CardDescription>
-                      Quickly add all contacts from a group
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
+                {/* Contact Groups */}
+                {groups.length > 0 && (
+                  <section className="px-4 md:px-6 lg:px-8 py-6">
+                    <div className="flex items-start gap-3 mb-4">
+                      <div className="h-9 w-9 rounded-xl border bg-muted/20 flex items-center justify-center text-muted-foreground">
+                        <Tag className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold text-foreground">
+                          Contact groups
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          Add everyone from a group in one click.
+                        </p>
+                      </div>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {groups.map((group) => (
                         <button
@@ -1869,21 +1929,24 @@ export function ComposeForm() {
                         </button>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  </section>
+                )}
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Users className="h-4 w-4" />
-                    Select from Contacts
-                  </CardTitle>
-                  <CardDescription>
-                    Choose from your saved contacts
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
+                {/* Contacts */}
+                <section className="px-4 md:px-6 lg:px-8 py-6">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="h-9 w-9 rounded-xl border bg-muted/20 flex items-center justify-center text-muted-foreground">
+                      <Users className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold text-foreground">
+                        Contacts
+                      </h3>
+                      <p className="text-sm text-muted-foreground">
+                        Pick recipients from your saved contacts.
+                      </p>
+                    </div>
+                  </div>
                   {contacts.length === 0 ? (
                     <p className="text-muted-foreground text-sm">
                       No contacts found. Add contacts from the Contacts page.
@@ -1924,32 +1987,35 @@ export function ComposeForm() {
                       ))}
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </section>
 
-              {/* Selected Recipients Summary */}
-              {recipients.length > 0 && (
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-base">
-                      {recipients.length} Recipients Selected
-                    </CardTitle>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setRecipients([]);
-                        setSelectedContacts(new Set());
-                        setSelectedGroups(new Set());
-                        toast.success("All recipients cleared");
-                      }}
-                      className="text-destructive hover:text-destructive"
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      Clear All
-                    </Button>
-                  </CardHeader>
-                  <CardContent>
+                {/* Selected Recipients Summary */}
+                {recipients.length > 0 && (
+                  <section className="px-4 md:px-6 lg:px-8 py-6 bg-muted/10">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold text-foreground">
+                          {recipients.length} selected
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          Review and remove recipients before moving on.
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setRecipients([]);
+                          setSelectedContacts(new Set());
+                          setSelectedGroups(new Set());
+                          toast.success("All recipients cleared");
+                        }}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Clear all
+                      </Button>
+                    </div>
                     <div className="flex flex-wrap gap-2 max-h-48 overflow-y-auto">
                       {recipients.map((email, index) => (
                         <Badge
@@ -1967,9 +2033,9 @@ export function ComposeForm() {
                         </Badge>
                       ))}
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                  </section>
+                )}
+              </div>
             </div>
 
             {/* Compose Tab */}
@@ -2281,23 +2347,31 @@ export function ComposeForm() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="subject">Subject</Label>
-                <Input
-                  id="subject"
-                  placeholder="Enter email subject..."
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                />
-              </div>
+              <div className="border rounded-xl shadow-sm bg-card overflow-hidden flex flex-col">
+                <div className="flex items-center px-4 py-3 border-b bg-card">
+                  <Label
+                    htmlFor="subject"
+                    className="text-muted-foreground font-medium text-sm w-20 mb-0"
+                  >
+                    Subject:
+                  </Label>
+                  <Input
+                    id="subject"
+                    placeholder="Enter email subject..."
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    className="border-0 focus-visible:ring-0 shadow-none px-0 bg-transparent flex-1 h-auto py-0 text-sm font-medium"
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label>Email Body</Label>
-                <LazyRichTextEditor
-                  content={content}
-                  onChange={setContent}
-                  placeholder="Compose your email..."
-                />
+                <div className="flex-1 flex flex-col">
+                  <LazyRichTextEditor
+                    content={content}
+                    onChange={setContent}
+                    placeholder="Compose your email..."
+                    className="border-0 rounded-none bg-card shadow-none"
+                  />
+                </div>
               </div>
 
               {/* Attachments */}
@@ -2508,15 +2582,22 @@ export function ComposeForm() {
                 </div>
               </div>
 
-              {/* Email Options Card */}
-              <Card>
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-base flex items-center gap-2">
+              {/* Email Options */}
+              <div className="pt-6 border-t border-border/70">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="h-9 w-9 rounded-xl border bg-muted/20 flex items-center justify-center text-muted-foreground">
                     <Settings className="h-4 w-4" />
-                    Email Options
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-foreground">
+                      Email options
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
+                      Choose the email type and sending behaviour.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-6">
                   {/* Email Type Selector */}
                   <div className="space-y-3">
                     <Label className="text-sm font-medium">Email Type</Label>
@@ -2625,26 +2706,20 @@ export function ComposeForm() {
                       />
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </div>
 
             {/* Preview Tab */}
             <div className={activeTab === "preview" ? "block" : "hidden"}>
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div>
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <Eye className="h-4 w-4" />
-                        Email Preview
-                      </CardTitle>
-                      <CardDescription>
-                        Preview exactly how your email will appear in Gmail
-                      </CardDescription>
-                    </div>
-                    {/* Desktop/Mobile Toggle */}
-                    <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-1">
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CheckCircle className="h-4 w-4 text-success" />
+                    <span>Gmail-accurate preview</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 bg-muted/40 rounded-lg p-1">
                       <Button
                         variant={
                           previewMode === "desktop" ? "secondary" : "ghost"
@@ -2667,374 +2742,149 @@ export function ComposeForm() {
                         <Smartphone className="h-4 w-4" />
                         <span className="hidden sm:inline">Mobile</span>
                       </Button>
-                      <div className="border-l mx-1 h-6" />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setShowClientPreview(true)}
-                        className="flex items-center gap-2"
-                      >
-                        <Mail className="h-4 w-4" />
-                        <span className="hidden sm:inline">Client Preview</span>
-                      </Button>
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowClientPreview(true)}
+                      className="flex items-center gap-2"
+                    >
+                      <Mail className="h-4 w-4" />
+                      <span className="hidden sm:inline">Client preview</span>
+                      <span className="sm:hidden">Clients</span>
+                    </Button>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Recipient Selector */}
-                  {recipients.length > 0 && (
-                    <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() =>
-                          setPreviewRecipientIndex(
-                            Math.max(0, previewRecipientIndex - 1),
-                          )
-                        }
-                        disabled={previewRecipientIndex === 0}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                      </Button>
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">
-                          Recipient {previewRecipientIndex + 1} of{" "}
-                          {recipients.length}
-                        </span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() =>
-                          setPreviewRecipientIndex(
-                            Math.min(
-                              recipients.length - 1,
-                              previewRecipientIndex + 1,
-                            ),
-                          )
-                        }
-                        disabled={
-                          previewRecipientIndex >= recipients.length - 1
-                        }
-                      >
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
+                </div>
 
-                  {/* Preview Accuracy Notice */}
-                  <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800 flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
-                    <p className="text-xs text-green-800 dark:text-green-300">
-                      <strong>Accurate preview:</strong> This shows exactly how
-                      your email will appear in Gmail.
-                    </p>
-                  </div>
+                {(() => {
+                  const preview = getPersonalizedContent(previewRecipientIndex);
+                  const hasPlaceholders = (subject + content).match(
+                    /\{\{?\w+\}?\}/,
+                  );
+                  const csvRow = csvData.find(
+                    (row) => row.email === preview.email,
+                  );
+                  const manualEntry = manualEntries.find(
+                    (e) => e.email === preview.email,
+                  );
+                  const personalizationEntries = Object.entries(
+                    preview.data || {},
+                  )
+                    .filter(([key, value]) => value && key !== "email")
+                    .slice(0, 10);
+                  const showPersonalization =
+                    !!hasPlaceholders &&
+                    (csvRow || manualEntry) &&
+                    personalizationEntries.length > 0;
 
-                  {/* Personalization Info */}
-                  {(() => {
-                    const preview = getPersonalizedContent(
-                      previewRecipientIndex,
-                    );
-                    const hasPlaceholders = (subject + content).match(
-                      /\{\{?\w+\}?\}/,
-                    );
-                    const csvRow = csvData.find(
-                      (row) => row.email === preview.email,
-                    );
-                    const manualEntry = manualEntries.find(
-                      (e) => e.email === preview.email,
-                    );
-
-                    return (
-                      <>
-                        {hasPlaceholders && (csvRow || manualEntry) && (
-                          <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
-                            <p className="text-sm font-medium text-primary mb-2">
-                              Personalization Data:
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                              {Object.entries(preview.data || {})
-                                .filter(
-                                  ([key, value]) => value && key !== "email",
-                                )
-                                .map(([key, value]) => (
-                                  <Badge
-                                    key={key}
-                                    variant="outline"
-                                    className="text-xs"
-                                  >
-                                    {key}: {String(value)}
-                                  </Badge>
-                                ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Email Header */}
-                        <div
-                          className={`border rounded-lg bg-white dark:bg-zinc-900 overflow-hidden ${
-                            previewMode === "mobile"
-                              ? "max-w-[375px] mx-auto"
-                              : ""
-                          }`}
-                        >
-                          <div className="border-b p-4 bg-gray-50 dark:bg-zinc-800">
-                            <p className="text-sm">
-                              <span className="font-medium text-muted-foreground">
-                                To:
-                              </span>{" "}
-                              <span className="text-foreground">
-                                {preview.email}
-                              </span>
-                            </p>
-                            <p className="text-sm mt-1">
-                              <span className="font-medium text-muted-foreground">
-                                Subject:
-                              </span>{" "}
-                              <span className="text-foreground font-semibold">
-                                {preview.subject}
-                              </span>
-                            </p>
-                          </div>
-
-                          {/* Email Body - Formatted Preview */}
-                          <div className="relative">
-                            {isLoadingPreview ? (
-                              <div className="flex flex-col items-center justify-center py-16">
-                                <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-                                <p className="text-sm text-muted-foreground">
-                                  Formatting preview...
-                                </p>
-                              </div>
-                            ) : (
-                              <iframe
-                                srcDoc={formattedPreviewHtml}
-                                className={`w-full border-0 bg-white ${
-                                  previewMode === "mobile"
-                                    ? "h-[500px]"
-                                    : "h-[400px]"
-                                }`}
-                                title={`Email preview for ${preview.email}`}
-                                sandbox="allow-same-origin"
-                              />
-                            )}
-                          </div>
-
-                          {/* Show attachments section */}
-                          {(attachments.length > 0 ||
-                            (pdfColumn && preview.data?.[pdfColumn])) && (
-                            <div className="border-t p-4 bg-gray-50 dark:bg-zinc-800">
-                              <p className="text-sm font-medium mb-2">
-                                Attachments:
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {attachments.map((att, i) => (
-                                  <Badge key={i} variant="secondary">
-                                    <Paperclip className="h-3 w-3 mr-1" />
-                                    {att.name}
-                                  </Badge>
-                                ))}
-                                {/* Show personalized attachment with fetched metadata */}
-                                {pdfColumn &&
-                                  preview.data?.[pdfColumn] &&
-                                  isPdfUrl(String(preview.data[pdfColumn])) && (
-                                    <div className="w-full mt-2">
-                                      {isLoadingAttachmentMetadata ? (
-                                        <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                                          <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
-                                          <span className="text-sm text-blue-700 dark:text-blue-300">
-                                            Loading attachment details...
-                                          </span>
-                                        </div>
-                                      ) : personalizedAttachmentMetadata[
-                                          preview.email
-                                        ] ? (
-                                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                                          <div className="flex items-start justify-between gap-4">
-                                            <div className="flex items-start gap-3">
-                                              <div className="p-2 bg-blue-100 dark:bg-blue-800 rounded-lg">
-                                                {personalizedAttachmentMetadata[
-                                                  preview.email
-                                                ]?.fileType === "pdf" && (
-                                                  <FileText className="h-6 w-6 text-red-600 dark:text-red-400" />
-                                                )}
-                                                {personalizedAttachmentMetadata[
-                                                  preview.email
-                                                ]?.fileType === "image" && (
-                                                  <FileText className="h-6 w-6 text-green-600 dark:text-green-400" />
-                                                )}
-                                                {personalizedAttachmentMetadata[
-                                                  preview.email
-                                                ]?.fileType === "document" && (
-                                                  <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                                                )}
-                                                {personalizedAttachmentMetadata[
-                                                  preview.email
-                                                ]?.fileType ===
-                                                  "spreadsheet" && (
-                                                  <FileSpreadsheet className="h-6 w-6 text-green-600 dark:text-green-400" />
-                                                )}
-                                                {personalizedAttachmentMetadata[
-                                                  preview.email
-                                                ]?.fileType ===
-                                                  "presentation" && (
-                                                  <FileText className="h-6 w-6 text-orange-600 dark:text-orange-400" />
-                                                )}
-                                                {personalizedAttachmentMetadata[
-                                                  preview.email
-                                                ]?.fileType === "other" && (
-                                                  <Paperclip className="h-6 w-6 text-gray-600 dark:text-gray-400" />
-                                                )}
-                                              </div>
-                                              <div>
-                                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                                  {
-                                                    personalizedAttachmentMetadata[
-                                                      preview.email
-                                                    ]?.fileName
-                                                  }
-                                                </p>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                  <Badge
-                                                    variant="outline"
-                                                    className="text-xs"
-                                                  >
-                                                    {personalizedAttachmentMetadata[
-                                                      preview.email
-                                                    ]?.source ===
-                                                      "google-drive" &&
-                                                      "Google Drive"}
-                                                    {personalizedAttachmentMetadata[
-                                                      preview.email
-                                                    ]?.source === "onedrive" &&
-                                                      "OneDrive"}
-                                                    {personalizedAttachmentMetadata[
-                                                      preview.email
-                                                    ]?.source === "dropbox" &&
-                                                      "Dropbox"}
-                                                    {personalizedAttachmentMetadata[
-                                                      preview.email
-                                                    ]?.source === "direct" &&
-                                                      "Direct Link"}
-                                                  </Badge>
-                                                  {personalizedAttachmentMetadata[
-                                                    preview.email
-                                                  ]?.fileSize && (
-                                                    <span className="text-xs text-muted-foreground">
-                                                      {formatFileSize(
-                                                        personalizedAttachmentMetadata[
-                                                          preview.email
-                                                        ]?.fileSize || 0,
-                                                      )}
-                                                    </span>
-                                                  )}
-                                                  {personalizedAttachmentMetadata[
-                                                    preview.email
-                                                  ]?.accessible && (
-                                                    <Badge
-                                                      variant="secondary"
-                                                      className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
-                                                    >
-                                                      <CheckCircle className="h-3 w-3 mr-1" />
-                                                      Accessible
-                                                    </Badge>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            </div>
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={() => {
-                                                setPreviewAttachmentUrl(
-                                                  String(
-                                                    preview.data?.[pdfColumn],
-                                                  ),
-                                                );
-                                                setShowAttachmentPreview(true);
-                                              }}
-                                              className="flex-shrink-0"
-                                            >
-                                              <Eye className="h-3 w-3 mr-1" />
-                                              Preview
-                                            </Button>
-                                          </div>
-                                          <p
-                                            className="text-xs text-muted-foreground mt-2 truncate"
-                                            title={String(
-                                              preview.data[pdfColumn],
-                                            )}
-                                          >
-                                            {String(preview.data[pdfColumn])
-                                              .length > 60
-                                              ? String(
-                                                  preview.data[pdfColumn],
-                                                ).substring(0, 60) + "..."
-                                              : String(preview.data[pdfColumn])}
-                                          </p>
-                                        </div>
-                                      ) : (
-                                        <Badge
-                                          variant="default"
-                                          className="bg-blue-600 cursor-pointer"
-                                          title={String(
-                                            preview.data[pdfColumn],
-                                          )}
-                                          onClick={() => {
-                                            setPreviewAttachmentUrl(
-                                              String(preview.data?.[pdfColumn]),
-                                            );
-                                            setShowAttachmentPreview(true);
-                                          }}
-                                        >
-                                          <FileText className="h-3 w-3 mr-1" />
-                                          {getFilenameFromUrl(
-                                            String(preview.data[pdfColumn]),
-                                          )}
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    );
-                  })()}
-
-                  {recipients.length === 0 && (
+                  return (
                     <div
-                      className={`border rounded-lg bg-white dark:bg-zinc-900 overflow-hidden ${
-                        previewMode === "mobile" ? "max-w-[375px] mx-auto" : ""
+                      className={`rounded-xl border bg-background overflow-hidden ${
+                        previewMode === "mobile" ? "max-w-[390px] mx-auto" : ""
                       }`}
                     >
-                      <div className="border-b p-4 bg-gray-50 dark:bg-zinc-800">
-                        <p className="text-sm">
-                          <span className="font-medium text-muted-foreground">
-                            To:
-                          </span>{" "}
-                          <span className="text-foreground">
-                            recipient@example.com
-                          </span>
-                        </p>
-                        <p className="text-sm mt-1">
-                          <span className="font-medium text-muted-foreground">
-                            Subject:
-                          </span>{" "}
-                          <span className="text-foreground font-semibold">
-                            {subject || "(No subject)"}
-                          </span>
-                        </p>
+                      <div className="border-b bg-muted/20 px-4 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs text-muted-foreground truncate">
+                              To
+                            </p>
+                            <p className="text-sm font-medium truncate">
+                              {recipients.length > 0
+                                ? preview.email
+                                : "recipient@example.com"}
+                            </p>
+                          </div>
+                          <div className="text-right min-w-0">
+                            <p className="text-xs text-muted-foreground truncate">
+                              Subject
+                            </p>
+                            <p className="text-sm font-semibold truncate">
+                              {preview.subject || subject || "(No subject)"}
+                            </p>
+                          </div>
+                        </div>
                       </div>
+
+                      {recipients.length > 0 && (
+                        <div className="border-b px-3 py-2 bg-background">
+                          <div className="flex items-center justify-between">
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() =>
+                                setPreviewRecipientIndex(
+                                  Math.max(0, previewRecipientIndex - 1),
+                                )
+                              }
+                              disabled={previewRecipientIndex === 0}
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm font-medium">
+                                Recipient {previewRecipientIndex + 1} of{" "}
+                                {recipients.length}
+                              </span>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              onClick={() =>
+                                setPreviewRecipientIndex(
+                                  Math.min(
+                                    recipients.length - 1,
+                                    previewRecipientIndex + 1,
+                                  ),
+                                )
+                              }
+                              disabled={
+                                previewRecipientIndex >= recipients.length - 1
+                              }
+                            >
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {showPersonalization && (
+                        <div className="border-b bg-primary/[0.035] px-4 py-3">
+                          <p className="text-xs font-medium text-primary mb-2">
+                            Personalization
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {personalizationEntries.map(([key, value]) => (
+                              <Badge
+                                key={key}
+                                variant="outline"
+                                className="text-xs bg-background/60"
+                              >
+                                {key}: {String(value)}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="relative">
-                        {isLoadingPreview ? (
+                        {!content ? (
+                          <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+                            <Eye className="h-8 w-8 text-muted-foreground/60 mb-3" />
+                            <p className="text-sm font-medium">
+                              Nothing to preview yet
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Write your email in Compose, then come back to
+                              preview it here.
+                            </p>
+                          </div>
+                        ) : isLoadingPreview ? (
                           <div className="flex flex-col items-center justify-center py-16">
                             <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
                             <p className="text-sm text-muted-foreground">
-                              Formatting preview...
+                              Formatting preview…
                             </p>
                           </div>
                         ) : (
@@ -3048,212 +2898,84 @@ export function ComposeForm() {
                             }
                             className={`w-full border-0 bg-white ${
                               previewMode === "mobile"
-                                ? "h-[500px]"
-                                : "h-[400px]"
+                                ? "h-[520px]"
+                                : "h-[440px]"
                             }`}
-                            title="Email preview"
+                            title={`Email preview for ${preview.email || "recipient"}`}
                             sandbox="allow-same-origin"
                           />
                         )}
                       </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
 
-            {/* Send Tab / Actions */}
-            <div
-              className={activeTab === "send" ? "block space-y-6" : "hidden"}
-            >
-              <Card className="border-0 shadow-none bg-transparent">
-                <CardHeader className="px-0">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Send className="h-4 w-4" />
-                    Final Review & Send
-                  </CardTitle>
-                  <CardDescription>
-                    Review settings before dispatching your campaign.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="px-0 space-y-6">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-muted px-4 py-3 rounded-xl">
-                      <div className="text-xs text-muted-foreground mb-0.5">
-                        Recipients
-                      </div>
-                      <div className="text-xl font-semibold">
-                        {recipients.length}
-                      </div>
-                    </div>
-                    <div className="bg-muted px-4 py-3 rounded-xl border-l-4 border-primary">
-                      <div className="text-xs text-muted-foreground mb-0.5">
-                        Status
-                      </div>
-                      <div className="text-xl font-semibold">Immediate</div>
-                    </div>
-                  </div>
-
-                  <div className="bg-primary/5 border border-primary/20 p-4 rounded-xl flex gap-3 text-sm text-muted-foreground">
-                    <AlertCircle className="h-5 w-5 text-primary shrink-0" />
-                    <div>
-                      <p className="font-medium text-foreground mb-1">
-                        Ready to dispatch
-                      </p>
-                      <p>
-                        Please double check the preview first. The campaign will
-                        be queued.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="pt-4">
-                    <Button
-                      onClick={handleSend}
-                      className="w-full sm:w-auto"
-                      disabled={
-                        isSending ||
-                        isPreparingSend ||
-                        isSavingDraft ||
-                        isUploading ||
-                        attachments.some((a) => a.isProcessing) ||
-                        !subject ||
-                        !content ||
-                        recipients.length === 0
-                      }
-                    >
-                      {isPreparingSend ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
-                          Preparing Campaign...
-                        </>
-                      ) : isSending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
-                          Sending...
-                        </>
-                      ) : (
-                        <>
-                          <Send className="mr-2 h-4 w-4" /> Dispatch Campaign
-                        </>
+                      {(attachments.length > 0 ||
+                        (pdfColumn && preview.data?.[pdfColumn])) && (
+                        <div className="border-t px-4 py-3 bg-muted/20">
+                          <p className="text-sm font-medium mb-2">
+                            Attachments
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {attachments.map((att, i) => (
+                              <Badge key={i} variant="secondary">
+                                <Paperclip className="h-3 w-3 mr-1" />
+                                {att.name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
                       )}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
 
-            {/* Main Form Next/Back Actions */}
-            <div className="flex items-center justify-between p-4 md:p-6 border-t bg-muted/20">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const steps = ["recipients", "compose", "preview", "send"];
-                  const idx = steps.indexOf(activeTab);
-                  if (idx > 0) {
-                    setActiveTab(steps[idx - 1]);
-                  }
-                }}
-                disabled={activeTab === "recipients"}
-              >
-                <ChevronLeft className="mr-2 h-4 w-4" /> Back
-              </Button>
-              <Button
-                onClick={() => {
-                  const steps = ["recipients", "compose", "preview", "send"];
-                  const idx = steps.indexOf(activeTab);
-                  if (idx < steps.length - 1) {
-                    setActiveTab(steps[idx + 1]);
-                  }
-                }}
-                disabled={activeTab === "send"}
-              >
-                Next <ChevronRight className="ml-2 h-4 w-4" />
-              </Button>
-            </div>
+            {/* Send step removed — Dispatch happens in Preview */}
+
+            {/* Main Form Next/Back Actions removed (replaced by StickyActionBar) */}
           </div>
         </div>
       </div>
 
-      {/* Legacy Footer (hidden but kept for logic if any) */}
-      <div className="hidden items-center justify-between pt-4 border-t">
-        <div className="text-sm text-muted-foreground space-y-1">
-          {quotaInfo.estimatedRemaining < 100 && (
-            <div className="text-warning">
-              <AlertCircle className="h-4 w-4 inline mr-1" />~
-              {quotaInfo.estimatedRemaining} emails remaining today
-            </div>
-          )}
-          {/* Keyboard shortcuts hint */}
-          <div className="hidden sm:flex items-center gap-3 text-xs">
-            <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">
-                Ctrl+S
-              </kbd>
-              Save draft
-            </span>
-            {!saveAsDraft && (
-              <span className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">
-                  Ctrl+Enter
-                </kbd>
-                Send
-              </span>
-            )}
-          </div>
-        </div>
-
-        <Button
-          onClick={handleSend}
-          disabled={
-            isSending ||
-            isPreparingSend ||
-            isSavingDraft ||
-            isUploading ||
-            attachments.some((a) => a.isProcessing) ||
-            !subject ||
-            !content ||
-            recipients.length === 0
+      <StickyActionBar
+        activeSection={activeSection}
+        recipientsCount={recipients.length}
+        canGoBack={activeTab !== "recipients"}
+        canGoNext={activeTab !== "preview"}
+        onBack={() => {
+          const steps: ComposeSectionId[] = [
+            "recipients",
+            "compose",
+            "preview",
+          ];
+          const idx = steps.indexOf(activeSection);
+          if (idx > 0) {
+            setActiveTab(steps[idx - 1]);
           }
-          size="lg"
-        >
-          {saveAsDraft ? (
-            isSavingDraft ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Saving Draft...
-              </>
-            ) : isUploading || attachments.some((a) => a.isProcessing) ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Processing Files...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save as Draft ({recipients.length}{" "}
-                {recipients.length === 1 ? "recipient" : "recipients"})
-              </>
-            )
-          ) : isPreparingSend || isSending ? (
-            <>
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              {isPreparingSend ? "Preparing..." : "Sending..."}
-            </>
-          ) : isUploading || attachments.some((a) => a.isProcessing) ? (
-            <>
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-              Processing Files...
-            </>
-          ) : (
-            <>
-              <Send className="h-4 w-4 mr-2" />
-              Send to {recipients.length}{" "}
-              {recipients.length === 1 ? "recipient" : "recipients"}
-            </>
-          )}
-        </Button>
-      </div>
+        }}
+        onNext={() => {
+          const steps: ComposeSectionId[] = [
+            "recipients",
+            "compose",
+            "preview",
+          ];
+          const idx = steps.indexOf(activeSection);
+          if (idx < steps.length - 1) {
+            setActiveTab(steps[idx + 1]);
+          }
+        }}
+        onDispatch={handleSend}
+        isDispatching={isPreparingSend || isSending}
+        dispatchDisabled={
+          isSending ||
+          isPreparingSend ||
+          isSavingDraft ||
+          isUploading ||
+          attachments.some((a) => a.isProcessing) ||
+          !subject ||
+          !content ||
+          recipients.length === 0
+        }
+      />
 
       {/* Sending Dialog */}
       <Dialog
@@ -3785,7 +3507,7 @@ function createGmailPreviewWrapper(htmlContent: string): string {
  * Extract filename from a URL for personalized attachments
  * Tries to get the filename from the URL path, falls back to a shortened URL display
  */
-function getFilenameFromUrl(url: string): string {
+function _getFilenameFromUrl(url: string): string {
   try {
     const urlObj = new URL(url);
     const pathParts = urlObj.pathname.split("/");
