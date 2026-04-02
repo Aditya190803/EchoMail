@@ -52,7 +52,7 @@ export function Footer() {
                   href="/api-docs"
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  API Documentation
+                  API & Webhooks
                 </Link>
               </li>
             </ul>
