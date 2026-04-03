@@ -1,8 +1,146 @@
-import '@testing-library/jest-dom'
-import { vi, beforeEach } from 'vitest'
+import "@testing-library/jest-dom";
+import { cleanup } from "@testing-library/react";
+import { JSDOM } from "jsdom";
+import { afterEach, beforeEach, vi, type VitestUtils } from "vitest";
+
+Object.defineProperty(process.env, "NODE_ENV", {
+  value: "test",
+  configurable: true,
+  writable: true,
+});
+process.env.GOOGLE_CLIENT_ID ??= "test-google-client-id";
+process.env.GOOGLE_CLIENT_SECRET ??= "test-google-client-secret";
+process.env.NEXTAUTH_URL ??= "http://localhost:3000";
+process.env.NEXTAUTH_SECRET ??= "test-nextauth-secret";
+process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT ??= "https://localhost/v1";
+process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID ??= "test-project-id";
+process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID ??= "test-database-id";
+process.env.APPWRITE_API_KEY ??= "test-appwrite-api-key";
+
+if (typeof window === "undefined" || typeof document === "undefined") {
+  const dom = new JSDOM("<!doctype html><html><body></body></html>", {
+    url: "http://localhost/",
+  });
+
+  Object.assign(globalThis, {
+    window: dom.window,
+    document: dom.window.document,
+    navigator: dom.window.navigator,
+    HTMLElement: dom.window.HTMLElement,
+    Node: dom.window.Node,
+    Event: dom.window.Event,
+    CustomEvent: dom.window.CustomEvent,
+    KeyboardEvent: dom.window.KeyboardEvent,
+    requestAnimationFrame: (callback: FrameRequestCallback) =>
+      setTimeout(() => callback(Date.now()), 16),
+    cancelAnimationFrame: (id: number) => clearTimeout(id),
+  });
+}
+
+for (const storageKey of ["localStorage", "sessionStorage"] as const) {
+  Object.defineProperty(globalThis, storageKey, {
+    configurable: true,
+    get: () => window[storageKey],
+    set: (value) => {
+      Object.defineProperty(window, storageKey, {
+        configurable: true,
+        writable: true,
+        value,
+      });
+    },
+  });
+}
+
+type VitestCompat = typeof vi & {
+  mocked?: <T>(item: T) => T;
+  hoisted?: <T>(factory: () => T) => T;
+  useFakeTimers?: () => VitestUtils;
+  useRealTimers?: () => VitestUtils;
+  setSystemTime?: (time: number | string | Date) => VitestUtils;
+  advanceTimersByTime?: (ms: number) => VitestUtils;
+  resetModules?: () => VitestUtils;
+};
+
+const viCompat = vi as VitestCompat;
+const RealDate = Date;
+const realDateNow = RealDate.now.bind(RealDate);
+let mockedNow = realDateNow();
+let fakeTimersEnabled = false;
+
+viCompat.mocked ??= ((item: unknown) => item) as any;
+viCompat.hoisted ??= <T>(factory: () => T) => factory();
+viCompat.useFakeTimers ??= () => {
+  if (!fakeTimersEnabled) {
+    mockedNow = realDateNow();
+  }
+
+  class MockDate extends RealDate {
+    constructor(...args: any[]) {
+      if (args.length === 0) {
+        super(mockedNow);
+        return;
+      }
+
+      if (args.length === 1) {
+        super(args[0]);
+        return;
+      }
+
+      if (args.length === 2) {
+        super(args[0], args[1]);
+        return;
+      }
+
+      if (args.length === 3) {
+        super(args[0], args[1], args[2]);
+        return;
+      }
+
+      if (args.length === 4) {
+        super(args[0], args[1], args[2], args[3]);
+        return;
+      }
+
+      if (args.length === 5) {
+        super(args[0], args[1], args[2], args[3], args[4]);
+        return;
+      }
+
+      if (args.length === 6) {
+        super(args[0], args[1], args[2], args[3], args[4], args[5]);
+        return;
+      }
+
+      super(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+    }
+
+    static override now() {
+      return mockedNow;
+    }
+  }
+
+  fakeTimersEnabled = true;
+  globalThis.Date = MockDate as DateConstructor;
+  return viCompat as VitestUtils;
+};
+viCompat.setSystemTime ??= (time: number | string | Date) => {
+  mockedNow = new RealDate(time).getTime();
+  viCompat.useFakeTimers?.();
+  return viCompat as VitestUtils;
+};
+viCompat.advanceTimersByTime ??= (ms: number) => {
+  mockedNow += ms;
+  return viCompat as VitestUtils;
+};
+viCompat.useRealTimers ??= () => {
+  fakeTimersEnabled = false;
+  globalThis.Date = RealDate;
+  return viCompat as VitestUtils;
+};
+viCompat.resetModules ??= () => viCompat as VitestUtils;
 
 // Mock next/navigation
-vi.mock('next/navigation', () => ({
+vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: vi.fn(),
     replace: vi.fn(),
@@ -10,30 +148,38 @@ vi.mock('next/navigation', () => ({
     back: vi.fn(),
   }),
   useSearchParams: () => new URLSearchParams(),
-  usePathname: () => '/',
-}))
+  usePathname: () => "/",
+}));
 
 // Mock next-auth
-vi.mock('next-auth/react', () => ({
+vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {
       user: {
-        email: 'test@example.com',
-        name: 'Test User',
+        email: "test@example.com",
+        name: "Test User",
       },
-      accessToken: 'mock-token',
+      accessToken: "mock-token",
     },
-    status: 'authenticated',
+    status: "authenticated",
   }),
   signIn: vi.fn(),
   signOut: vi.fn(),
   SessionProvider: ({ children }: { children: React.ReactNode }) => children,
-}))
+}));
 
 // Mock fetch globally
-global.fetch = vi.fn()
+global.fetch = vi.fn();
 
 // Reset mocks between tests
 beforeEach(() => {
-  vi.clearAllMocks()
-})
+  vi.clearAllMocks();
+});
+
+afterEach(() => {
+  cleanup();
+  viCompat.useRealTimers?.();
+  (vi as any).doUnmock?.("@/lib/logger");
+  (vi as any).doUnmock?.("@/lib/auth");
+  (vi as any).resetModules?.();
+});

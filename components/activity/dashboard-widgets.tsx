@@ -180,7 +180,7 @@ export function LineChartWidget({
   data,
   dataKey = "value",
   label,
-  color = "hsl(var(--chart-1))",
+  color = "var(--color-chart-1)",
   size = "medium",
   loading = false,
   showGrid = true,
@@ -220,8 +220,8 @@ export function LineChartWidget({
             <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
             <Tooltip
               contentStyle={{
-                backgroundColor: "hsl(var(--background))",
-                border: "1px solid hsl(var(--border))",
+                backgroundColor: "var(--color-background)",
+                border: "1px solid var(--color-border)",
                 borderRadius: "8px",
               }}
             />
@@ -263,7 +263,7 @@ export function BarChartWidget({
   data,
   dataKey = "value",
   label,
-  color = "hsl(var(--chart-2))",
+  color = "var(--color-chart-2)",
   size = "medium",
   loading = false,
   horizontal = false,
@@ -311,8 +311,8 @@ export function BarChartWidget({
             )}
             <Tooltip
               contentStyle={{
-                backgroundColor: "hsl(var(--background))",
-                border: "1px solid hsl(var(--border))",
+                backgroundColor: "var(--color-background)",
+                border: "1px solid var(--color-border)",
                 borderRadius: "8px",
               }}
             />
@@ -343,11 +343,11 @@ interface PieChartWidgetProps {
 }
 
 const DEFAULT_COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
+  "var(--color-chart-1)",
+  "var(--color-chart-2)",
+  "var(--color-chart-3)",
+  "var(--color-chart-4)",
+  "var(--color-chart-5)",
 ];
 
 export function PieChartWidget({
@@ -419,8 +419,8 @@ export function PieChartWidget({
               </Pie>
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "hsl(var(--background))",
-                  border: "1px solid hsl(var(--border))",
+                  backgroundColor: "var(--color-background)",
+                  border: "1px solid var(--color-border)",
                   borderRadius: "8px",
                 }}
               />

@@ -7,6 +7,7 @@ import { useSession, signIn, signOut } from "next-auth/react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import type { ButtonProps } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,8 +16,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 
-export function AuthButton() {
+type AuthButtonProps = Pick<ButtonProps, "size" | "variant" | "className">;
+
+export function AuthButton({
+  size = "sm",
+  variant = "default",
+  className,
+}: AuthButtonProps = {}) {
   const { data: session, status } = useSession();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -44,7 +52,12 @@ export function AuthButton() {
 
   if (status === "loading") {
     return (
-      <Button variant="ghost" size="sm" disabled className="gap-2">
+      <Button
+        variant="ghost"
+        size={size}
+        disabled
+        className={cn("gap-2", className)}
+      >
         <div className="h-4 w-4 rounded-full bg-muted animate-pulse" />
         <span className="hidden sm:inline">Loading...</span>
       </Button>
@@ -57,8 +70,8 @@ export function AuthButton() {
       <Button
         onClick={() => signIn("google")}
         variant="destructive"
-        size="sm"
-        className="gap-2"
+        size={size}
+        className={cn("gap-2", className)}
       >
         <AlertCircle className="h-4 w-4" />
         <span>Session Expired - Sign in</span>
@@ -126,9 +139,9 @@ export function AuthButton() {
   return (
     <Button
       onClick={() => signIn("google")}
-      variant="default"
-      size="sm"
-      className="gap-2"
+      variant={variant}
+      size={size}
+      className={cn("gap-2", className)}
     >
       <svg className="h-4 w-4" viewBox="0 0 24 24">
         <path

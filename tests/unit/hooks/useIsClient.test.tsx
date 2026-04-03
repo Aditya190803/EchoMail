@@ -5,12 +5,10 @@
 import React from "react";
 
 import { renderHook, waitFor } from "@testing-library/react";
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
 
 import { useIsClient, ClientOnly } from "@/hooks/useIsClient";
-
-
 
 describe("useIsClient Hook", () => {
   describe("initialization", () => {
@@ -48,7 +46,7 @@ describe("ClientOnly Component", () => {
     const { container } = render(
       <ClientOnly>
         <div data-testid="client-content">Client Content</div>
-      </ClientOnly>
+      </ClientOnly>,
     );
 
     // Initial render - content might not be visible until after effect runs
@@ -56,56 +54,56 @@ describe("ClientOnly Component", () => {
   });
 
   it("should render children after client-side hydration", async () => {
-    render(
+    const view = render(
       <ClientOnly>
         <div data-testid="client-content">Client Content</div>
-      </ClientOnly>
+      </ClientOnly>,
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("client-content")).toBeInTheDocument();
+      expect(view.getByTestId("client-content")).toBeInTheDocument();
     });
   });
 
   it("should correctly render text content", async () => {
-    render(
+    const view = render(
       <ClientOnly>
         <span>Hello Client</span>
-      </ClientOnly>
+      </ClientOnly>,
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Hello Client")).toBeInTheDocument();
+      expect(view.getByText("Hello Client")).toBeInTheDocument();
     });
   });
 
   it("should render multiple children", async () => {
-    render(
+    const view = render(
       <ClientOnly>
         <div data-testid="child-1">First</div>
         <div data-testid="child-2">Second</div>
-      </ClientOnly>
+      </ClientOnly>,
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("child-1")).toBeInTheDocument();
-      expect(screen.getByTestId("child-2")).toBeInTheDocument();
+      expect(view.getByTestId("child-1")).toBeInTheDocument();
+      expect(view.getByTestId("child-2")).toBeInTheDocument();
     });
   });
 
   it("should render nested components", async () => {
     const NestedComponent = () => <span data-testid="nested">Nested</span>;
 
-    render(
+    const view = render(
       <ClientOnly>
         <div>
           <NestedComponent />
         </div>
-      </ClientOnly>
+      </ClientOnly>,
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("nested")).toBeInTheDocument();
+      expect(view.getByTestId("nested")).toBeInTheDocument();
     });
   });
 });

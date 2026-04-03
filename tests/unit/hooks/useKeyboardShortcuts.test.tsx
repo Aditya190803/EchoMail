@@ -6,16 +6,13 @@ import React from "react";
 import { renderHook, act, render } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// Use vi.hoisted for variables used in mocks
-const { mockPush, mockToast } = vi.hoisted(() => ({
-  mockPush: vi.fn(),
-  mockToast: {
-    info: vi.fn(),
-    success: vi.fn(),
-    warning: vi.fn(),
-    error: vi.fn(),
-  },
-}));
+const mockPush = vi.fn();
+const mockToast = {
+  info: vi.fn(),
+  success: vi.fn(),
+  warning: vi.fn(),
+  error: vi.fn(),
+};
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -64,9 +61,17 @@ describe("useKeyboardShortcuts Hook", () => {
       }));
 
       // Check for new campaign shortcut (Ctrl+Shift+N)
-      expect(shortcutKeys).toContainEqual({ key: "n", ctrl: true, shift: true });
+      expect(shortcutKeys).toContainEqual({
+        key: "n",
+        ctrl: true,
+        shift: true,
+      });
       // Check for dashboard shortcut (Ctrl+Shift+H)
-      expect(shortcutKeys).toContainEqual({ key: "h", ctrl: true, shift: true });
+      expect(shortcutKeys).toContainEqual({
+        key: "h",
+        ctrl: true,
+        shift: true,
+      });
     });
 
     it("should merge custom shortcuts with defaults", () => {
@@ -79,10 +84,12 @@ describe("useKeyboardShortcuts Hook", () => {
         },
       ];
 
-      const { result } = renderHook(() => useKeyboardShortcuts(customShortcuts));
+      const { result } = renderHook(() =>
+        useKeyboardShortcuts(customShortcuts),
+      );
 
       const hasCustom = result.current.shortcuts.some(
-        (s) => s.key === "x" && s.ctrl === true
+        (s) => s.key === "x" && s.ctrl === true,
       );
       expect(hasCustom).toBe(true);
     });
@@ -205,7 +212,7 @@ describe("useKeyboardShortcuts Hook", () => {
         "Keyboard Shortcuts",
         expect.objectContaining({
           duration: 10000,
-        })
+        }),
       );
     });
   });
@@ -228,13 +235,13 @@ describe("useComposeShortcuts Hook", () => {
 
     // Should have send shortcut (Ctrl+Enter)
     const sendShortcut = result.current.shortcuts.find(
-      (s) => s.key === "Enter" && s.ctrl
+      (s) => s.key === "Enter" && s.ctrl,
     );
     expect(sendShortcut).toBeDefined();
 
     // Should have save shortcut (Ctrl+S)
     const saveShortcut = result.current.shortcuts.find(
-      (s) => s.key === "s" && s.ctrl && !s.shift
+      (s) => s.key === "s" && s.ctrl && !s.shift,
     );
     expect(saveShortcut).toBeDefined();
   });
@@ -301,7 +308,7 @@ describe("KeyboardShortcutsProvider", () => {
     const { container } = render(
       <KeyboardShortcutsProvider>
         <div data-testid="child">Child Content</div>
-      </KeyboardShortcutsProvider>
+      </KeyboardShortcutsProvider>,
     );
 
     expect(container.querySelector('[data-testid="child"]')).toBeTruthy();

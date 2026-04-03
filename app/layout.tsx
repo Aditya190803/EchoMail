@@ -27,11 +27,6 @@ export const metadata: Metadata = {
     "email campaigns",
   ],
   authors: [{ name: "EchoMail" }],
-  icons: {
-    icon: "/favicon.png",
-    shortcut: "/favicon.png",
-    apple: "/favicon.png",
-  },
 };
 
 export const viewport: Viewport = {
@@ -53,11 +48,7 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/favicon.ico" type="image/png" />
-        <link rel="apple-touch-icon" href="/favicon.ico" />
-      </head>
+      <head />
       <body
         className={`${fontClassName} min-h-screen flex flex-col antialiased`}
         suppressHydrationWarning

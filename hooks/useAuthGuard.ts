@@ -35,7 +35,11 @@ export function useAuthGuard(options: UseAuthGuardOptions = {}) {
   useEffect(() => {
     // Handle unauthenticated users
     if (status === "unauthenticated") {
-      router.push(redirectTo);
+      const redirectUrl =
+        redirectTo === "/" && typeof window !== "undefined"
+          ? `/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`
+          : redirectTo;
+      router.push(redirectUrl);
       return;
     }
 
@@ -43,10 +47,18 @@ export function useAuthGuard(options: UseAuthGuardOptions = {}) {
     if (status === "authenticated" && session?.error) {
       if (autoSignOut) {
         // Auto sign out to clear the invalid session
-        signOut({ callbackUrl: redirectTo });
+        const redirectUrl =
+          redirectTo === "/" && typeof window !== "undefined"
+            ? `/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`
+            : redirectTo;
+        signOut({ callbackUrl: redirectUrl });
       } else {
         // Just redirect without signing out
-        router.push(redirectTo);
+        const redirectUrl =
+          redirectTo === "/" && typeof window !== "undefined"
+            ? `/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`
+            : redirectTo;
+        router.push(redirectUrl);
       }
     }
   }, [status, session?.error, router, redirectTo, autoSignOut]);
