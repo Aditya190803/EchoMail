@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { CampaignFunnelWidget } from "@/components/activity/campaign-funnel";
 import {
   StatsCardWidget,
   LineChartWidget,
@@ -41,7 +42,10 @@ import {
   RecentCampaignsWidget,
   PieChartWidget,
 } from "@/components/activity/dashboard-widgets";
+import { DeviceBreakdownChart } from "@/components/activity/device-breakdown";
+import { GlobalLeaderboard } from "@/components/activity/global-leaderboard";
 import { EmailHeatmapOverlay } from "@/components/activity/heatmap-overlay";
+import { LinkPerformanceTable } from "@/components/activity/link-performance";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -613,6 +617,9 @@ export default function HistoryPage() {
               <TabsTrigger value="campaigns" className="rounded-md">
                 Campaigns
               </TabsTrigger>
+              <TabsTrigger value="performance" className="rounded-md">
+                Performance
+              </TabsTrigger>
               <TabsTrigger value="heatmap" className="rounded-md">
                 Heatmap
               </TabsTrigger>
@@ -626,7 +633,9 @@ export default function HistoryPage() {
           </div>
 
           {/* SHARED CAMPAIGN SELECTOR FOR ANALYTICS TABS */}
-          {["heatmap", "recipients", "tracking"].includes(activeTab) && (
+          {["performance", "heatmap", "recipients", "tracking"].includes(
+            activeTab,
+          ) && (
             <Card className="border border-border/50 shadow-sm bg-card">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -848,6 +857,10 @@ export default function HistoryPage() {
                   </div>
                 </CardContent>
               </Card>
+            </div>
+
+            <div className="mt-8">
+              <GlobalLeaderboard events={allTrackingEvents} limit={10} />
             </div>
           </TabsContent>
 
@@ -1215,6 +1228,62 @@ export default function HistoryPage() {
               </div>
             )}
           </TabsContent>
+
+          <TabsContent value="performance" className="space-y-6">
+            {!selectedHeatmapCampaignId ? (
+              <div className="border border-border/50 rounded-xl bg-card p-12 flex flex-col items-center justify-center text-center text-muted-foreground shadow-sm">
+                <BarChart3 className="h-10 w-10 mb-4 opacity-40 text-primary" />
+                <h3 className="text-lg font-semibold text-foreground mb-1">
+                  No Campaign Selected
+                </h3>
+                <p className="max-w-sm text-sm">
+                  Select a campaign above to view its delivery funnel and link
+                  performance.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-6 max-w-5xl mx-auto">
+                {(() => {
+                  const campaign = historyData?.recentCampaigns?.find(
+                    (c) => c.$id === selectedHeatmapCampaignId,
+                  );
+                  const events = allTrackingEvents.filter(
+                    (e) => e.campaign_id === selectedHeatmapCampaignId,
+                  );
+                  const sent = campaign?.sent || 0;
+
+                  const openedEmails = new Set(
+                    events
+                      .filter((e) => e.event_type === "open")
+                      .map((e) => e.email),
+                  );
+
+                  if (sent === 0) {
+                    return (
+                      <div className="rounded-xl border bg-card p-6 flex flex-col items-center justify-center min-h-[290px] text-muted-foreground text-sm">
+                        <History className="h-8 w-8 mb-2 opacity-30" />
+                        No tracking data available (0 sent)
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <>
+                      <CampaignFunnelWidget sent={sent} events={events} />
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+                        <DeviceBreakdownChart events={events} />
+                        <LinkPerformanceTable
+                          events={events}
+                          uniqueOpens={openedEmails.size}
+                        />
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+          </TabsContent>
+
           <TabsContent value="heatmap" className="space-y-6">
             {!selectedHeatmapCampaignId ? (
               <div className="border border-border/50 rounded-xl bg-card p-12 flex flex-col items-center justify-center text-center text-muted-foreground shadow-sm">

@@ -17,14 +17,14 @@ import { Button } from "@/components/ui/button";
 import type { EmailCampaign } from "@/lib/appwrite";
 
 function formatDate(d: string) {
-  try {
-    return new Date(d).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
+  const date = new Date(d);
+  if (isNaN(date.getTime())) {
     return "";
   }
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 interface Props {
@@ -32,12 +32,14 @@ interface Props {
 }
 
 export function ActivityChart({ campaigns }: Props) {
-  // Aggregate by day (last 14 days)
-  const sorted = [...campaigns].sort(
-    (a, b) =>
-      new Date(a.created_at || 0).getTime() -
-      new Date(b.created_at || 0).getTime(),
-  );
+  // Aggregate by day (last 30 campaigns)
+  const sorted = [...campaigns].sort((a, b) => {
+    const timeA = new Date(a.created_at || 0).getTime();
+    const timeB = new Date(b.created_at || 0).getTime();
+    return (
+      (Number.isNaN(timeA) ? 0 : timeA) - (Number.isNaN(timeB) ? 0 : timeB)
+    );
+  });
 
   const map: Record<string, { sent: number; failed: number }> = {};
   sorted.slice(-30).forEach((c) => {
