@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { format } from "date-fns";
+
+import { format, isValid } from "date-fns";
 import {
   Clock,
   Mail,
@@ -13,10 +14,8 @@ import {
   Copy,
   Eye,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+
 import { Button } from "@/components/ui/button";
-import { EmptyState, SectionHeader } from "@/components/ui/page-shell";
-import type { EmailCampaign } from "@/lib/appwrite";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +23,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { EmptyState } from "@/components/ui/page-shell";
+import type { EmailCampaign } from "@/lib/appwrite";
+import { parseRecipients } from "@/lib/utils/recipients";
 
 interface Props {
   campaigns: EmailCampaign[];
@@ -33,22 +35,52 @@ interface Props {
 }
 
 function getRecipientCount(c: EmailCampaign) {
-  const r = c.recipients as string[] | string | undefined;
-  if (Array.isArray(r)) return r.length;
-  if (typeof r === "string" && r) return r.split(",").length;
-  return 0;
+  return parseRecipients(c.recipients).length;
+}
+
+function formatCampaignDate(value?: string) {
+  if (!value) {
+    return "Unknown";
+  }
+
+  const date = new Date(value);
+  if (!isValid(date)) {
+    return "Unknown";
+  }
+
+  return format(date, "MMM d, yyyy");
 }
 
 function statusConfig(status: string) {
   switch (status) {
-    case "completed": return { label: "Completed", class: "bg-emerald-500/10 text-emerald-700 border-emerald-300 dark:text-emerald-400" };
-    case "sending":   return { label: "Sending",   class: "bg-yellow-500/10 text-yellow-700 border-yellow-300 dark:text-yellow-400" };
-    case "failed":    return { label: "Failed",    class: "bg-red-500/10 text-red-700 border-red-300 dark:text-red-400" };
-    default:          return { label: status,       class: "bg-muted text-muted-foreground" };
+    case "completed":
+      return {
+        label: "Completed",
+        class:
+          "bg-emerald-500/10 text-emerald-700 border-emerald-300 dark:text-emerald-400",
+      };
+    case "sending":
+      return {
+        label: "Sending",
+        class:
+          "bg-yellow-500/10 text-yellow-700 border-yellow-300 dark:text-yellow-400",
+      };
+    case "failed":
+      return {
+        label: "Failed",
+        class: "bg-red-500/10 text-red-700 border-red-300 dark:text-red-400",
+      };
+    default:
+      return { label: status, class: "bg-muted text-muted-foreground" };
   }
 }
 
-export function RecentActivityFeed({ campaigns, onViewDetails, onDuplicate, isDuplicating = false }: Props) {
+export function RecentActivityFeed({
+  campaigns,
+  onViewDetails,
+  onDuplicate,
+  isDuplicating = false,
+}: Props) {
   const recent = campaigns.slice(0, 6);
 
   return (
@@ -57,9 +89,16 @@ export function RecentActivityFeed({ campaigns, onViewDetails, onDuplicate, isDu
       <div className="flex items-center justify-between px-6 py-4 border-b bg-muted/20">
         <div>
           <h2 className="text-base font-semibold">Recent Campaigns</h2>
-          <p className="text-xs text-muted-foreground mt-0.5">Your latest email campaign activity</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Your latest email campaign activity
+          </p>
         </div>
-        <Button variant="outline" size="sm" asChild className="hidden sm:inline-flex gap-1.5">
+        <Button
+          variant="outline"
+          size="sm"
+          asChild
+          className="hidden sm:inline-flex gap-1.5"
+        >
           <Link href="/insights">
             View all <ArrowRight className="h-3.5 w-3.5" />
           </Link>
@@ -94,7 +133,10 @@ export function RecentActivityFeed({ campaigns, onViewDetails, onDuplicate, isDu
           <div className="divide-y">
             {recent.map((c) => {
               const recCount = getRecipientCount(c);
-              const deliverPct = recCount ? Math.round(((c.sent || 0) / recCount) * 100) : 0;
+              const deliveredCount = Math.max(0, c.sent || 0);
+              const deliverPct = recCount
+                ? Math.min(100, Math.round((deliveredCount / recCount) * 100))
+                : 0;
               const { label, class: cls } = statusConfig(c.status || "");
 
               return (
@@ -108,14 +150,16 @@ export function RecentActivityFeed({ campaigns, onViewDetails, onDuplicate, isDu
                       <span className="font-medium text-sm truncate">
                         {c.subject || "Untitled Campaign"}
                       </span>
-                      <span className={`hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border font-medium ${cls}`}>
+                      <span
+                        className={`hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] border font-medium ${cls}`}
+                      >
                         {label}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
                       <span className="flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        {format(new Date(c.created_at || new Date()), "MMM d, yyyy")}
+                        {formatCampaignDate(c.created_at)}
                       </span>
                       <span className="flex items-center gap-1 md:hidden">
                         <Users className="h-3 w-3" />
@@ -126,10 +170,15 @@ export function RecentActivityFeed({ campaigns, onViewDetails, onDuplicate, isDu
                     <div className="mt-2 md:hidden">
                       <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                         <CheckCircle className="h-3 w-3 text-emerald-500" />
-                        <span>{c.sent || 0} sent · {deliverPct}%</span>
+                        <span>
+                          {c.sent || 0} sent · {deliverPct}%
+                        </span>
                       </div>
                       <div className="h-1 bg-muted rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${deliverPct}%` }} />
+                        <div
+                          className="h-full bg-emerald-500 rounded-full"
+                          style={{ width: `${deliverPct}%` }}
+                        />
                       </div>
                     </div>
                   </div>
@@ -143,19 +192,25 @@ export function RecentActivityFeed({ campaigns, onViewDetails, onDuplicate, isDu
                     <CheckCircle className="h-3.5 w-3.5" />
                     {c.sent || 0}
                   </div>
-                  <div className={`hidden md:flex justify-end items-center gap-1 text-sm font-medium ${(c.failed || 0) > 0 ? "text-red-500" : "text-muted-foreground"}`}>
+                  <div
+                    className={`hidden md:flex justify-end items-center gap-1 text-sm font-medium ${(c.failed || 0) > 0 ? "text-red-500" : "text-muted-foreground"}`}
+                  >
                     <XCircle className="h-3.5 w-3.5" />
                     {c.failed || 0}
                   </div>
                   <div className="hidden md:block text-xs text-muted-foreground">
-                    {format(new Date(c.created_at || new Date()), "MMM d, yyyy")}
+                    {formatCampaignDate(c.created_at)}
                   </div>
 
                   {/* actions */}
                   <div className="flex justify-end">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground opacity-60 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground opacity-60 group-hover:opacity-100 transition-opacity"
+                        >
                           <MoreVertical className="h-4 w-4" />
                           <span className="sr-only">Campaign actions</span>
                         </Button>
@@ -166,7 +221,10 @@ export function RecentActivityFeed({ campaigns, onViewDetails, onDuplicate, isDu
                           View Report
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => onDuplicate(c)} disabled={isDuplicating}>
+                        <DropdownMenuItem
+                          onClick={() => onDuplicate(c)}
+                          disabled={isDuplicating}
+                        >
                           <Copy className="h-3.5 w-3.5 mr-2" />
                           Duplicate
                         </DropdownMenuItem>
@@ -181,9 +239,15 @@ export function RecentActivityFeed({ campaigns, onViewDetails, onDuplicate, isDu
           {/* view all footer */}
           {campaigns.length > 6 && (
             <div className="px-6 py-3 border-t bg-muted/10">
-              <Button variant="ghost" size="sm" asChild className="w-full text-muted-foreground hover:text-foreground gap-1.5">
+              <Button
+                variant="ghost"
+                size="sm"
+                asChild
+                className="w-full text-muted-foreground hover:text-foreground gap-1.5"
+              >
                 <Link href="/insights">
-                  View all {campaigns.length} campaigns <ArrowRight className="h-3.5 w-3.5" />
+                  View all {campaigns.length} campaigns{" "}
+                  <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </Button>
             </div>

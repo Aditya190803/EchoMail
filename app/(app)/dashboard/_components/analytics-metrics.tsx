@@ -4,17 +4,7 @@ import { Mail, Send, XCircle, Users } from "lucide-react";
 
 import { StatCard } from "@/components/ui/page-shell";
 import type { EmailCampaign } from "@/lib/appwrite";
-
-function getRecipientsCount(c: EmailCampaign): number {
-  const r = c.recipients as string[] | string | undefined;
-  if (Array.isArray(r)) {
-    return r.length;
-  }
-  if (typeof r === "string" && r) {
-    return r.split(",").length;
-  }
-  return 0;
-}
+import { getRecipientsCount } from "@/lib/utils/recipients";
 
 interface Props {
   campaigns: EmailCampaign[];
@@ -45,6 +35,11 @@ export function AnalyticsMetrics({ campaigns }: Props) {
   const lastSent = lastWeek.reduce((s, c) => s + (c.sent || 0), 0);
   const sentDelta =
     lastSent === 0 ? null : ((thisSent - lastSent) / lastSent) * 100;
+
+  const thisFailed = thisWeek.reduce((s, c) => s + (c.failed || 0), 0);
+  const lastFailed = lastWeek.reduce((s, c) => s + (c.failed || 0), 0);
+  const failedDelta =
+    lastFailed === 0 ? null : ((thisFailed - lastFailed) / lastFailed) * 100;
 
   const trend = (delta: number | null, inverse = false) => {
     if (delta === null) {
@@ -80,9 +75,9 @@ export function AnalyticsMetrics({ campaigns }: Props) {
       sub: totalRecipients
         ? `${((totalFailed / totalRecipients) * 100).toFixed(1)}% failure rate`
         : "0% failure rate",
-      icon: <XCircle className="h-4 w-4 text-chart-2" />,
-      accent: "border-chart-2/20 bg-chart-2/5",
-      trend: trend(totalFailed > 0 ? 5 : -5, true), // indicative
+      icon: <XCircle className="h-4 w-4 text-destructive" />,
+      accent: "border-destructive/20 bg-destructive/5",
+      trend: trend(failedDelta, true),
     },
     {
       label: "Total Campaigns",

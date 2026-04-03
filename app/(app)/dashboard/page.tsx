@@ -36,11 +36,12 @@ import type { EmailCampaign } from "@/lib/appwrite";
 import { campaignsService } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 import { getEmailPreview } from "@/lib/email-formatting/client";
+import { parseRecipients } from "@/lib/utils/recipients";
 
 import { ActivityChart } from "./_components/activity-chart";
 import { AnalyticsMetrics } from "./_components/analytics-metrics";
 import { DashboardHeader } from "./_components/dashboard-header";
-import { QuickActions } from "./_components/quick-actions";
+import { EngagementFunnel } from "./_components/engagement-funnel";
 import { RecentActivityFeed } from "./_components/recent-activity";
 
 /* ── helpers ─────────────────────────────────────────────── */
@@ -59,19 +60,6 @@ const getAttachmentUrl = (a: {
   }
   return a.fileUrl || "#";
 };
-
-function getRecipientsArray(r: any): string[] {
-  if (Array.isArray(r)) {
-    return r;
-  }
-  if (typeof r === "string") {
-    return r
-      .split(",")
-      .map((e) => e.trim())
-      .filter(Boolean);
-  }
-  return [];
-}
 
 function formatDate(v: string) {
   try {
@@ -124,9 +112,8 @@ function DashboardSkeleton() {
         <div className="lg:col-span-2">
           <Skeleton className="h-72 w-full rounded-xl" />
         </div>
-        <div className="grid gap-6">
-          <Skeleton className="h-32 w-full rounded-xl" />
-          <Skeleton className="h-32 w-full rounded-xl" />
+        <div>
+          <Skeleton className="h-72 w-full rounded-xl" />
         </div>
       </div>
       <Skeleton className="h-80 w-full rounded-xl" />
@@ -166,17 +153,32 @@ export default function DashboardPage() {
 
   /* load preview html */
   useEffect(() => {
+    let isActive = true;
     if (!selectedCampaign?.content) {
       setPreviewHtml("");
       return;
     }
+    const content = selectedCampaign.content;
     setIsLoadingPreview(true);
-    getEmailPreview(selectedCampaign.content)
-      .then((h) => setPreviewHtml(createGmailPreviewWrapper(h)))
-      .catch(() =>
-        setPreviewHtml(createGmailPreviewWrapper(selectedCampaign!.content!)),
-      )
-      .finally(() => setIsLoadingPreview(false));
+    getEmailPreview(content)
+      .then((h) => {
+        if (isActive) {
+          setPreviewHtml(createGmailPreviewWrapper(h));
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setPreviewHtml(createGmailPreviewWrapper(content));
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsLoadingPreview(false);
+        }
+      });
+    return () => {
+      isActive = false;
+    };
   }, [selectedCampaign]);
 
   /* fetch campaigns */
@@ -214,17 +216,24 @@ export default function DashboardPage() {
   /* actions */
   const duplicateCampaign = (c: EmailCampaign) => {
     setIsDuplicating(true);
-    sessionStorage.setItem(
-      "duplicateCampaign",
-      JSON.stringify({
-        subject: `${c.subject} (Copy)`,
-        content: c.content || "",
-        recipients: getRecipientsArray(c.recipients),
-        attachments: c.attachments || [],
-      }),
-    );
-    toast.success("Campaign copied! Redirecting to compose…");
-    router.push("/compose");
+    try {
+      sessionStorage.setItem(
+        "duplicateCampaign",
+        JSON.stringify({
+          subject: `${c.subject} (Copy)`,
+          content: c.content || "",
+          recipients: parseRecipients(c.recipients),
+          recipients: parseRecipients(c.recipients),
+          attachments: c.attachments || [],
+        }),
+      );
+      toast.success("Campaign copied! Redirecting to compose…");
+      router.push("/compose");
+    } catch (_error) {
+      toast.error("Failed to copy campaign");
+    } finally {
+      setIsDuplicating(false);
+    }
   };
 
   const exportCampaignResults = (c: EmailCampaign) => {
@@ -232,11 +241,11 @@ export default function DashboardPage() {
     const rows: string[][] = c.send_results?.length
       ? c.send_results.map((r: any) => [
           r.email || "",
-          r.success ? "Sent" : "Failed",
+          r.status === "success" ? "Sent" : "Failed",
           r.error || "",
           r.timestamp || c.created_at || "",
         ])
-      : getRecipientsArray(c.recipients).map((e) => [
+      : parseRecipients(c.recipients).map((e) => [
           e,
           "Unknown",
           "",
@@ -246,7 +255,7 @@ export default function DashboardPage() {
     const csvContent = [
       `# Campaign: ${c.subject}`,
       `# Sent: ${formatDate(c.created_at)}`,
-      `# Total: ${getRecipientsArray(c.recipients).length}`,
+      `# Total: ${parseRecipients(c.recipients).length}`,
       headers.join(","),
       ...rows.map((r) =>
         r.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","),
@@ -285,13 +294,13 @@ export default function DashboardPage() {
         {/* KPI Cards */}
         <AnalyticsMetrics campaigns={campaigns} />
 
-        {/* Chart + Quick Actions */}
+        {/* Chart + Engagement Funnel */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <ActivityChart campaigns={campaigns} />
           </div>
           <div>
-            <QuickActions />
+            <EngagementFunnel campaigns={campaigns} />
           </div>
         </div>
 
@@ -386,7 +395,7 @@ export default function DashboardPage() {
                   {[
                     {
                       label: "Total",
-                      value: getRecipientsArray(selectedCampaign.recipients)
+                      value: parseRecipients(selectedCampaign.recipients)
                         .length,
                       colour: "text-foreground",
                     },
@@ -494,7 +503,7 @@ export default function DashboardPage() {
                   <h4 className="font-medium text-sm flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
                     Recipients (
-                    {getRecipientsArray(selectedCampaign.recipients).length})
+                    {parseRecipients(selectedCampaign.recipients).length})
                   </h4>
                 </div>
                 <div className="flex gap-2">
@@ -575,7 +584,7 @@ export default function DashboardPage() {
                       ))
                   ) : (
                     <div className="p-3 grid grid-cols-2 gap-2">
-                      {getRecipientsArray(selectedCampaign.recipients)
+                      {parseRecipients(selectedCampaign.recipients)
                         .filter((e) =>
                           e
                             .toLowerCase()
