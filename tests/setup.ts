@@ -1,9 +1,13 @@
 import "@testing-library/jest-dom";
 import { cleanup } from "@testing-library/react";
 import { JSDOM } from "jsdom";
-import { afterEach, beforeEach, vi } from "vitest";
+import { afterEach, beforeEach, vi, type VitestUtils } from "vitest";
 
-process.env.NODE_ENV = "test";
+Object.defineProperty(process.env, "NODE_ENV", {
+  value: "test",
+  configurable: true,
+  writable: true,
+});
 process.env.GOOGLE_CLIENT_ID ??= "test-google-client-id";
 process.env.GOOGLE_CLIENT_SECRET ??= "test-google-client-secret";
 process.env.NEXTAUTH_URL ??= "http://localhost:3000";
@@ -50,11 +54,11 @@ for (const storageKey of ["localStorage", "sessionStorage"] as const) {
 type VitestCompat = typeof vi & {
   mocked?: <T>(item: T) => T;
   hoisted?: <T>(factory: () => T) => T;
-  useFakeTimers?: () => void;
-  useRealTimers?: () => void;
-  setSystemTime?: (time: number | string | Date) => void;
-  advanceTimersByTime?: (ms: number) => void;
-  resetModules?: () => void;
+  useFakeTimers?: () => VitestUtils;
+  useRealTimers?: () => VitestUtils;
+  setSystemTime?: (time: number | string | Date) => VitestUtils;
+  advanceTimersByTime?: (ms: number) => VitestUtils;
+  resetModules?: () => VitestUtils;
 };
 
 const viCompat = vi as VitestCompat;
@@ -63,7 +67,7 @@ const realDateNow = RealDate.now.bind(RealDate);
 let mockedNow = realDateNow();
 let fakeTimersEnabled = false;
 
-viCompat.mocked ??= <T>(item: T) => item;
+viCompat.mocked ??= ((item: unknown) => item) as any;
 viCompat.hoisted ??= <T>(factory: () => T) => factory();
 viCompat.useFakeTimers ??= () => {
   if (!fakeTimersEnabled) {
@@ -72,29 +76,68 @@ viCompat.useFakeTimers ??= () => {
 
   class MockDate extends RealDate {
     constructor(...args: any[]) {
-      super(...(args.length === 0 ? [mockedNow] : args));
+      if (args.length === 0) {
+        super(mockedNow);
+        return;
+      }
+
+      if (args.length === 1) {
+        super(args[0]);
+        return;
+      }
+
+      if (args.length === 2) {
+        super(args[0], args[1]);
+        return;
+      }
+
+      if (args.length === 3) {
+        super(args[0], args[1], args[2]);
+        return;
+      }
+
+      if (args.length === 4) {
+        super(args[0], args[1], args[2], args[3]);
+        return;
+      }
+
+      if (args.length === 5) {
+        super(args[0], args[1], args[2], args[3], args[4]);
+        return;
+      }
+
+      if (args.length === 6) {
+        super(args[0], args[1], args[2], args[3], args[4], args[5]);
+        return;
+      }
+
+      super(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
     }
 
-    static now() {
+    static override now() {
       return mockedNow;
     }
   }
 
   fakeTimersEnabled = true;
   globalThis.Date = MockDate as DateConstructor;
+  return viCompat as VitestUtils;
 };
 viCompat.setSystemTime ??= (time: number | string | Date) => {
   mockedNow = new RealDate(time).getTime();
   viCompat.useFakeTimers?.();
+  return viCompat as VitestUtils;
 };
 viCompat.advanceTimersByTime ??= (ms: number) => {
   mockedNow += ms;
+  return viCompat as VitestUtils;
 };
 viCompat.useRealTimers ??= () => {
   fakeTimersEnabled = false;
   globalThis.Date = RealDate;
+  return viCompat as VitestUtils;
 };
-viCompat.resetModules ??= () => {};
+viCompat.resetModules ??= () => viCompat as VitestUtils;
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({

@@ -48,7 +48,10 @@ export class MockLogger {
       parts.push(`${error.name}: ${error.message}`);
     }
 
-    console[levelMethods[level]](parts.join(" "));
+    const method = levelMethods[level];
+    if (typeof console[method] === "function") {
+      (console[method] as Function)(parts.join(" "));
+    }
   }
 
   debug(message: string, context?: LogContext) {
