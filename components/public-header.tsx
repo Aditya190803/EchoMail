@@ -16,8 +16,6 @@ const navLinks = [
   { name: "Home", href: "/" },
   { name: "Features", href: "/#features" },
   { name: "How It Works", href: "/#how-it-works" },
-  { name: "Privacy", href: "/privacy" },
-  { name: "Terms", href: "/tos" },
 ];
 
 export function PublicHeader() {
@@ -46,16 +44,11 @@ export function PublicHeader() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link
-            href="/"
-            className="flex items-center gap-2.5 group shrink-0"
-          >
+          <Link href="/" className="flex items-center gap-2.5 group shrink-0">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm group-hover:scale-105 transition-transform duration-200">
               <Mail className="h-4 w-4" />
             </div>
-            <span className="text-base font-bold tracking-tight">
-              EchoMail
-            </span>
+            <span className="text-base font-bold tracking-tight">EchoMail</span>
           </Link>
 
           {/* Desktop nav */}
