@@ -7,11 +7,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
-// Use vi.hoisted for variables used in mocks
-const { mockPush, mockSignOut } = vi.hoisted(() => ({
-  mockPush: vi.fn(),
-  mockSignOut: vi.fn(),
-}));
+const mockPush = vi.fn();
+const mockSignOut = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -28,6 +25,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 const mockUseSession = vi.mocked(useSession);
+const defaultSignInRedirect = "/auth/signin?callbackUrl=%2F";
 
 describe("useAuthGuard Hook", () => {
   beforeEach(() => {
@@ -83,7 +81,7 @@ describe("useAuthGuard Hook", () => {
       renderHook(() => useAuthGuard());
 
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/");
+        expect(mockPush).toHaveBeenCalledWith(defaultSignInRedirect);
       });
     });
 
@@ -134,7 +132,9 @@ describe("useAuthGuard Hook", () => {
       renderHook(() => useAuthGuard());
 
       await waitFor(() => {
-        expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
+        expect(mockSignOut).toHaveBeenCalledWith({
+          callbackUrl: defaultSignInRedirect,
+        });
       });
     });
 
@@ -152,7 +152,7 @@ describe("useAuthGuard Hook", () => {
       renderHook(() => useAuthGuard({ autoSignOut: false }));
 
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/");
+        expect(mockPush).toHaveBeenCalledWith(defaultSignInRedirect);
         expect(mockSignOut).not.toHaveBeenCalled();
       });
     });

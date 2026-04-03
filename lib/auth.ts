@@ -1,10 +1,9 @@
-import GoogleProvider from "next-auth/providers/google";
-
 import { authLogger } from "./logger";
 import { validateToken, trackRefreshTokenUsage } from "./token-security";
 
 import type { NextAuthOptions, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
+import type { GoogleProfile } from "next-auth/providers/google";
 
 /** Response from Google OAuth token refresh endpoint */
 interface RefreshedTokens {
@@ -89,10 +88,19 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    GoogleProvider({
+    {
+      id: "google",
+      name: "Google",
+      type: "oauth",
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      // Use Google's stable OAuth endpoints directly so sign-in does not depend
+      // on runtime OIDC discovery succeeding within openid-client's default timeout.
+      wellKnown: undefined,
+      issuer: "https://accounts.google.com",
+      jwks_endpoint: "https://www.googleapis.com/oauth2/v3/certs",
       authorization: {
+        url: "https://accounts.google.com/o/oauth2/v2/auth",
         params: {
           scope:
             "openid email profile https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/contacts.readonly",
@@ -100,7 +108,27 @@ export const authOptions: NextAuthOptions = {
           prompt: "consent",
         },
       },
-    }),
+      token: "https://oauth2.googleapis.com/token",
+      userinfo: "https://openidconnect.googleapis.com/v1/userinfo",
+      httpOptions: {
+        timeout: 10000,
+      },
+      idToken: true,
+      checks: ["pkce", "state"],
+      profile(profile: GoogleProfile) {
+        return {
+          id: profile.sub,
+          name: profile.name,
+          email: profile.email,
+          image: profile.picture,
+        };
+      },
+      style: {
+        logo: "/google.svg",
+        bg: "#fff",
+        text: "#000",
+      },
+    },
   ],
   callbacks: {
     async jwt({ token, account, user }) {

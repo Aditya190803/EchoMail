@@ -4,10 +4,77 @@ import * as gmail from "@/lib/gmail";
 import { EmailService } from "@/lib/services/email-service";
 import { VerificationService } from "@/lib/services/verification-service";
 
+const verifyEmailLikeReal = async (email: string) => {
+  const trimmedEmail = email.trim().toLowerCase();
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+
+  if (!emailRegex.test(trimmedEmail)) {
+    return {
+      isValid: false,
+      reason: "Invalid syntax",
+      score: 0,
+    };
+  }
+
+  const [localPart, domain] = trimmedEmail.split("@");
+  const isDisposable = new Set([
+    "mailinator.com",
+    "guerrillamail.com",
+    "tempmail.com",
+    "10minutemail.com",
+    "throwawaymail.com",
+    "yopmail.com",
+    "sharklasers.com",
+    "guerrillamailblock.com",
+    "pokemail.net",
+    "grr.la",
+  ]).has(domain);
+  const isRoleBased = new Set([
+    "admin",
+    "administrator",
+    "webmaster",
+    "hostmaster",
+    "postmaster",
+    "info",
+    "support",
+    "contact",
+    "sales",
+    "marketing",
+    "billing",
+    "noreply",
+    "no-reply",
+    "jobs",
+    "hr",
+  ]).has(localPart);
+
+  let score = 100;
+  if (isDisposable) {
+    score -= 50;
+  }
+  if (isRoleBased) {
+    score -= 20;
+  }
+
+  return {
+    isValid: score > 0,
+    reason: isDisposable
+      ? "Disposable email domain"
+      : isRoleBased
+        ? "Role-based email"
+        : undefined,
+    isDisposable,
+    isRoleBased,
+    score,
+  };
+};
+
 // Mock dependencies
 vi.mock("@/lib/gmail", () => ({
   sendEmailViaAPI: vi.fn(),
-  replacePlaceholders: vi.fn((text: string) => text),
+  replacePlaceholders: vi.fn(
+    (text: string, data: Record<string, string> = {}) =>
+      text.replace(/{{(.*?)}}/g, (match, key) => data[key.trim()] ?? match),
+  ),
   preResolveAttachments: vi.fn(async (attachments) => attachments),
   clearAttachmentCache: vi.fn(),
   preBuildEmailTemplate: vi.fn((subject, body) => ({ subject, body })),
@@ -20,7 +87,14 @@ vi.mock("@/lib/attachment-fetcher", () => ({
 
 vi.mock("@/lib/services/verification-service", () => ({
   VerificationService: {
-    verifyBatch: vi.fn(),
+    verifyEmail: vi.fn(verifyEmailLikeReal),
+    verifyBatch: vi.fn(async (emails: string[]) => {
+      const results = new Map();
+      for (const email of emails) {
+        results.set(email, await verifyEmailLikeReal(email));
+      }
+      return results;
+    }),
   },
 }));
 
@@ -30,6 +104,22 @@ describe("EmailService", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    (gmail.replacePlaceholders as any).mockImplementation(
+      (text: string, data: Record<string, string> = {}) =>
+        text.replace(/{{(.*?)}}/g, (match, key) => data[key.trim()] ?? match),
+    );
+    (VerificationService.verifyEmail as any).mockImplementation(
+      verifyEmailLikeReal,
+    );
+    (VerificationService.verifyBatch as any).mockImplementation(
+      async (emails: string[]) => {
+        const results = new Map();
+        for (const email of emails) {
+          results.set(email, await verifyEmailLikeReal(email));
+        }
+        return results;
+      },
+    );
     emailService = new EmailService(mockAccessToken);
   });
 
