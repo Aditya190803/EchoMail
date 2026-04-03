@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageShell, PageHeader, EmptyState } from "@/components/ui/page-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ABTest } from "@/lib/appwrite";
 import { abTestsService, contactsService } from "@/lib/appwrite";
@@ -419,45 +420,35 @@ export default function ABTestingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <main className="flex-1 mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Beaker className="h-6 w-6 text-primary" />
-              </div>
-              <h1 className="text-2xl sm:text-3xl font-bold">A/B Testing</h1>
-            </div>
-            <p className="text-muted-foreground">
-              Test different email variants to optimize your campaigns
-            </p>
-          </div>
-          <Button onClick={() => setShowCreateDialog(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Test
-          </Button>
-        </div>
+    <>
+      <PageShell>
+        <PageHeader
+          title="A/B Testing"
+          description="Test different email variants to optimize your campaigns"
+          actions={
+            <Button
+              onClick={() => setShowCreateDialog(true)}
+              className="bg-gradient-to-r from-primary to-accent hover:opacity-90"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              New Test
+            </Button>
+          }
+        />
 
         {/* Tests List */}
         {tests.length === 0 ? (
-          <Card className="p-12">
-            <div className="text-center">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                <Beaker className="w-8 h-8 text-muted-foreground" />
-              </div>
-              <h2 className="text-xl font-semibold mb-2">No A/B Tests Yet</h2>
-              <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-                Create your first A/B test to compare different subject lines or
-                email content.
-              </p>
+          <EmptyState
+            icon={<Beaker className="w-8 h-8" />}
+            title="No A/B Tests Yet"
+            description="Create your first A/B test to compare different subject lines or email content."
+            action={
               <Button onClick={() => setShowCreateDialog(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Create A/B Test
               </Button>
-            </div>
-          </Card>
+            }
+          />
         ) : (
           <div className="space-y-4">
             {tests.map((test) => (
@@ -603,7 +594,7 @@ export default function ABTestingPage() {
             ))}
           </div>
         )}
-      </main>
+      </PageShell>
 
       {/* Create Test Dialog */}
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
@@ -1096,6 +1087,6 @@ export default function ABTestingPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

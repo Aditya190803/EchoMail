@@ -42,6 +42,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  PageShell,
+  PageHeader,
+  EmptyState,
+  StatCard,
+} from "@/components/ui/page-shell";
 import { unsubscribesService, type Unsubscribe } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 
@@ -242,54 +248,26 @@ export default function UnsubscribesPage() {
   );
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-1">
-              Unsubscribe Management
-            </h1>
-            <p className="text-muted-foreground">
-              Manage emails that have opted out of receiving your campaigns
-            </p>
-          </div>
-        </div>
-
-        {/* Stats */}
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-destructive/10">
-                <UserX className="h-6 w-6 text-destructive" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{unsubscribes.length}</p>
-                <p className="text-sm text-muted-foreground">
-                  Unsubscribed emails
-                </p>
-              </div>
+    <PageShell className="max-w-7xl">
+      <PageHeader
+        title={
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => router.back()}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="p-2 bg-destructive/10 rounded-lg">
+              <UserX className="h-6 w-6 text-destructive" />
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Actions */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-6">
-          <Input
-            icon={<Search className="h-4 w-4" />}
-            placeholder="Search emails..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-md"
-          />
-          <div className="flex gap-2 ml-auto">
+            Unsubscribe Management
+          </div>
+        }
+        description="Manage emails that have opted out of receiving your campaigns"
+        actions={
+          <div className="flex gap-2">
             <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
               <DialogTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
+                <Button className="gap-2 bg-gradient-to-r from-destructive to-destructive/80 hover:opacity-90 text-white">
+                  <Plus className="h-4 w-4" />
                   Add Email
                 </Button>
               </DialogTrigger>
@@ -361,109 +339,122 @@ export default function UnsubscribesPage() {
               />
             </div>
           </div>
-        </div>
+        }
+      />
 
-        {/* Unsubscribe List */}
-        {filteredUnsubscribes.length > 0 ? (
-          <div className="space-y-3">
-            {filteredUnsubscribes.map((unsub) => (
-              <Card key={unsub.$id} className="group">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="p-2 rounded-full bg-muted">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{unsub.email}</p>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                          {unsub.reason && <span>{unsub.reason}</span>}
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {unsub.unsubscribed_at &&
-                              format(new Date(unsub.unsubscribed_at), "PP")}
-                          </span>
-                        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <StatCard
+          label="Unsubscribed emails"
+          value={unsubscribes.length}
+          icon={<UserX className="h-4 w-4 text-destructive" />}
+          accentClass="bg-destructive/10 text-destructive"
+        />
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        <Input
+          icon={<Search className="h-4 w-4" />}
+          placeholder="Search emails..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-md"
+        />
+      </div>
+
+      {/* Unsubscribe List */}
+      {filteredUnsubscribes.length > 0 ? (
+        <div className="space-y-3">
+          {filteredUnsubscribes.map((unsub) => (
+            <Card key={unsub.$id} className="group">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 rounded-full bg-muted">
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{unsub.email}</p>
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                        {unsub.reason && <span>{unsub.reason}</span>}
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {unsub.unsubscribed_at &&
+                            format(new Date(unsub.unsubscribed_at), "PP")}
+                        </span>
                       </div>
                     </div>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="opacity-0 group-hover:opacity-100"
-                        >
-                          <UserCheck className="h-4 w-4 mr-2" />
-                          Resubscribe
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Resubscribe Email</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to resubscribe {unsub.email}?
-                            They will start receiving your campaigns again.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => resubscribe(unsub.$id!, unsub.email)}
-                          >
-                            Resubscribe
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <Card>
-            <CardContent className="py-16">
-              <div className="text-center">
-                <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                  <UserX className="h-8 w-8 text-muted-foreground" />
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="opacity-0 group-hover:opacity-100"
+                      >
+                        <UserCheck className="h-4 w-4 mr-2" />
+                        Resubscribe
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Resubscribe Email</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to resubscribe {unsub.email}?
+                          They will start receiving your campaigns again.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => resubscribe(unsub.$id!, unsub.email)}
+                        >
+                          Resubscribe
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
-                <h3 className="text-lg font-semibold mb-2">
-                  {searchTerm ? "No matches found" : "No unsubscribes yet"}
-                </h3>
-                <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-                  {searchTerm
-                    ? "Try adjusting your search"
-                    : "Emails added here won't receive your campaigns"}
-                </p>
-                {!searchTerm && (
-                  <Button onClick={() => setShowAddDialog(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Email
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={<UserX className="h-12 w-12 text-muted-foreground/50" />}
+          title={searchTerm ? "No matches found" : "No unsubscribes yet"}
+          description={
+            searchTerm
+              ? "Try adjusting your search"
+              : "Emails added here won't receive your campaigns"
+          }
+          action={
+            !searchTerm && (
+              <Button onClick={() => setShowAddDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Email
+              </Button>
+            )
+          }
+        />
+      )}
 
-        {/* Info Card */}
-        <Card className="mt-8 bg-primary/5 border-primary/20">
-          <CardContent className="p-6">
-            <h3 className="font-semibold mb-2">📧 How Unsubscribe Works</h3>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              <li>
-                • Emails in this list are automatically skipped when sending
-                campaigns
-              </li>
-              <li>
-                • You'll see a notification showing how many emails were skipped
-              </li>
-              <li>• Resubscribe an email to start sending to them again</li>
-              <li>• Import/export your list as CSV for easy management</li>
-            </ul>
-          </CardContent>
-        </Card>
-      </main>
-    </div>
+      {/* Info Card */}
+      <Card className="mt-8 bg-primary/5 border-primary/20">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-2">📧 How Unsubscribe Works</h3>
+          <ul className="text-sm text-muted-foreground space-y-1">
+            <li>
+              • Emails in this list are automatically skipped when sending
+              campaigns
+            </li>
+            <li>
+              • You'll see a notification showing how many emails were skipped
+            </li>
+            <li>• Resubscribe an email to start sending to them again</li>
+            <li>• Import/export your list as CSV for easy management</li>
+          </ul>
+        </CardContent>
+      </Card>
+    </PageShell>
   );
 }

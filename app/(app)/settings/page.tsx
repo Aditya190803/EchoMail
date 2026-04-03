@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageShell, PageHeader } from "@/components/ui/page-shell";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const settingsCategories = [
@@ -117,80 +118,77 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <main className="flex-1 mx-auto w-full max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
+    <PageShell className="max-w-4xl">
+      <PageHeader
+        title={
+          <div className="flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-lg">
               <Settings className="h-6 w-6 text-primary" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Settings</h1>
+            Settings
           </div>
-          <p className="text-muted-foreground">
-            Manage your EchoMail preferences and configurations
-          </p>
-        </div>
+        }
+        description="Manage your EchoMail preferences and configurations"
+      />
 
-        {/* Settings Categories */}
-        <div className="space-y-8">
-          {settingsCategories.map((category) => (
-            <div key={category.title}>
-              <h2 className="text-lg font-semibold mb-4">{category.title}</h2>
-              <div className="grid gap-4">
-                {category.items.map((item) => (
-                  <Link key={item.name} href={item.href}>
-                    <Card className="transition-all duration-200 hover:shadow-md">
-                      <CardContent className="p-5">
-                        <div className="flex items-center gap-4">
-                          <div className={`p-3 rounded-xl ${item.bgColor}`}>
-                            <item.icon className={`h-6 w-6 ${item.color}`} />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-semibold">{item.name}</h3>
-                            <p className="text-sm text-muted-foreground">
-                              {item.description}
-                            </p>
-                          </div>
-                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+      {/* Settings Categories */}
+      <div className="space-y-8">
+        {settingsCategories.map((category) => (
+          <div key={category.title}>
+            <h2 className="text-lg font-semibold mb-4">{category.title}</h2>
+            <div className="grid gap-4">
+              {category.items.map((item) => (
+                <Link key={item.name} href={item.href}>
+                  <Card className="transition-all duration-200 hover:shadow-md">
+                    <CardContent className="p-5">
+                      <div className="flex items-center gap-4">
+                        <div className={`p-3 rounded-xl ${item.bgColor}`}>
+                          <item.icon className={`h-6 w-6 ${item.color}`} />
                         </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ))}
-              </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold">{item.name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {item.description}
+                          </p>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
+      </div>
 
-        {/* Account Info */}
-        <Card className="mt-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ShieldCheck className="h-5 w-5 text-success" />
-              Account Information
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between py-2 border-b">
-                <span className="text-muted-foreground">Email</span>
-                <span className="font-medium">{session?.user?.email}</span>
-              </div>
-              <div className="flex items-center justify-between py-2 border-b">
-                <span className="text-muted-foreground">Name</span>
-                <span className="font-medium">
-                  {session?.user?.name || "Not set"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between py-2">
-                <span className="text-muted-foreground">Authentication</span>
-                <span className="font-medium">Google OAuth</span>
-              </div>
+      {/* Account Info */}
+      <Card className="mt-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ShieldCheck className="h-5 w-5 text-success" />
+            Account Information
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between py-2 border-b">
+              <span className="text-muted-foreground">Email</span>
+              <span className="font-medium">{session?.user?.email}</span>
             </div>
-          </CardContent>
-        </Card>
-      </main>
-    </div>
+            <div className="flex items-center justify-between py-2 border-b">
+              <span className="text-muted-foreground">Name</span>
+              <span className="font-medium">
+                {session?.user?.name || "Not set"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-2">
+              <span className="text-muted-foreground">Authentication</span>
+              <span className="font-medium">Google OAuth</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </PageShell>
   );
 }

@@ -111,6 +111,10 @@ interface Contact {
   $id: string;
   email: string;
   name?: string;
+  company?: string;
+  phone?: string;
+  tags?: string[];
+  customFields?: Record<string, string>;
 }
 
 export function ComposeForm() {
@@ -1046,11 +1050,17 @@ export function ComposeForm() {
     // Find data for this recipient from CSV data or manual entries
     const csvRow = csvData.find((row) => row.email === recipientEmail) || {};
     const manualEntry = manualEntries.find((e) => e.email === recipientEmail);
+    const contact = contacts.find((c) => c.email === recipientEmail);
 
-    // Merge data sources (CSV takes precedence, then manual entry)
-    const recipientData: Record<string, string> = {
+    // Merge data sources (CSV takes precedence, then manual entry, then contact)
+    const recipientData: Record<string, string> & { email: string } = {
       email: recipientEmail,
-      name: manualEntry?.name || "",
+      ...(contact?.name ? { name: contact.name } : {}),
+      ...(contact?.company ? { company: contact.company } : {}),
+      ...(contact?.phone ? { phone: contact.phone } : {}),
+      ...(contact?.tags?.length ? { tags: contact.tags.join(", ") } : {}),
+      ...(contact?.customFields || {}),
+      ...(manualEntry?.name ? { name: manualEntry.name } : {}),
       ...csvRow,
     };
 
@@ -1307,14 +1317,17 @@ export function ComposeForm() {
           const manualEntry = manualEntries.find(
             (e) => e.email.toLowerCase() === recipientEmail.toLowerCase(),
           );
+          const contact = contacts.find(
+            (c) => c.email.toLowerCase() === recipientEmail.toLowerCase(),
+          );
           return {
             email: recipientEmail,
-            name:
-              manualEntry?.name ||
-              csvRow.name ||
-              csvRow.Name ||
-              csvRow.NAME ||
-              "",
+            ...(contact?.name ? { name: contact.name } : {}),
+            ...(contact?.company ? { company: contact.company } : {}),
+            ...(contact?.phone ? { phone: contact.phone } : {}),
+            ...(contact?.tags?.length ? { tags: contact.tags.join(", ") } : {}),
+            ...(contact?.customFields || {}),
+            ...(manualEntry?.name ? { name: manualEntry.name } : {}),
             ...csvRow,
           };
         });
@@ -1371,6 +1384,24 @@ export function ComposeForm() {
           return rowEmail.toLowerCase() === email.toLowerCase();
         }) || {};
 
+      const manualEntry = manualEntries.find(
+        (e) => e.email.toLowerCase() === email.toLowerCase(),
+      );
+      const contact = contacts.find(
+        (c) => c.email.toLowerCase() === email.toLowerCase(),
+      );
+
+      const recipientData: Record<string, string> & { email: string } = {
+        email,
+        ...(contact?.name ? { name: contact.name } : {}),
+        ...(contact?.company ? { company: contact.company } : {}),
+        ...(contact?.phone ? { phone: contact.phone } : {}),
+        ...(contact?.tags?.length ? { tags: contact.tags.join(", ") } : {}),
+        ...(contact?.customFields || {}),
+        ...(manualEntry?.name ? { name: manualEntry.name } : {}),
+        ...csvRow,
+      };
+
       // Check if there's a personalized PDF attachment for this recipient
       let personalizedAttachment = undefined;
       if (pdfColumn && csvRow[pdfColumn] && isPdfUrl(csvRow[pdfColumn])) {
@@ -1384,7 +1415,7 @@ export function ComposeForm() {
         to: email,
         subject,
         message: finalContent,
-        originalRowData: csvRow,
+        originalRowData: recipientData,
         attachments,
         personalizedAttachment,
       };

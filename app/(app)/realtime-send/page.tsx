@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageShell, PageHeader } from "@/components/ui/page-shell";
 import { Progress } from "@/components/ui/progress";
 import { componentLogger } from "@/lib/client-logger";
 
@@ -79,7 +80,55 @@ export default function RealtimeSendPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <>
+      <PageShell>
+        <PageHeader
+          title="Real-time Sending"
+          description="Simulate real-time email sending progress tracking."
+        />
+        <div className="max-w-2xl">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Send className="h-5 w-5" />
+                Real-time Email Sending Demo
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="emailCount">Number of emails to simulate</Label>
+                <Input
+                  id="emailCount"
+                  type="number"
+                  value={emailCount}
+                  onChange={(e) => setEmailCount(e.target.value)}
+                  placeholder="Enter number of emails"
+                  min="1"
+                  max="1000"
+                />
+              </div>
+
+              <Button
+                onClick={simulateEmailSending}
+                disabled={isLoading}
+                className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
+              >
+                {isLoading ? (
+                  <>
+                    <div className="h-4 w-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4 mr-2" /> Start Sending
+                  </>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </PageShell>
+
       {/* Real-time Sending Screen - Full Screen Overlay */}
       {showSendingScreen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -176,57 +225,6 @@ export default function RealtimeSendPage() {
           </Card>
         </div>
       )}
-
-      {/* Main Page Content */}
-      <main className="flex-1 mx-auto max-w-7xl w-full px-4 sm:px-6 lg:px-8 py-8">
-        <div className="max-w-2xl mx-auto">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Send className="h-5 w-5" />
-                Real-time Email Sending Demo
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="emailCount">Number of emails to simulate</Label>
-                <Input
-                  id="emailCount"
-                  type="number"
-                  value={emailCount}
-                  onChange={(e) => setEmailCount(e.target.value)}
-                  placeholder="Enter number of emails"
-                  min="1"
-                  max="1000"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  All emails are sent sequentially, one at a time, for maximum
-                  reliability.
-                </p>
-              </div>
-
-              <Button
-                onClick={simulateEmailSending}
-                disabled={isLoading}
-                className="w-full"
-              >
-                {isLoading ? "Sending..." : "Start Email Campaign"}
-              </Button>
-
-              <div className="text-center text-sm text-muted-foreground">
-                <p>
-                  This is a simulation that demonstrates the real-time loading
-                  screen.
-                </p>
-                <p>
-                  All emails are sent sequentially, one at a time, for maximum
-                  reliability.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-    </div>
+    </>
   );
 }

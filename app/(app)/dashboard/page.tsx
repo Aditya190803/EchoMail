@@ -223,7 +223,6 @@ export default function DashboardPage() {
           subject: `${c.subject} (Copy)`,
           content: c.content || "",
           recipients: parseRecipients(c.recipients),
-          recipients: parseRecipients(c.recipients),
           attachments: c.attachments || [],
         }),
       );

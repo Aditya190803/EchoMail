@@ -66,6 +66,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageShell, PageHeader, EmptyState } from "@/components/ui/page-shell";
 import { webhooksService, type Webhook as WebhookType } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 
@@ -315,141 +316,145 @@ export default function WebhooksPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-1">Webhooks</h1>
-            <p className="text-muted-foreground">
-              Integrate EchoMail with your apps and services in real-time
-            </p>
-          </div>
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Webhook
+    <>
+      <PageShell className="max-w-7xl">
+        <PageHeader
+          title={
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" size="icon" onClick={() => router.back()}>
+                <ArrowLeft className="h-5 w-5" />
               </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Create Webhook</DialogTitle>
-                <DialogDescription>
-                  Send HTTP POST requests when events occur
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Name *</Label>
-                  <Input
-                    id="name"
-                    placeholder="e.g., Slack Notification"
-                    value={newWebhook.name}
-                    onChange={(e) =>
-                      setNewWebhook({ ...newWebhook, name: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="url">Webhook URL *</Label>
-                  <Input
-                    id="url"
-                    type="url"
-                    placeholder="https://your-service.com/webhook"
-                    value={newWebhook.url}
-                    onChange={(e) =>
-                      setNewWebhook({ ...newWebhook, url: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Events *</Label>
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Globe className="h-6 w-6 text-primary" />
+              </div>
+              Webhooks
+            </div>
+          }
+          description="Integrate EchoMail with your apps and services in real-time"
+          actions={
+            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+              <DialogTrigger asChild>
+                <Button className="gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90">
+                  <Plus className="h-4 w-4" />
+                  Add Webhook
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Create Webhook</DialogTitle>
+                  <DialogDescription>
+                    Send HTTP POST requests when events occur
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
                   <div className="space-y-2">
-                    {EVENT_TYPES.map((event) => (
-                      <label
-                        key={event.value}
-                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                          newWebhook.events.includes(event.value as any)
-                            ? "bg-primary/10 border-primary"
-                            : "hover:bg-muted"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={newWebhook.events.includes(
-                            event.value as any,
-                          )}
-                          onChange={() => toggleEvent(event.value as any)}
-                          className="mt-1"
-                        />
-                        <div>
-                          <p className="font-medium">{event.label}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {event.description}
-                          </p>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="secret">Secret (optional)</Label>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setNewWebhook({
-                          ...newWebhook,
-                          secret: generateSecret(),
-                        })
+                    <Label htmlFor="name">Name *</Label>
+                    <Input
+                      id="name"
+                      placeholder="e.g., Slack Notification"
+                      value={newWebhook.name}
+                      onChange={(e) =>
+                        setNewWebhook({ ...newWebhook, name: e.target.value })
                       }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="url">Webhook URL *</Label>
+                    <Input
+                      id="url"
+                      type="url"
+                      placeholder="https://your-service.com/webhook"
+                      value={newWebhook.url}
+                      onChange={(e) =>
+                        setNewWebhook({ ...newWebhook, url: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Events *</Label>
+                    <div className="space-y-2">
+                      {EVENT_TYPES.map((event) => (
+                        <label
+                          key={event.value}
+                          className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                            newWebhook.events.includes(event.value as any)
+                              ? "bg-primary/10 border-primary"
+                              : "hover:bg-muted"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={newWebhook.events.includes(
+                              event.value as any,
+                            )}
+                            onChange={() => toggleEvent(event.value as any)}
+                            className="mt-1"
+                          />
+                          <div>
+                            <p className="font-medium">{event.label}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {event.description}
+                            </p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="secret">Secret (optional)</Label>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setNewWebhook({
+                            ...newWebhook,
+                            secret: generateSecret(),
+                          })
+                        }
+                      >
+                        Generate
+                      </Button>
+                    </div>
+                    <Input
+                      id="secret"
+                      placeholder="Used to sign webhook payloads"
+                      value={newWebhook.secret}
+                      onChange={(e) =>
+                        setNewWebhook({ ...newWebhook, secret: e.target.value })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      If set, payloads will be signed with HMAC-SHA256 in the
+                      X-EchoMail-Signature header
+                    </p>
+                  </div>
+                  <div className="flex gap-2 pt-4">
+                    <Button
+                      onClick={createWebhook}
+                      disabled={
+                        isLoading ||
+                        !newWebhook.name.trim() ||
+                        !newWebhook.url.trim() ||
+                        newWebhook.events.length === 0
+                      }
+                      className="flex-1"
                     >
-                      Generate
+                      Create Webhook
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowCreateDialog(false)}
+                    >
+                      Cancel
                     </Button>
                   </div>
-                  <Input
-                    id="secret"
-                    placeholder="Used to sign webhook payloads"
-                    value={newWebhook.secret}
-                    onChange={(e) =>
-                      setNewWebhook({ ...newWebhook, secret: e.target.value })
-                    }
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    If set, payloads will be signed with HMAC-SHA256 in the
-                    X-EchoMail-Signature header
-                  </p>
                 </div>
-                <div className="flex gap-2 pt-4">
-                  <Button
-                    onClick={createWebhook}
-                    disabled={
-                      isLoading ||
-                      !newWebhook.name.trim() ||
-                      !newWebhook.url.trim() ||
-                      newWebhook.events.length === 0
-                    }
-                    className="flex-1"
-                  >
-                    Create Webhook
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowCreateDialog(false)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+              </DialogContent>
+            </Dialog>
+          }
+        />
 
         {/* Webhooks List */}
         {webhooks.length > 0 ? (
@@ -592,23 +597,17 @@ export default function WebhooksPage() {
             ))}
           </div>
         ) : (
-          <Card>
-            <CardContent className="py-16">
-              <div className="text-center">
-                <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                  <Webhook className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">No webhooks yet</h3>
-                <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-                  Create webhooks to send campaign events to external services
-                </p>
-                <Button onClick={() => setShowCreateDialog(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Webhook
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={<Webhook className="h-12 w-12 text-muted-foreground/50" />}
+            title="No webhooks yet"
+            description="Create webhooks to send campaign events to external services"
+            action={
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Webhook
+              </Button>
+            }
+          />
         )}
 
         {/* How Webhooks Work Section */}
@@ -1053,7 +1052,7 @@ app.post('/webhook', (req, res) => {
             </div>
           )}
         </div>
-      </main>
+      </PageShell>
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
@@ -1160,6 +1159,6 @@ app.post('/webhook', (req, res) => {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

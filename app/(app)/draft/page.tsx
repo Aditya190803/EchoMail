@@ -55,6 +55,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  PageShell,
+  PageHeader,
+  EmptyState,
+  StatCard,
+} from "@/components/ui/page-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { draftEmailsService, type DraftEmail } from "@/lib/appwrite";
@@ -372,78 +378,74 @@ export default function DraftPage() {
 
   if (status === "loading" || !isMounted || isLoading) {
     return (
-      <div className="min-h-screen bg-background flex flex-col">
-        <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-          {/* Header Skeleton */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-            <div>
-              <Skeleton className="h-8 w-48 mb-2" />
-              <Skeleton className="h-5 w-72" />
-            </div>
+      <PageShell>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-56" />
+            <Skeleton className="h-4 w-72" />
+          </div>
+          <div className="flex gap-2">
             <Skeleton className="h-10 w-40" />
           </div>
+        </div>
 
-          {/* Info Banner Skeleton */}
-          <Card className="mb-6">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <Skeleton className="h-5 w-5 rounded-full" />
-                <div className="flex-1">
-                  <Skeleton className="h-4 w-48 mb-1" />
-                  <Skeleton className="h-4 w-80" />
-                </div>
+        {/* Info Banner Skeleton */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Skeleton className="h-5 w-5 rounded-full" />
+              <div className="flex-1">
+                <Skeleton className="h-4 w-48 mb-1" />
+                <Skeleton className="h-4 w-80" />
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Stats Grid Skeleton */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            {[...Array(4)].map((_, idx) => (
-              <Card key={idx}>
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-9 w-9 rounded-lg" />
-                    <div>
-                      <Skeleton className="h-7 w-8 mb-1" />
-                      <Skeleton className="h-4 w-16" />
-                    </div>
+        {/* Stats Grid Skeleton */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, idx) => (
+            <Card key={idx}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-9 w-9 rounded-lg" />
+                  <div>
+                    <Skeleton className="h-7 w-8 mb-1" />
+                    <Skeleton className="h-4 w-16" />
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
 
-          {/* Section Header Skeleton */}
+        <div className="space-y-4">
           <div className="flex items-center gap-2 mb-4">
             <Skeleton className="h-5 w-5 rounded-full" />
             <Skeleton className="h-5 w-32" />
           </div>
-
-          {/* Draft Items Skeleton */}
-          <div className="space-y-4">
-            {[...Array(3)].map((_, idx) => (
-              <Card key={idx}>
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-5 w-24 rounded-full" />
-                        <Skeleton className="h-4 w-20" />
-                      </div>
-                      <Skeleton className="h-6 w-3/4" />
-                      <div className="flex items-center gap-4">
-                        <Skeleton className="h-4 w-32" />
-                        <Skeleton className="h-4 w-24" />
-                      </div>
+          {[...Array(3)].map((_, idx) => (
+            <Card key={idx}>
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-5 w-24 rounded-full" />
+                      <Skeleton className="h-4 w-20" />
                     </div>
-                    <Skeleton className="h-8 w-8 rounded" />
+                    <Skeleton className="h-6 w-3/4" />
+                    <div className="flex items-center gap-4">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-4 w-24" />
+                    </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </main>
-      </div>
+                  <Skeleton className="h-8 w-8 rounded" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </PageShell>
     );
   }
 
@@ -457,28 +459,26 @@ export default function DraftPage() {
   );
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold mb-2">
-              Draft Emails
-            </h1>
-            <p className="text-muted-foreground">
-              Save emails for later and send when ready
-            </p>
-          </div>
-          <Button asChild>
-            <Link href="/compose">
-              <Send className="h-4 w-4 mr-2" />
-              Create New Email
-            </Link>
-          </Button>
-        </div>
+    <>
+      <PageShell>
+        <PageHeader
+          title="Draft Emails"
+          description="Save emails for later and send when ready"
+          actions={
+            <Button
+              asChild
+              className="bg-gradient-to-r from-primary to-accent hover:opacity-90"
+            >
+              <Link href="/compose">
+                <Send className="h-4 w-4 mr-2" />
+                Create New Email
+              </Link>
+            </Button>
+          }
+        />
 
         {/* Info Banner */}
-        <Card className="mb-6 border-primary/20 bg-primary/5">
+        <Card className="border-primary/20 bg-primary/5">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-primary mt-0.5" />
@@ -494,65 +494,30 @@ export default function DraftPage() {
         </Card>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Clock className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{pendingEmails.length}</p>
-                  <p className="text-sm text-muted-foreground">Pending</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-success/10">
-                  <CheckCircle className="h-5 w-5 text-success" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">
-                    {draftEmails.filter((e) => e.status === "sent").length}
-                  </p>
-                  <p className="text-sm text-muted-foreground">Sent</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-destructive/10">
-                  <XCircle className="h-5 w-5 text-destructive" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">
-                    {draftEmails.filter((e) => e.status === "failed").length}
-                  </p>
-                  <p className="text-sm text-muted-foreground">Failed</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-muted">
-                  <Pause className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">
-                    {draftEmails.filter((e) => e.status === "cancelled").length}
-                  </p>
-                  <p className="text-sm text-muted-foreground">Cancelled</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard
+            label="Pending"
+            value={pendingEmails.length}
+            icon={<Clock className="h-5 w-5 text-primary" />}
+            accentClass="border-primary/20 bg-primary/5"
+          />
+          <StatCard
+            label="Sent"
+            value={draftEmails.filter((e) => e.status === "sent").length}
+            icon={<CheckCircle className="h-5 w-5 text-success" />}
+            accentClass="border-success/20 bg-success/5"
+          />
+          <StatCard
+            label="Failed"
+            value={draftEmails.filter((e) => e.status === "failed").length}
+            icon={<XCircle className="h-5 w-5 text-destructive" />}
+            accentClass="border-destructive/20 bg-destructive/5"
+          />
+          <StatCard
+            label="Cancelled"
+            value={draftEmails.filter((e) => e.status === "cancelled").length}
+            icon={<Pause className="h-5 w-5 text-muted-foreground" />}
+          />
         </div>
 
         {/* Pending Emails */}
@@ -795,27 +760,21 @@ export default function DraftPage() {
 
         {/* Empty State */}
         {draftEmails.length === 0 && !isLoading && (
-          <Card>
-            <CardContent className="py-16">
-              <div className="text-center">
-                <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                  <Mail className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">No drafts yet</h3>
-                <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-                  Save emails as drafts and send them when you're ready
-                </p>
-                <Button asChild>
-                  <Link href="/compose">
-                    <Send className="h-4 w-4 mr-2" />
-                    Create New Email
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={<Mail className="h-6 w-6" />}
+            title="No drafts yet"
+            description="Save emails as drafts and send them when you're ready"
+            action={
+              <Button asChild>
+                <Link href="/compose">
+                  <Send className="h-4 w-4 mr-2" />
+                  Create New Email
+                </Link>
+              </Button>
+            }
+          />
         )}
-      </main>
+      </PageShell>
 
       {/* Preview Dialog */}
       <Dialog
@@ -994,6 +953,6 @@ export default function DraftPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }

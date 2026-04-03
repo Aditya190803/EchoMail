@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PageShell, PageHeader } from "@/components/ui/page-shell";
 import {
   Select,
   SelectContent,
@@ -208,223 +209,215 @@ export default function AuditLogsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <main className="flex-1 mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
+    <PageShell className="max-w-6xl">
+      <PageHeader
+        title={
+          <div className="flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-lg">
               <FileText className="h-6 w-6 text-primary" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Audit Logs</h1>
+            Audit Logs
           </div>
-          <p className="text-muted-foreground">
-            Track all actions performed on your account
-          </p>
-        </div>
+        }
+        description="Track all actions performed on your account"
+      />
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="flex flex-wrap gap-4 items-center">
-              <div className="flex-1 min-w-[200px]">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search logs..."
-                    value={filters.search}
-                    onChange={(e) =>
-                      handleFilterChange("search", e.target.value)
-                    }
-                    className="pl-9"
-                  />
-                </div>
+      {/* Filters */}
+      <Card className="mb-6">
+        <CardContent className="p-4">
+          <div className="flex flex-wrap gap-4 items-center">
+            <div className="flex-1 min-w-[200px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search logs..."
+                  value={filters.search}
+                  onChange={(e) => handleFilterChange("search", e.target.value)}
+                  className="pl-9"
+                />
               </div>
-
-              <Select
-                value={filters.resource_type || "all"}
-                onValueChange={(value: string) =>
-                  handleFilterChange(
-                    "resource_type",
-                    value === "all" ? "" : value,
-                  )
-                }
-              >
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Resource" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Resources</SelectItem>
-                  <SelectItem value="contact">Contacts</SelectItem>
-                  <SelectItem value="campaign">Campaigns</SelectItem>
-                  <SelectItem value="template">Templates</SelectItem>
-                  <SelectItem value="draft">Drafts</SelectItem>
-                  <SelectItem value="settings">Settings</SelectItem>
-                  <SelectItem value="auth">Authentication</SelectItem>
-                  <SelectItem value="team">Teams</SelectItem>
-                  <SelectItem value="export">Exports</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearFilters}
-                className="gap-2"
-              >
-                <Filter className="h-4 w-4" />
-                Clear
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={fetchLogs}
-                className="gap-2"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Refresh
-              </Button>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Logs List */}
-        <Card>
-          <CardHeader className="pb-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Activity History</CardTitle>
-              <Badge variant="secondary">{total} entries</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-4">
-                {[...Array(5)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-4 p-4 border rounded-lg"
-                  >
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <div className="flex-1 space-y-2">
-                      <Skeleton className="h-4 w-48" />
-                      <Skeleton className="h-3 w-32" />
-                    </div>
-                    <Skeleton className="h-6 w-20" />
+            <Select
+              value={filters.resource_type || "all"}
+              onValueChange={(value: string) =>
+                handleFilterChange(
+                  "resource_type",
+                  value === "all" ? "" : value,
+                )
+              }
+            >
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Resource" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Resources</SelectItem>
+                <SelectItem value="contact">Contacts</SelectItem>
+                <SelectItem value="campaign">Campaigns</SelectItem>
+                <SelectItem value="template">Templates</SelectItem>
+                <SelectItem value="draft">Drafts</SelectItem>
+                <SelectItem value="settings">Settings</SelectItem>
+                <SelectItem value="auth">Authentication</SelectItem>
+                <SelectItem value="team">Teams</SelectItem>
+                <SelectItem value="export">Exports</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearFilters}
+              className="gap-2"
+            >
+              <Filter className="h-4 w-4" />
+              Clear
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchLogs}
+              className="gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Logs List */}
+      <Card>
+        <CardHeader className="pb-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Activity History</CardTitle>
+            <Badge variant="secondary">{total} entries</Badge>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-4">
+              {[...Array(5)].map((_, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-4 p-4 border rounded-lg"
+                >
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-4 w-48" />
+                    <Skeleton className="h-3 w-32" />
                   </div>
-                ))}
-              </div>
-            ) : logs.length === 0 ? (
-              <div className="text-center py-12">
-                <Activity className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No activity yet</h3>
-                <p className="text-muted-foreground">
-                  Your account activity will appear here
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {logs.map((log) => {
-                  const ResourceIcon =
-                    resourceTypeIcons[log.resource_type] || Activity;
-                  const ActionIcon = getActionIcon(log.action);
-                  const actionColor = getActionColor(log.action);
-
-                  return (
-                    <div
-                      key={log.$id}
-                      className="flex items-start gap-4 p-4 border rounded-lg hover:bg-muted/30 transition-colors"
-                    >
-                      <div className="p-2 rounded-lg bg-muted">
-                        <ResourceIcon className="h-5 w-5 text-muted-foreground" />
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <ActionIcon className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">
-                            {formatAction(log.action)}
-                          </span>
-                          <Badge
-                            variant={actionColor as any}
-                            className="text-xs"
-                          >
-                            {log.resource_type}
-                          </Badge>
-                        </div>
-
-                        {log.details && Object.keys(log.details).length > 0 && (
-                          <p className="text-sm text-muted-foreground mb-2 line-clamp-1">
-                            {JSON.stringify(log.details)}
-                          </p>
-                        )}
-
-                        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            {format(
-                              new Date(log.created_at),
-                              "MMM d, yyyy HH:mm",
-                            )}
-                          </span>
-                          {log.ip_address && log.ip_address !== "unknown" && (
-                            <span className="flex items-center gap-1">
-                              <Activity className="h-3 w-3" />
-                              {log.ip_address}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {log.resource_id && (
-                        <Button variant="ghost" size="sm" className="gap-1">
-                          <Eye className="h-4 w-4" />
-                          View
-                        </Button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-6 pt-4 border-t">
-                <p className="text-sm text-muted-foreground">
-                  Showing {page * limit + 1}-
-                  {Math.min((page + 1) * limit, total)} of {total}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPage((p) => Math.max(0, p - 1))}
-                    disabled={page === 0}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                    Previous
-                  </Button>
-                  <span className="text-sm text-muted-foreground px-2">
-                    Page {page + 1} of {totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setPage((p) => Math.min(totalPages - 1, p + 1))
-                    }
-                    disabled={page >= totalPages - 1}
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
+                  <Skeleton className="h-6 w-20" />
                 </div>
+              ))}
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="text-center py-12">
+              <Activity className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">No activity yet</h3>
+              <p className="text-muted-foreground">
+                Your account activity will appear here
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {logs.map((log) => {
+                const ResourceIcon =
+                  resourceTypeIcons[log.resource_type] || Activity;
+                const ActionIcon = getActionIcon(log.action);
+                const actionColor = getActionColor(log.action);
+
+                return (
+                  <div
+                    key={log.$id}
+                    className="flex items-start gap-4 p-4 border rounded-lg hover:bg-muted/30 transition-colors"
+                  >
+                    <div className="p-2 rounded-lg bg-muted">
+                      <ResourceIcon className="h-5 w-5 text-muted-foreground" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <ActionIcon className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">
+                          {formatAction(log.action)}
+                        </span>
+                        <Badge variant={actionColor as any} className="text-xs">
+                          {log.resource_type}
+                        </Badge>
+                      </div>
+
+                      {log.details && Object.keys(log.details).length > 0 && (
+                        <p className="text-sm text-muted-foreground mb-2 line-clamp-1">
+                          {JSON.stringify(log.details)}
+                        </p>
+                      )}
+
+                      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {format(
+                            new Date(log.created_at),
+                            "MMM d, yyyy HH:mm",
+                          )}
+                        </span>
+                        {log.ip_address && log.ip_address !== "unknown" && (
+                          <span className="flex items-center gap-1">
+                            <Activity className="h-3 w-3" />
+                            {log.ip_address}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {log.resource_id && (
+                      <Button variant="ghost" size="sm" className="gap-1">
+                        <Eye className="h-4 w-4" />
+                        View
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-6 pt-4 border-t">
+              <p className="text-sm text-muted-foreground">
+                Showing {page * limit + 1}-{Math.min((page + 1) * limit, total)}{" "}
+                of {total}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground px-2">
+                  Page {page + 1} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setPage((p) => Math.min(totalPages - 1, p + 1))
+                  }
+                  disabled={page >= totalPages - 1}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </main>
-    </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </PageShell>
   );
 }

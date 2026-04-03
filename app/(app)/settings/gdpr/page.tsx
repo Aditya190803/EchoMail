@@ -37,6 +37,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { PageShell, PageHeader } from "@/components/ui/page-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
@@ -242,234 +243,227 @@ export default function GDPRPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <main className="flex-1 mx-auto w-full max-w-4xl px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
+    <PageShell className="max-w-4xl">
+      <PageHeader
+        title={
+          <div className="flex items-center gap-3">
             <div className="p-2 bg-primary/10 rounded-lg">
               <Shield className="h-6 w-6 text-primary" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold">Privacy & Data</h1>
+            Privacy & Data
           </div>
-          <p className="text-muted-foreground">
-            Manage your data, privacy preferences, and GDPR rights
-          </p>
-        </div>
+        }
+        description="Manage your data, privacy preferences, and GDPR rights"
+      />
 
-        <div className="space-y-6">
-          {/* Data Export */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Download className="h-5 w-5 text-primary" />
-                Export Your Data
-              </CardTitle>
-              <CardDescription>
-                Download a copy of all your data stored in EchoMail
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Your export will include contacts, email campaigns, templates,
-                drafts, signatures, and all other data associated with your
-                account in JSON format.
-              </p>
-              <Button
-                onClick={handleExportData}
-                disabled={isExporting}
-                className="gap-2"
+      <div className="space-y-6">
+        {/* Data Export */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5 text-primary" />
+              Export Your Data
+            </CardTitle>
+            <CardDescription>
+              Download a copy of all your data stored in EchoMail
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Your export will include contacts, email campaigns, templates,
+              drafts, signatures, and all other data associated with your
+              account in JSON format.
+            </p>
+            <Button
+              onClick={handleExportData}
+              disabled={isExporting}
+              className="gap-2"
+            >
+              {isExporting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4" />
+                  Download My Data
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Consent Management */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-success" />
+              Consent Preferences
+            </CardTitle>
+            <CardDescription>Control how your data is used</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {consentTypes.map((consent) => (
+              <div
+                key={consent.type}
+                className="flex items-start justify-between gap-4 p-4 rounded-lg border bg-muted/30"
               >
-                {isExporting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Exporting...
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4" />
-                    Download My Data
-                  </>
-                )}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Consent Management */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-success" />
-                Consent Preferences
-              </CardTitle>
-              <CardDescription>Control how your data is used</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {consentTypes.map((consent) => (
-                <div
-                  key={consent.type}
-                  className="flex items-start justify-between gap-4 p-4 rounded-lg border bg-muted/30"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <Label htmlFor={consent.type} className="font-semibold">
-                        {consent.title}
-                      </Label>
-                      {consent.required && (
-                        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
-                          Required
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {consent.description}
-                    </p>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Label htmlFor={consent.type} className="font-semibold">
+                      {consent.title}
+                    </Label>
+                    {consent.required && (
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
+                        Required
+                      </span>
+                    )}
                   </div>
-                  <Switch
-                    id={consent.type}
-                    checked={consents[consent.type] ?? false}
-                    onCheckedChange={(checked: boolean) =>
-                      handleConsentChange(consent.type, checked)
-                    }
-                    disabled={
-                      consent.required || updatingConsent === consent.type
-                    }
-                  />
+                  <p className="text-sm text-muted-foreground">
+                    {consent.description}
+                  </p>
                 </div>
-              ))}
-            </CardContent>
-          </Card>
+                <Switch
+                  id={consent.type}
+                  checked={consents[consent.type] ?? false}
+                  onCheckedChange={(checked: boolean) =>
+                    handleConsentChange(consent.type, checked)
+                  }
+                  disabled={
+                    consent.required || updatingConsent === consent.type
+                  }
+                />
+              </div>
+            ))}
+          </CardContent>
+        </Card>
 
-          {/* Audit Logs */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Eye className="h-5 w-5 text-secondary" />
-                Activity History
-              </CardTitle>
-              <CardDescription>
-                View a log of all actions performed on your account
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                Access a detailed audit trail of all activities including
-                logins, data modifications, exports, and more.
-              </p>
-              <Button variant="outline" asChild>
-                <Link href="/settings/audit-logs" className="gap-2">
-                  <FileText className="h-4 w-4" />
-                  View Audit Logs
+        {/* Audit Logs */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Eye className="h-5 w-5 text-secondary" />
+              Activity History
+            </CardTitle>
+            <CardDescription>
+              View a log of all actions performed on your account
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground mb-4">
+              Access a detailed audit trail of all activities including logins,
+              data modifications, exports, and more.
+            </p>
+            <Button variant="outline" asChild>
+              <Link href="/settings/audit-logs" className="gap-2">
+                <FileText className="h-4 w-4" />
+                View Audit Logs
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Data Deletion */}
+        <Card className="border-destructive/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Delete Your Data
+            </CardTitle>
+            <CardDescription>
+              Permanently delete all your data from EchoMail
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-4">
+              <div className="flex gap-3">
+                <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-destructive mb-1">
+                    Warning: This action cannot be undone
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    All your contacts, campaigns, templates, drafts, and other
+                    data will be permanently deleted. You will not be able to
+                    recover this data.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  Delete All My Data
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                  <AlertDialogDescription className="space-y-2">
+                    <p>This will permanently delete all your data including:</p>
+                    <ul className="list-disc list-inside text-sm space-y-1 mt-2">
+                      <li>All contacts and contact groups</li>
+                      <li>All email campaigns and history</li>
+                      <li>All templates and drafts</li>
+                      <li>All signatures and settings</li>
+                      <li>All uploaded attachments</li>
+                    </ul>
+                    <p className="font-semibold mt-4">
+                      This action cannot be undone.
+                    </p>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDeleteData}
+                    disabled={isDeleting}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      "Yes, Delete Everything"
+                    )}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </CardContent>
+        </Card>
+
+        {/* Legal Links */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-muted-foreground" />
+              Legal Documents
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4">
+              <Button variant="link" asChild className="h-auto p-0">
+                <Link href="/privacy" className="gap-1">
+                  Privacy Policy
+                  <ExternalLink className="h-3 w-3" />
                 </Link>
               </Button>
-            </CardContent>
-          </Card>
-
-          {/* Data Deletion */}
-          <Card className="border-destructive/20">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-destructive">
-                <Trash2 className="h-5 w-5" />
-                Delete Your Data
-              </CardTitle>
-              <CardDescription>
-                Permanently delete all your data from EchoMail
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 mb-4">
-                <div className="flex gap-3">
-                  <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-semibold text-destructive mb-1">
-                      Warning: This action cannot be undone
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      All your contacts, campaigns, templates, drafts, and other
-                      data will be permanently deleted. You will not be able to
-                      recover this data.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" className="gap-2">
-                    <Trash2 className="h-4 w-4" />
-                    Delete All My Data
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      Are you absolutely sure?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription className="space-y-2">
-                      <p>
-                        This will permanently delete all your data including:
-                      </p>
-                      <ul className="list-disc list-inside text-sm space-y-1 mt-2">
-                        <li>All contacts and contact groups</li>
-                        <li>All email campaigns and history</li>
-                        <li>All templates and drafts</li>
-                        <li>All signatures and settings</li>
-                        <li>All uploaded attachments</li>
-                      </ul>
-                      <p className="font-semibold mt-4">
-                        This action cannot be undone.
-                      </p>
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleDeleteData}
-                      disabled={isDeleting}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    >
-                      {isDeleting ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Deleting...
-                        </>
-                      ) : (
-                        "Yes, Delete Everything"
-                      )}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </CardContent>
-          </Card>
-
-          {/* Legal Links */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5 text-muted-foreground" />
-                Legal Documents
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-4">
-                <Button variant="link" asChild className="h-auto p-0">
-                  <Link href="/privacy" className="gap-1">
-                    Privacy Policy
-                    <ExternalLink className="h-3 w-3" />
-                  </Link>
-                </Button>
-                <Button variant="link" asChild className="h-auto p-0">
-                  <Link href="/tos" className="gap-1">
-                    Terms of Service
-                    <ExternalLink className="h-3 w-3" />
-                  </Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-    </div>
+              <Button variant="link" asChild className="h-auto p-0">
+                <Link href="/tos" className="gap-1">
+                  Terms of Service
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </PageShell>
   );
 }

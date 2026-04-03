@@ -47,7 +47,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageShell, PageHeader, EmptyState } from "@/components/ui/page-shell";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { signaturesService, type EmailSignature } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 
@@ -239,103 +241,103 @@ export default function SignaturesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <main className="flex-1 mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <Button variant="ghost" size="icon" onClick={() => router.back()}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-1">
-              Email Signatures
-            </h1>
-            <p className="text-muted-foreground">
-              Create and manage your email signatures
-            </p>
-          </div>
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                New Signature
+    <>
+      <PageShell>
+        <PageHeader
+          title={
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" onClick={() => router.back()}>
+                <ArrowLeft className="h-5 w-5" />
               </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Create Signature</DialogTitle>
-                <DialogDescription>
-                  Create a reusable email signature. The name is for your
-                  reference only — only the content below will be added to your
-                  emails.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Signature Name *</Label>
-                  <p className="text-xs text-muted-foreground">
-                    This name is just for identification and won't appear in
-                    your emails
-                  </p>
-                  <Input
-                    id="name"
-                    placeholder="e.g., Professional, Casual"
-                    value={newSignature.name}
-                    onChange={(e) =>
-                      setNewSignature({ ...newSignature, name: e.target.value })
-                    }
-                  />
+              Email Signatures
+            </div>
+          }
+          description="Create and manage your email signatures"
+          actions={
+            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90">
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Signature
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Create Signature</DialogTitle>
+                  <DialogDescription>
+                    Create a reusable email signature. The name is for your
+                    reference only — only the content below will be added to
+                    your emails.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Signature Name *</Label>
+                    <p className="text-xs text-muted-foreground">
+                      This name is just for identification and won't appear in
+                      your emails
+                    </p>
+                    <Input
+                      id="name"
+                      placeholder="e.g., Professional, Casual"
+                      value={newSignature.name}
+                      onChange={(e) =>
+                        setNewSignature({
+                          ...newSignature,
+                          name: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Signature Content *</Label>
+                    <p className="text-xs text-muted-foreground">
+                      This rich text content will be added to the bottom of
+                      emails when you select this signature
+                    </p>
+                    <RichTextEditor
+                      content={newSignature.content}
+                      onChange={(content) =>
+                        setNewSignature({ ...newSignature, content })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Set as default</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Automatically use this signature for new emails
+                      </p>
+                    </div>
+                    <Switch
+                      checked={newSignature.is_default}
+                      onCheckedChange={(is_default) =>
+                        setNewSignature({ ...newSignature, is_default })
+                      }
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Signature Content</Label>
-                  <RichTextEditor
-                    content={newSignature.content}
-                    onChange={(content) =>
-                      setNewSignature({ ...newSignature, content })
-                    }
-                    placeholder="Enter your signature..."
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="is-default"
-                    checked={newSignature.is_default}
-                    onChange={(e) =>
-                      setNewSignature({
-                        ...newSignature,
-                        is_default: e.target.checked,
-                      })
-                    }
-                    className="h-4 w-4 rounded"
-                  />
-                  <Label htmlFor="is-default" className="cursor-pointer">
-                    Set as default signature
-                  </Label>
-                </div>
-                <div className="flex gap-2 pt-4">
-                  <Button
-                    onClick={createSignature}
-                    disabled={
-                      isLoading ||
-                      !newSignature.name.trim() ||
-                      !newSignature.content.trim()
-                    }
-                    className="flex-1"
-                  >
-                    Create Signature
-                  </Button>
+                <div className="flex justify-end gap-3 mt-6">
                   <Button
                     variant="outline"
                     onClick={() => setShowCreateDialog(false)}
+                    disabled={isLoading}
                   >
                     Cancel
                   </Button>
+                  <Button
+                    onClick={createSignature}
+                    disabled={
+                      isLoading || !newSignature.name || !newSignature.content
+                    }
+                  >
+                    {isLoading ? "Creating..." : "Create Signature"}
+                  </Button>
                 </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
+              </DialogContent>
+            </Dialog>
+          }
+        />
 
         {/* Signatures List */}
         {signatures.length > 0 ? (
@@ -431,25 +433,17 @@ export default function SignaturesPage() {
             ))}
           </div>
         ) : (
-          <Card>
-            <CardContent className="py-16">
-              <div className="text-center">
-                <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                  <Pen className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">
-                  No signatures yet
-                </h3>
-                <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-                  Create email signatures to quickly add to your emails
-                </p>
-                <Button onClick={() => setShowCreateDialog(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Signature
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <EmptyState
+            icon={<Pen className="h-8 w-8 text-muted-foreground" />}
+            title="No signatures yet"
+            description="Create email signatures to quickly add to your emails"
+            action={
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Signature
+              </Button>
+            }
+          />
         )}
 
         {/* Tips */}
@@ -466,7 +460,7 @@ export default function SignaturesPage() {
             </ul>
           </CardContent>
         </Card>
-      </main>
+      </PageShell>
 
       {/* Edit Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
@@ -548,6 +542,6 @@ export default function SignaturesPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }
