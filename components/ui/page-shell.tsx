@@ -1,5 +1,7 @@
 import React from "react";
 
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+
 /* ─────────────────────────────────────────────────────────── *
  *  PageShell — outermost constraint for every protected page  *
  * ─────────────────────────────────────────────────────────── */
@@ -89,7 +91,7 @@ export function EmptyState({
 }
 
 /* ─────────────────────────────────────────────────────────── *
- *  StatCard — left-border accented KPI card                   *
+ *  StatCard — unified accented KPI card                       *
  * ─────────────────────────────────────────────────────────── */
 interface StatCardProps {
   label: string;
@@ -97,7 +99,7 @@ interface StatCardProps {
   sub?: string;
   icon: React.ReactNode;
   trend?: { direction: "up" | "down" | "same"; label: string };
-  accentClass?: string; // e.g. "border-blue-500"
+  accentClass?: string; // e.g. "bg-chart-1/5 border-chart-1/20"
   children?: React.ReactNode; // slot for sparkline
 }
 export function StatCard({
@@ -106,36 +108,45 @@ export function StatCard({
   sub,
   icon,
   trend,
-  accentClass = "border-primary",
+  accentClass = "border-border bg-card",
   children,
 }: StatCardProps) {
-  const trendColour =
-    trend?.direction === "up"
-      ? "text-emerald-500"
-      : trend?.direction === "down"
-        ? "text-destructive"
-        : "text-muted-foreground";
-  const trendArrow =
-    trend?.direction === "up" ? "↑" : trend?.direction === "down" ? "↓" : "→";
+  const isUp = trend?.direction === "up";
+  const isDown = trend?.direction === "down";
+
+  const TrendIcon = isUp ? TrendingUp : isDown ? TrendingDown : Minus;
+
+  const trendBaseClass =
+    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset";
+  const trendColour = isUp
+    ? "bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-500/10 dark:text-emerald-400"
+    : isDown
+      ? "bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-500/10 dark:text-red-400"
+      : "bg-gray-50 text-gray-600 ring-gray-500/20 dark:bg-gray-400/10 dark:text-gray-400";
 
   return (
     <div
-      className={`rounded-xl border-l-4 bg-card p-5 hover:shadow-md transition-all duration-200 ${accentClass}`}
+      className={`relative overflow-hidden rounded-xl border p-5 shadow-sm transition-all duration-200 hover:shadow-md ${accentClass}`}
     >
       <div className="flex items-start justify-between mb-3">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        <div className="p-2 bg-muted/40 rounded-lg shrink-0">{icon}</div>
+        <div className="p-2 bg-background/50 backdrop-blur-sm rounded-lg shrink-0 border border-border/50">
+          {icon}
+        </div>
       </div>
       <div className="space-y-1">
         <p className="text-3xl font-bold tracking-tight tabular-nums">
           {value}
         </p>
-        {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
-        {trend && (
-          <p className={`text-xs font-medium ${trendColour}`}>
-            {trendArrow} {trend.label}
-          </p>
-        )}
+        <div className="flex items-center gap-2 pt-2">
+          {trend && (
+            <span className={`${trendBaseClass} ${trendColour}`}>
+              <TrendIcon className="h-3 w-3" />
+              {trend.label}
+            </span>
+          )}
+          {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
+        </div>
       </div>
       {children && <div className="mt-3">{children}</div>}
     </div>

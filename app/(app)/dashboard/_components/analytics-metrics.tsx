@@ -70,8 +70,8 @@ export function AnalyticsMetrics({ campaigns }: Props) {
       label: "Emails Delivered",
       value: totalSent.toLocaleString(),
       sub: `${successRate.toFixed(1)}% success rate`,
-      icon: <Send className="h-4 w-4 text-blue-500" />,
-      accent: "border-blue-500",
+      icon: <Send className="h-4 w-4 text-chart-1" />,
+      accent: "border-chart-1/20 bg-chart-1/5",
       trend: trend(sentDelta),
     },
     {
@@ -80,16 +80,16 @@ export function AnalyticsMetrics({ campaigns }: Props) {
       sub: totalRecipients
         ? `${((totalFailed / totalRecipients) * 100).toFixed(1)}% failure rate`
         : "0% failure rate",
-      icon: <XCircle className="h-4 w-4 text-red-500" />,
-      accent: "border-red-400",
+      icon: <XCircle className="h-4 w-4 text-chart-2" />,
+      accent: "border-chart-2/20 bg-chart-2/5",
       trend: trend(totalFailed > 0 ? 5 : -5, true), // indicative
     },
     {
       label: "Total Campaigns",
       value: totalCampaigns.toLocaleString(),
       sub: `${thisWeek.length} this week`,
-      icon: <Mail className="h-4 w-4 text-violet-500" />,
-      accent: "border-violet-500",
+      icon: <Mail className="h-4 w-4 text-chart-3" />,
+      accent: "border-chart-3/20 bg-chart-3/5",
       trend: trend(
         lastWeek.length === 0
           ? null
@@ -102,8 +102,8 @@ export function AnalyticsMetrics({ campaigns }: Props) {
       label: "Audience Reached",
       value: totalRecipients.toLocaleString(),
       sub: `Avg ${totalCampaigns ? Math.round(totalRecipients / totalCampaigns) : 0} per campaign`,
-      icon: <Users className="h-4 w-4 text-emerald-500" />,
-      accent: "border-emerald-500",
+      icon: <Users className="h-4 w-4 text-chart-4" />,
+      accent: "border-chart-4/20 bg-chart-4/5",
     },
   ];
 
@@ -118,9 +118,7 @@ export function AnalyticsMetrics({ campaigns }: Props) {
           icon={m.icon}
           trend={m.trend}
           accentClass={m.accent}
-        >
-          {m.spark}
-        </StatCard>
+        />
       ))}
     </div>
   );

@@ -76,8 +76,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader, PageShell, EmptyState } from "@/components/ui/page-shell";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { generateWeekOverWeekComparison } from "@/lib/activity/comparison";
@@ -565,40 +565,40 @@ export default function HistoryPage() {
 
   return (
     <>
-    <PageShell>
-      <PageHeader
-        title="Insights & History"
-        description="Track your campaign performance and delivery metrics"
-        actions={
-          <>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={isExporting}>
-                  <Download className="h-4 w-4 mr-2" />
-                  {isExporting ? "Exporting..." : "Export Report"}
-                  <ChevronDown className="h-4 w-4 ml-2" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleExportCSV}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Export as CSV
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleExportPDF}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Export as PDF
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button asChild className="shadow-sm">
-              <Link href="/compose">
-                <Plus className="h-4 w-4 mr-2" />
-                New Campaign
-              </Link>
-            </Button>
-          </>
-        }
-      />
+      <PageShell>
+        <PageHeader
+          title="Insights & History"
+          description="Track your campaign performance and delivery metrics"
+          actions={
+            <>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" disabled={isExporting}>
+                    <Download className="h-4 w-4 mr-2" />
+                    {isExporting ? "Exporting..." : "Export Report"}
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleExportCSV}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Export as CSV
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportPDF}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Export as PDF
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button asChild className="shadow-sm">
+                <Link href="/compose">
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Campaign
+                </Link>
+              </Button>
+            </>
+          }
+        />
 
         <Tabs
           value={activeTab}
@@ -607,13 +607,116 @@ export default function HistoryPage() {
         >
           <div className="overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:pb-0 hide-scrollbar">
             <TabsList className="inline-flex w-auto min-w-full sm:min-w-0 h-10 p-1 bg-muted/30">
-              <TabsTrigger value="overview" className="rounded-md">Overview</TabsTrigger>
-              <TabsTrigger value="campaigns" className="rounded-md">Campaigns</TabsTrigger>
-              <TabsTrigger value="heatmap" className="rounded-md">Heatmap</TabsTrigger>
-              <TabsTrigger value="recipients" className="rounded-md">Recipients</TabsTrigger>
-              <TabsTrigger value="tracking" className="rounded-md">Raw Events</TabsTrigger>
+              <TabsTrigger value="overview" className="rounded-md">
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="campaigns" className="rounded-md">
+                Campaigns
+              </TabsTrigger>
+              <TabsTrigger value="heatmap" className="rounded-md">
+                Heatmap
+              </TabsTrigger>
+              <TabsTrigger value="recipients" className="rounded-md">
+                Recipients
+              </TabsTrigger>
+              <TabsTrigger value="tracking" className="rounded-md">
+                Raw Events
+              </TabsTrigger>
             </TabsList>
           </div>
+
+          {/* SHARED CAMPAIGN SELECTOR FOR ANALYTICS TABS */}
+          {["heatmap", "recipients", "tracking"].includes(activeTab) && (
+            <Card className="border border-border/50 shadow-sm bg-card">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  Select Campaign for Analysis
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Choose a campaign to view its detailed metrics, heatmaps, and
+                  event logs.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-nowrap overflow-x-auto gap-2 pb-2 hide-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0">
+                  {historyData?.recentCampaigns
+                    ?.slice(0, 12)
+                    .map((campaign) => {
+                      const isSelected =
+                        selectedHeatmapCampaignId === campaign.$id;
+                      const campaignEvents = allTrackingEvents.filter(
+                        (e) => e.campaign_id === campaign.$id,
+                      );
+                      const opens = campaignEvents.filter(
+                        (e) => e.event_type === "open",
+                      ).length;
+                      const clicks = campaignEvents.filter(
+                        (e) => e.event_type === "click",
+                      ).length;
+
+                      return (
+                        <button
+                          key={campaign.$id}
+                          onClick={() => {
+                            setSelectedHeatmapCampaignId(campaign.$id);
+                            setHeatmap(
+                              aggregateClickData(
+                                allTrackingEvents,
+                                campaign.$id,
+                              ),
+                            );
+                          }}
+                          className={cn(
+                            "shrink-0 px-3 py-2 rounded-lg border text-left transition-all hover:bg-muted/50 w-[180px]",
+                            isSelected
+                              ? "border-[var(--color-chart-1)]/50 bg-[var(--color-chart-1)]/5 ring-1 ring-[var(--color-chart-1)]/30"
+                              : "border-border/60 bg-card",
+                          )}
+                        >
+                          <div className="font-medium text-xs truncate text-foreground">
+                            {campaign.subject || "Untitled"}
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-1.5 font-medium">
+                            <span
+                              className="flex items-center gap-1"
+                              title="Opens"
+                            >
+                              <Eye className="h-3 w-3 text-emerald-500/80" />
+                              {opens}
+                            </span>
+                            <span
+                              className="flex items-center gap-1"
+                              title="Clicks"
+                            >
+                              <MousePointer2 className="h-3 w-3 text-[var(--color-chart-2)]/80" />
+                              {clicks}
+                            </span>
+                            <span
+                              className="flex items-center gap-1"
+                              title="Sent"
+                            >
+                              <Send className="h-3 w-3 text-[var(--color-chart-1)]/80" />
+                              {campaign.sent}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+                {(!historyData?.recentCampaigns ||
+                  historyData.recentCampaigns.length === 0) && (
+                  <div className="text-center py-6 text-muted-foreground text-sm flex flex-col items-center">
+                    <Mail className="h-6 w-6 mb-2 opacity-50" />
+                    <p>
+                      No campaigns found. Send your first email to see
+                      analytics.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           <TabsContent value="overview" className="space-y-8">
             {/* Stats Grid */}
@@ -968,416 +1071,329 @@ export default function HistoryPage() {
             })}
           </TabsContent>
 
-          <TabsContent value="tracking" className="space-y-8">
-            {/* Campaign Selector */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  Select Campaign for Analytics
-                </CardTitle>
-                <CardDescription>
-                  Choose a campaign to view its detailed click analytics and
-                  heatmap
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {historyData?.recentCampaigns
-                    ?.slice(0, 12)
-                    .map((campaign) => {
-                      const isSelected =
-                        selectedHeatmapCampaignId === campaign.$id;
-                      const campaignEvents = allTrackingEvents.filter(
-                        (e) => e.campaign_id === campaign.$id,
-                      );
-                      const opens = campaignEvents.filter(
-                        (e) => e.event_type === "open",
-                      ).length;
-                      const clicks = campaignEvents.filter(
-                        (e) => e.event_type === "click",
-                      ).length;
-
-                      return (
-                        <button
-                          key={campaign.$id}
-                          onClick={() => {
-                            setSelectedHeatmapCampaignId(campaign.$id);
-                            setHeatmap(
-                              aggregateClickData(
-                                allTrackingEvents,
-                                campaign.$id,
-                              ),
-                            );
-                          }}
-                          className={cn(
-                            "px-3 py-2 rounded-lg border text-left transition-all hover:border-primary/50 max-w-[200px]",
-                            isSelected
-                              ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                              : "border-border hover:bg-muted/50",
-                          )}
-                        >
-                          <div className="font-medium text-xs truncate">
-                            {campaign.subject || "Untitled"}
-                          </div>
-                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-1">
-                            <span className="flex items-center gap-0.5">
-                              <Eye className="h-2.5 w-2.5" />
-                              {opens}
-                            </span>
-                            <span className="flex items-center gap-0.5">
-                              <MousePointer2 className="h-2.5 w-2.5" />
-                              {clicks}
-                            </span>
-                            <span className="flex items-center gap-0.5">
-                              <Send className="h-2.5 w-2.5" />
-                              {campaign.sent}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                </div>
-                {(!historyData?.recentCampaigns ||
-                  historyData.recentCampaigns.length === 0) && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Mail className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                    <p>
-                      No campaigns found. Send your first email to see
-                      analytics.
+          <TabsContent value="tracking" className="space-y-6">
+            {!selectedHeatmapCampaignId ? (
+              <div className="border border-border/50 rounded-xl bg-card p-12 flex flex-col items-center justify-center text-center text-muted-foreground shadow-sm">
+                <History className="h-10 w-10 mb-4 opacity-40 text-[var(--color-chart-1)]" />
+                <h3 className="text-lg font-semibold text-foreground mb-1">
+                  No Campaign Selected
+                </h3>
+                <p className="max-w-sm text-sm">
+                  Select a campaign from the selector above to view its
+                  chronological raw event log.
+                </p>
+              </div>
+            ) : (
+              <div className="border border-border/50 rounded-xl bg-card shadow-sm flex flex-col">
+                <div className="p-5 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-lg font-semibold flex items-center gap-2 text-foreground">
+                      <History className="h-5 w-5 text-[var(--color-chart-1)]" />
+                      Raw Event Stream
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Real-time chronological log of all interactions.
                     </p>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Selected Campaign Analytics */}
-            {selectedHeatmapCampaignId && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2">
-                  {heatmap && heatmap.links.length > 0 ? (
-                    <HeatmapWidget
-                      links={heatmap.links}
-                      totalClicks={heatmap.totalClicks}
-                      title={`Link Clicks - ${historyData?.recentCampaigns?.find((c) => c.$id === selectedHeatmapCampaignId)?.subject || "Campaign"}`}
-                    />
-                  ) : (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base">
-                          Link Click Heatmap
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="text-center py-12 text-muted-foreground">
-                          <MousePointer2 className="h-12 w-12 mx-auto mb-4 opacity-30" />
-                          <p className="text-lg font-medium mb-2">
-                            No link clicks recorded
-                          </p>
-                          <p className="text-sm">
-                            Link clicks will appear here when recipients click
-                            links in this campaign.
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                  <Badge
+                    variant="secondary"
+                    className="font-medium bg-background border shadow-xs px-3 py-1"
+                  >
+                    {
+                      allTrackingEvents.filter(
+                        (e) => e.campaign_id === selectedHeatmapCampaignId,
+                      ).length
+                    }{" "}
+                    events
+                  </Badge>
                 </div>
-                <div className="space-y-8">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">
-                        Campaign Metrics
-                      </CardTitle>
-                      <CardDescription>
-                        Engagement metrics for the selected campaign
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-muted/30 text-[11px] uppercase tracking-wider text-muted-foreground font-semibold border-b">
+                      <tr>
+                        <th className="px-6 py-4">Time (Local)</th>
+                        <th className="px-6 py-4">Event</th>
+                        <th className="px-6 py-4">Recipient</th>
+                        <th className="px-6 py-4">Context (Link / Tech)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
                       {(() => {
-                        const campaignEvents = allTrackingEvents.filter(
-                          (e) => e.campaign_id === selectedHeatmapCampaignId,
-                        );
-                        const opens = campaignEvents.filter(
-                          (e) => e.event_type === "open",
-                        ).length;
-                        const clicks = campaignEvents.filter(
-                          (e) => e.event_type === "click",
-                        ).length;
-                        const uniqueOpens = new Set(
-                          campaignEvents
-                            .filter((e) => e.event_type === "open")
-                            .map((e) => e.email),
-                        ).size;
-                        const uniqueClicks = new Set(
-                          campaignEvents
-                            .filter((e) => e.event_type === "click")
-                            .map((e) => e.email),
-                        ).size;
-                        const campaign = historyData?.recentCampaigns?.find(
-                          (c) => c.$id === selectedHeatmapCampaignId,
-                        );
-                        const totalSent = campaign?.sent || 0;
-                        const openRate =
-                          totalSent > 0 ? (uniqueOpens / totalSent) * 100 : 0;
-                        const clickRate =
-                          totalSent > 0 ? (uniqueClicks / totalSent) * 100 : 0;
+                        const events = allTrackingEvents
+                          .filter(
+                            (e) => e.campaign_id === selectedHeatmapCampaignId,
+                          )
+                          .sort(
+                            (a, b) =>
+                              new Date(b.created_at).getTime() -
+                              new Date(a.created_at).getTime(),
+                          );
 
-                        return (
-                          <>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <div className="p-2 bg-accent/10 rounded-lg">
-                                  <Eye className="h-4 w-4 text-accent" />
-                                </div>
-                                <div>
-                                  <span className="text-sm font-medium block">
-                                    Opens
-                                  </span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {uniqueOpens} unique
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <span className="text-lg font-bold block">
-                                  {opens}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {openRate.toFixed(1)}%
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <div className="p-2 bg-primary/10 rounded-lg">
-                                  <MousePointer2 className="h-4 w-4 text-primary" />
-                                </div>
-                                <div>
-                                  <span className="text-sm font-medium block">
-                                    Clicks
-                                  </span>
-                                  <span className="text-xs text-muted-foreground">
-                                    {uniqueClicks} unique
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <span className="text-lg font-bold block">
-                                  {clicks}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {clickRate.toFixed(1)}%
-                                </span>
-                              </div>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <div className="p-2 bg-green-500/10 rounded-lg">
-                                  <Send className="h-4 w-4 text-green-500" />
-                                </div>
-                                <span className="text-sm font-medium">
-                                  Delivered
-                                </span>
-                              </div>
-                              <span className="text-lg font-bold">
-                                {totalSent}
-                              </span>
-                            </div>
-                          </>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">
-                        Device Distribution
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {(() => {
-                        const campaignEvents = allTrackingEvents.filter(
-                          (e) => e.campaign_id === selectedHeatmapCampaignId,
-                        );
-                        const deviceData = aggregateDeviceData(campaignEvents);
-                        const hasData =
-                          deviceData.length > 0 &&
-                          deviceData.some((d) => d.value > 0);
-
-                        if (!hasData) {
+                        if (events.length === 0) {
                           return (
-                            <div className="text-center py-6 text-muted-foreground text-sm">
-                              No device data yet
-                            </div>
+                            <tr>
+                              <td
+                                colSpan={4}
+                                className="px-6 py-16 text-center text-muted-foreground"
+                              >
+                                <History className="h-8 w-8 mx-auto mb-3 opacity-20" />
+                                No tracking events recorded yet.
+                              </td>
+                            </tr>
                           );
                         }
 
-                        return (
-                          <div className="space-y-2">
-                            {deviceData.map((device, idx) => (
-                              <div
-                                key={idx}
-                                className="flex items-center justify-between"
+                        return events.map((e) => (
+                          <tr
+                            key={e.$id}
+                            className="hover:bg-muted/30 transition-colors group"
+                          >
+                            <td className="px-6 py-4 whitespace-nowrap text-muted-foreground text-[13px] font-medium">
+                              {formatDate(e.created_at)}
+                              <span className="text-[11px] opacity-70 ml-2 font-mono">
+                                {new Date(e.created_at).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  second: "2-digit",
+                                })}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4">
+                              <Badge
+                                variant="secondary"
+                                className={cn(
+                                  "text-[10px] uppercase font-bold tracking-wider rounded-md border",
+                                  e.event_type === "open" &&
+                                    "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20",
+                                  e.event_type === "click" &&
+                                    "bg-[var(--color-chart-1)]/10 text-[var(--color-chart-1)] border-[var(--color-chart-1)]/20",
+                                )}
                               >
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className="w-3 h-3 rounded-full"
-                                    style={{
-                                      backgroundColor:
-                                        device.color ||
-                                        `hsl(var(--chart-${idx + 1}))`,
-                                    }}
-                                  />
-                                  <span className="text-sm">{device.name}</span>
+                                {e.event_type}
+                              </Badge>
+                            </td>
+                            <td className="px-6 py-4 font-medium text-foreground">
+                              {e.email}
+                            </td>
+                            <td className="px-6 py-4 text-[13px] text-muted-foreground">
+                              {e.event_type === "click" && e.link_url ? (
+                                <a
+                                  href={e.link_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-primary hover:underline flex items-center gap-1.5 w-fit max-w-[350px] truncate"
+                                  title={e.link_url}
+                                >
+                                  <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-50" />
+                                  <span className="truncate">{e.link_url}</span>
+                                </a>
+                              ) : (
+                                <div
+                                  className="flex items-center gap-2 opacity-80"
+                                  title={e.user_agent || "Unknown device"}
+                                >
+                                  <span className="truncate max-w-[150px]">
+                                    {e.user_agent
+                                      ? e.user_agent.split(" ")[0]
+                                      : "Unknown device"}
+                                  </span>
+                                  <span className="text-border text-[10px]">
+                                    •
+                                  </span>
+                                  <span className="font-mono text-[11px]">
+                                    {e.ip_address || "Unknown IP"}
+                                  </span>
                                 </div>
-                                <span className="text-sm font-medium">
-                                  {device.value}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        );
+                              )}
+                            </td>
+                          </tr>
+                        ));
                       })()}
-                    </CardContent>
-                  </Card>
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
-
-            {/* Global Overview */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">
-                  Global Tracking Overview
-                </CardTitle>
-                <CardDescription>
-                  Aggregate metrics across all campaigns
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-primary">
-                      {summary?.totalOpens || 0}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Total Opens
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-accent">
-                      {summary?.totalClicks || 0}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Total Clicks
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold">
-                      {summary?.averageOpenRate?.toFixed(1) || 0}%
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Avg Open Rate
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold">
-                      {summary?.averageClickRate?.toFixed(1) || 0}%
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Avg Click Rate
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
           <TabsContent value="heatmap" className="space-y-6">
-            <h2 className="text-lg font-semibold">Send-Time Heatmap</h2>
-            {heatmap && (
-              <HeatmapWidget
-                links={heatmap.links}
-                totalClicks={heatmap.totalClicks}
-                title="When do your recipients open emails?"
-              />
-            )}
-            {!heatmap && (
-              <p className="text-sm text-muted-foreground italic">Not enough open data yet.</p>
+            {!selectedHeatmapCampaignId ? (
+              <div className="border border-border/50 rounded-xl bg-card p-12 flex flex-col items-center justify-center text-center text-muted-foreground shadow-sm">
+                <BarChart3 className="h-10 w-10 mb-4 opacity-40 text-primary" />
+                <h3 className="text-lg font-semibold text-foreground mb-1">
+                  No Campaign Selected
+                </h3>
+                <p className="max-w-sm text-sm">
+                  Select a campaign from the selector above to view its
+                  send-time heatmap.
+                </p>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-lg font-semibold text-foreground">
+                  Send-Time Heatmap
+                </h2>
+                {heatmap && heatmap.links && heatmap.links.length > 0 ? (
+                  <HeatmapWidget
+                    links={heatmap.links}
+                    totalClicks={heatmap.totalClicks}
+                    title="When do your recipients open emails?"
+                  />
+                ) : (
+                  <div className="border border-border/50 rounded-xl bg-card p-12 flex flex-col items-center justify-center text-center text-muted-foreground shadow-sm mt-4">
+                    <MousePointer2 className="h-10 w-10 mb-4 opacity-40" />
+                    <h3 className="text-lg font-semibold text-foreground mb-1">
+                      Not enough open or click data
+                    </h3>
+                    <p className="max-w-sm text-sm">
+                      This campaign hasn't generated enough tracking events to
+                      display a heatmap yet.
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </TabsContent>
 
           <TabsContent value="recipients" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Recipients Leaderboard</h2>
-            </div>
-            
-            <div className="border rounded-xl bg-card overflow-hidden">
-              <div className="p-4 border-b flex flex-col md:flex-row justify-between items-center bg-muted/10 gap-3">
-                <div className="flex gap-2 w-full md:w-auto">
-                    <Input
-                      placeholder="Search recipients…"
-                      value={recipientSearch}
-                      onChange={(e) => setRecipientSearch(e.target.value)}
-                      className="max-w-xs h-9 bg-background"
-                    />
-                </div>
+            {!selectedHeatmapCampaignId ? (
+              <div className="border border-border/50 rounded-xl bg-card p-12 flex flex-col items-center justify-center text-center text-muted-foreground shadow-sm">
+                <Users className="h-10 w-10 mb-4 opacity-40 text-primary" />
+                <h3 className="text-lg font-semibold text-foreground mb-1">
+                  No Campaign Selected
+                </h3>
+                <p className="max-w-sm text-sm">
+                  Select a campaign from the selector above to view its
+                  recipient leaderboard.
+                </p>
               </div>
-              <div className="divide-y divide-border overflow-x-auto min-h-[300px]">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-muted/30 text-xs uppercase text-muted-foreground whitespace-nowrap">
-                    <tr>
-                      <th className="px-6 py-3 font-medium">Recipient</th>
-                      <th className="px-6 py-3 font-medium">Status</th>
-                      <th className="px-6 py-3 font-medium">Clicks</th>
-                      <th className="px-6 py-3 font-medium text-right">Last Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {/* Aggregating all recipients across campaigns is heavy, doing a simple map over all events to get stats per email */}
-                    {(() => {
-                        const recs: Record<string, { opens: number, clicks: number, lastAction: Date }> = {};
-                        allTrackingEvents.forEach(e => {
-                          if (e.email) {
-                            if (!recs[e.email]) recs[e.email] = { opens: 0, clicks: 0, lastAction: new Date(0) };
-                            if (e.event_type === "open") recs[e.email].opens++;
-                            if (e.event_type === "click") recs[e.email].clicks++;
-                            
-                            const t = new Date(e.created_at);
-                            if (t > recs[e.email].lastAction) recs[e.email].lastAction = t;
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <Users className="h-5 w-5 text-primary" />
+                    Recipients Leaderboard
+                  </h2>
+                </div>
+
+                <div className="border rounded-xl bg-card overflow-hidden shadow-sm">
+                  <div className="p-4 border-b flex flex-col md:flex-row justify-between items-center bg-muted/10 gap-3">
+                    <div className="flex gap-2 w-full md:w-auto">
+                      <Input
+                        placeholder="Search recipients…"
+                        value={recipientSearch}
+                        onChange={(e) => setRecipientSearch(e.target.value)}
+                        className="max-w-xs h-9 bg-background shadow-xs focus-visible:ring-primary/40"
+                      />
+                    </div>
+                  </div>
+                  <div className="divide-y divide-border overflow-x-auto min-h-[300px]">
+                    <table className="w-full text-sm text-left">
+                      <thead className="bg-muted/30 text-xs uppercase text-muted-foreground whitespace-nowrap">
+                        <tr>
+                          <th className="px-6 py-3 font-medium">Recipient</th>
+                          <th className="px-6 py-3 font-medium">Status</th>
+                          <th className="px-6 py-3 font-medium">Clicks</th>
+                          <th className="px-6 py-3 font-medium text-right">
+                            Last Action
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {/* Filter by selected campaign only */}
+                        {(() => {
+                          const recs: Record<
+                            string,
+                            { opens: number; clicks: number; lastAction: Date }
+                          > = {};
+                          allTrackingEvents
+                            .filter(
+                              (e) =>
+                                e.campaign_id === selectedHeatmapCampaignId,
+                            )
+                            .forEach((e) => {
+                              if (e.email) {
+                                if (!recs[e.email]) {
+                                  recs[e.email] = {
+                                    opens: 0,
+                                    clicks: 0,
+                                    lastAction: new Date(0),
+                                  };
+                                }
+                                if (e.event_type === "open") {
+                                  recs[e.email].opens++;
+                                }
+                                if (e.event_type === "click") {
+                                  recs[e.email].clicks++;
+                                }
+
+                                const t = new Date(e.created_at);
+                                if (t > recs[e.email].lastAction) {
+                                  recs[e.email].lastAction = t;
+                                }
+                              }
+                            });
+
+                          const entries = Object.entries(recs)
+                            .filter(([email]) =>
+                              email
+                                .toLowerCase()
+                                .includes(recipientSearch.toLowerCase()),
+                            )
+                            .sort(
+                              (a, b) =>
+                                b[1].lastAction.getTime() -
+                                a[1].lastAction.getTime(),
+                            );
+
+                          if (entries.length === 0) {
+                            return (
+                              <tr>
+                                <td
+                                  colSpan={4}
+                                  className="px-6 py-8 text-center text-muted-foreground"
+                                >
+                                  No recipients found
+                                </td>
+                              </tr>
+                            );
                           }
-                        });
-                        
-                        const entries = Object.entries(recs)
-                          .filter(([email]) => email.toLowerCase().includes(recipientSearch.toLowerCase()))
-                          .sort((a,b) => b[1].lastAction.getTime() - a[1].lastAction.getTime());
-                        
-                        if (entries.length === 0) return (
-                          <tr><td colSpan={4} className="px-6 py-8 text-center text-muted-foreground">No recipients found</td></tr>
-                        );
-                        
-                        return entries.map(([email, stats]) => (
-                          <tr key={email} className="hover:bg-muted/10 transition-colors">
-                             <td className="px-6 py-3 font-medium text-foreground">{email}</td>
-                             <td className="px-6 py-3">
-                                <Badge variant={stats.opens > 0 ? "success" : "secondary"} className="font-normal capitalize text-xs">
+
+                          return entries.map(([email, stats]) => (
+                            <tr
+                              key={email}
+                              className="hover:bg-muted/10 transition-colors"
+                            >
+                              <td className="px-6 py-3 font-medium text-foreground">
+                                {email}
+                              </td>
+                              <td className="px-6 py-3">
+                                <Badge
+                                  variant={
+                                    stats.opens > 0 ? "success" : "secondary"
+                                  }
+                                  className="font-normal capitalize text-xs"
+                                >
                                   {stats.opens > 0 ? "Opened" : "Not Opened"}
                                 </Badge>
-                             </td>
-                             <td className="px-6 py-3 text-muted-foreground">{stats.clicks} clicks</td>
-                             <td className="px-6 py-3 text-right whitespace-nowrap text-muted-foreground">
-                               {stats.lastAction.getTime() > 0 ? formatDate(stats.lastAction.toISOString()) : "Never"}
-                             </td>
-                          </tr>
-                        ));
-                    })()}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+                              </td>
+                              <td className="px-6 py-3 text-muted-foreground">
+                                {stats.clicks} clicks
+                              </td>
+                              <td className="px-6 py-3 text-right whitespace-nowrap text-muted-foreground">
+                                {stats.lastAction.getTime() > 0
+                                  ? formatDate(stats.lastAction.toISOString())
+                                  : "Never"}
+                              </td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            )}
           </TabsContent>
-
         </Tabs>
       </PageShell>
 
