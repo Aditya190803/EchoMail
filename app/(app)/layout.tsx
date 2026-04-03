@@ -19,7 +19,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     ) {
       if (typeof window !== "undefined") {
         router.push(
-          `/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname)}`,
+          `/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`,
         );
       } else {
         router.push("/auth/signin");
