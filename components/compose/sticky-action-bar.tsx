@@ -8,6 +8,12 @@ import { cn } from "@/lib/utils";
 
 export type ComposeSectionId = "recipients" | "compose" | "preview";
 
+const sectionLabels: Record<ComposeSectionId, string> = {
+  recipients: "Recipients",
+  compose: "Editor",
+  preview: "Preview",
+};
+
 export function StickyActionBar({
   activeSection,
   recipientsCount,
@@ -44,10 +50,11 @@ export function StickyActionBar({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <Badge variant="outline" className="bg-background/60">
-              {activeSection}
+              {sectionLabels[activeSection]}
             </Badge>
             <span className="hidden sm:inline text-sm text-muted-foreground">
-              {recipientsCount} recipients
+              {recipientsCount}{" "}
+              {recipientsCount === 1 ? "recipient" : "recipients"}
             </span>
           </div>
 

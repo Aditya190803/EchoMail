@@ -1,7 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import Link from "next/link";
+
 import { Plus, Users } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-shell";
 
@@ -10,16 +14,26 @@ interface DashboardHeaderProps {
 }
 
 export function DashboardHeader({ userName }: DashboardHeaderProps) {
-  const greeting = () => {
+  const [greeting, setGreeting] = useState("Hello");
+
+  useEffect(() => {
     const h = new Date().getHours();
-    if (h < 12) return "Good morning";
-    if (h < 18) return "Good afternoon";
-    return "Good evening";
-  };
+    if (h < 12) {
+      setGreeting("Good morning");
+    } else if (h < 18) {
+      setGreeting("Good afternoon");
+    } else {
+      setGreeting("Good evening");
+    }
+  }, []);
 
   return (
     <PageHeader
-      title={<>{greeting()}, {userName}! 👋</>}
+      title={
+        <>
+          {greeting}, {userName}! 👋
+        </>
+      }
       description="Here's an overview of your campaign activity."
       actions={
         <>

@@ -93,6 +93,7 @@ export function PublicHeader() {
               className="md:hidden p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               onClick={() => setMobileOpen(!mobileOpen)}
               aria-label="Toggle menu"
+              aria-expanded={mobileOpen}
             >
               {mobileOpen ? (
                 <X className="h-5 w-5" />
@@ -107,8 +108,11 @@ export function PublicHeader() {
       {/* Mobile menu */}
       <div
         className={`md:hidden border-b bg-background/95 backdrop-blur-xl overflow-hidden transition-all duration-300 ${
-          mobileOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+          mobileOpen
+            ? "max-h-96 opacity-100 visible"
+            : "max-h-0 opacity-0 invisible"
         }`}
+        aria-hidden={!mobileOpen}
       >
         <nav className="flex flex-col gap-1 px-4 py-3">
           {navLinks.map((link) => {

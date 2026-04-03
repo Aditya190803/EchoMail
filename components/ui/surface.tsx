@@ -47,8 +47,8 @@ export const SurfaceHeader = React.forwardRef<
 SurfaceHeader.displayName = "SurfaceHeader";
 
 export const SurfaceSection = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & {
+  HTMLElement,
+  React.HTMLAttributes<HTMLElement> & {
     tone?: SurfaceTone;
     density?: SurfaceDensity;
     withDivider?: boolean;

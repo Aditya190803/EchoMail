@@ -6,13 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { useSession } from "next-auth/react";
 
-import { AppSidebar } from "@/components/app-sidebar";
-import { Separator } from "@/components/ui/separator";
-import {
-  SidebarInset,
-  SidebarProvider,
-  SidebarTrigger,
-} from "@/components/ui/sidebar";
+import { GlobalBackButton } from "@/components/global-back-button";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
@@ -24,7 +18,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       (status === "authenticated" && session?.error)
     ) {
       if (typeof window !== "undefined") {
-        router.push(`/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
+        router.push(
+          `/auth/signin?callbackUrl=${encodeURIComponent(window.location.pathname)}`,
+        );
       } else {
         router.push("/auth/signin");
       }
@@ -48,6 +44,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden bg-background max-w-[100vw]">
+      <GlobalBackButton />
       <main className="flex-1 overflow-auto">{children}</main>
     </div>
   );

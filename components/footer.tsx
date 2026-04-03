@@ -82,7 +82,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="/settings/gdpr"
+                  href="/gdpr"
                   className="text-sm text-muted-foreground hover:text-foreground transition-colors"
                 >
                   GDPR Information

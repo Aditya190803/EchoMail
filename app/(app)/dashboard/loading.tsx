@@ -28,21 +28,13 @@ export default function DashboardLoading() {
           ))}
         </div>
 
-        {/* Quick Actions Skeleton */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <Skeleton className="h-6 w-32" />
+        {/* Chart + Engagement Funnel Skeleton */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          <div className="lg:col-span-2">
+            <Skeleton className="h-[300px] w-full rounded-xl" />
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {[...Array(3)].map((_, idx) => (
-              <Card key={idx} className="h-full">
-                <CardContent className="p-5 flex flex-col items-center text-center">
-                  <Skeleton className="h-14 w-14 rounded-2xl mb-4" />
-                  <Skeleton className="h-5 w-28 mb-2" />
-                  <Skeleton className="h-4 w-40" />
-                </CardContent>
-              </Card>
-            ))}
+          <div>
+            <Skeleton className="h-[300px] w-full rounded-xl" />
           </div>
         </div>
 

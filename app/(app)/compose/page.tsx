@@ -79,6 +79,10 @@ export default function ComposePage() {
   if (status === "unauthenticated") {
     return (
       <PageShell>
+        <PageHeader
+          title="New Campaign"
+          description="Write and send a personalised campaign"
+        />
         <div className="flex items-center justify-center p-4">
           <Card className="w-full max-w-sm">
             <CardContent className="flex items-center justify-center p-8">
@@ -99,6 +103,10 @@ export default function ComposePage() {
 
   return (
     <PageShell>
+      <PageHeader
+        title="New Campaign"
+        description="Write and send a personalised campaign"
+      />
       <ComposeForm />
     </PageShell>
   );
