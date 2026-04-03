@@ -229,7 +229,7 @@ export function ComposeForm() {
   const [_isLoadingAttachmentMetadata, setIsLoadingAttachmentMetadata] =
     useState(false);
   const [showAttachmentPreview, setShowAttachmentPreview] = useState(false);
-  const [previewAttachmentUrl, _setPreviewAttachmentUrl] = useState<
+  const [previewAttachmentUrl, setPreviewAttachmentUrl] = useState<
     string | null
   >(null);
 
@@ -2410,7 +2410,17 @@ export function ComposeForm() {
                     <Badge
                       key={file.tempId || index}
                       variant={file.isProcessing ? "outline" : "secondary"}
-                      className={`flex items-center gap-2 py-2 ${file.isProcessing ? "animate-pulse" : ""}`}
+                      className={`flex items-center gap-2 py-2 ${file.isProcessing ? "animate-pulse" : "cursor-pointer hover:bg-secondary/80"}`}
+                      onClick={() => {
+                        const attachmentUrl =
+                          file.appwriteUrl || file.path || file.data;
+                        if (!attachmentUrl || file.isProcessing) {
+                          return;
+                        }
+
+                        setPreviewAttachmentUrl(attachmentUrl);
+                        setShowAttachmentPreview(true);
+                      }}
                     >
                       {file.isProcessing ? (
                         <RefreshCw className="h-3 w-3 animate-spin" />
@@ -2431,9 +2441,13 @@ export function ComposeForm() {
                         </span>
                       )}
                       <button
-                        onClick={() => removeAttachment(index)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          removeAttachment(index);
+                        }}
                         className="hover:text-destructive"
                         disabled={file.isProcessing}
+                        type="button"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -3101,7 +3115,12 @@ export function ComposeForm() {
 
             {!isSending && (
               <Button
-                onClick={() => setShowSendingDialog(false)}
+                onClick={() => {
+                  setShowSendingDialog(false);
+                  if (progress.percentage === 100 && !sendError) {
+                    router.push("/dashboard");
+                  }
+                }}
                 className="w-full"
               >
                 {progress.percentage === 100 && !sendError ? "Done" : "Close"}
@@ -3196,7 +3215,12 @@ export function ComposeForm() {
       {/* Personalized Attachment Preview Modal */}
       <Dialog
         open={showAttachmentPreview}
-        onOpenChange={setShowAttachmentPreview}
+        onOpenChange={(open) => {
+          setShowAttachmentPreview(open);
+          if (!open) {
+            setPreviewAttachmentUrl(null);
+          }
+        }}
       >
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
           <DialogHeader>
