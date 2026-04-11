@@ -2,7 +2,6 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getServerSession } from "next-auth";
 
-import { databases, config, Query } from "@/lib/appwrite-server";
 import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 import { rateLimit, rateLimitUserEmail, RATE_LIMITS } from "@/lib/rate-limit";
@@ -10,6 +9,7 @@ import {
   EmailService,
   type PersonalizedEmail,
 } from "@/lib/services/email-service";
+import { checkUserUnsubscribed } from "@/lib/services/unsubscribe-service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -96,18 +96,8 @@ export async function POST(request: NextRequest) {
         // Only check unsubscribe list for marketing emails, not transactional
         checkUnsubscribe: isTransactional
           ? undefined
-          : async (email: string) => {
-              const unsubscribeCheck = await databases.listDocuments(
-                config.databaseId,
-                config.unsubscribesCollectionId,
-                [
-                  Query.equal("user_email", session.user.email!),
-                  Query.equal("email", email.toLowerCase()),
-                  Query.limit(1),
-                ],
-              );
-              return unsubscribeCheck.documents.length > 0;
-            },
+          : async (email: string) =>
+              checkUserUnsubscribed(session.user.email!, email),
       },
     );
 

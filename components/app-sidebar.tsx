@@ -11,9 +11,6 @@ import {
   FileText,
   Clock,
   Settings,
-  Link2,
-  UserMinus,
-  Shield,
   BarChart3,
   Beaker,
   LogOut,
@@ -63,15 +60,9 @@ const dataNav = [
   { name: "A/B Tests", href: "/ab-testing", icon: Beaker },
 ];
 
-const settingsNav = [
-  { name: "Settings", href: "/settings", icon: Settings },
-  { name: "Signatures", href: "/settings/signatures", icon: PenSquare },
-  { name: "Unsubscribes", href: "/settings/unsubscribes", icon: UserMinus },
-  { name: "Webhooks", href: "/settings/webhooks", icon: Link2 },
-  { name: "Teams", href: "/settings/teams", icon: Users },
-  { name: "Privacy & Data", href: "/settings/gdpr", icon: Shield },
-  { name: "Audit Logs", href: "/settings/audit-logs", icon: FileText },
-];
+const workspaceNav = [{ name: "Teams", href: "/settings/teams", icon: Users }];
+
+const settingsNav = [{ name: "Settings", href: "/settings", icon: Settings }];
 
 function NavGroup({
   label,
@@ -88,10 +79,11 @@ function NavGroup({
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => {
-            const isActive =
-              pathname === item.href ||
-              (item.href !== "/dashboard" &&
-                pathname.startsWith(item.href + "/"));
+            const isExactOnlyRoute =
+              item.href === "/dashboard" || item.href === "/settings";
+            const isActive = isExactOnlyRoute
+              ? pathname === item.href
+              : pathname === item.href || pathname.startsWith(item.href + "/");
             return (
               <SidebarMenuItem key={item.name}>
                 <SidebarMenuButton
@@ -128,7 +120,7 @@ export function AppSidebar() {
     : "U";
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar>
       {/* Logo */}
       <SidebarHeader>
         <SidebarMenu>
@@ -154,6 +146,7 @@ export function AppSidebar() {
       <SidebarContent>
         <NavGroup label="Main" items={mainNav} pathname={pathname} />
         <NavGroup label="Data" items={dataNav} pathname={pathname} />
+        <NavGroup label="Workspace" items={workspaceNav} pathname={pathname} />
         <NavGroup label="Settings" items={settingsNav} pathname={pathname} />
       </SidebarContent>
 

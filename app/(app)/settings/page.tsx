@@ -3,13 +3,18 @@
 import Link from "next/link";
 
 import {
+  User,
+  Building2,
+  Send,
   PenSquare,
+  Globe2,
+  Plug,
   Link2,
   UserMinus,
+  CreditCard,
   Settings,
   ChevronRight,
   ShieldCheck,
-  Database,
   Shield,
   Users,
   FileText,
@@ -21,29 +26,74 @@ import { useAuthGuard } from "@/hooks/useAuthGuard";
 
 const settingsCategories = [
   {
-    title: "Email Settings",
+    title: "Account & Workspace",
     items: [
       {
-        name: "Email Signatures",
-        description: "Create and manage your email signatures",
+        name: "Profile & Preferences",
+        description: "Update your personal profile and default preferences",
+        icon: User,
+        color: "text-info",
+        bgColor: "bg-info/10",
+        comingSoon: true,
+      },
+      {
+        name: "Workspace",
+        description: "Manage workspace details, branding, and defaults",
+        icon: Building2,
+        color: "text-primary",
+        bgColor: "bg-primary/10",
+        comingSoon: true,
+      },
+      {
+        name: "Team & Roles",
+        description: "Manage teams, membership, and collaboration access",
+        icon: Users,
+        href: "/settings/teams",
+        color: "text-success",
+        bgColor: "bg-success/10",
+      },
+    ],
+  },
+  {
+    title: "Sending",
+    items: [
+      {
+        name: "Sending Setup",
+        description: "Configure sender defaults and delivery behavior",
+        icon: Send,
+        color: "text-secondary",
+        bgColor: "bg-secondary/10",
+        comingSoon: true,
+      },
+      {
+        name: "Signatures",
+        description: "Create and manage reusable email signatures",
         icon: PenSquare,
         href: "/settings/signatures",
         color: "text-primary",
         bgColor: "bg-primary/10",
       },
       {
-        name: "Unsubscribe Management",
-        description: "Manage unsubscribed email addresses",
-        icon: UserMinus,
-        href: "/settings/unsubscribes",
-        color: "text-destructive",
-        bgColor: "bg-destructive/10",
+        name: "Domains & Authentication",
+        description: "Set up domains and email authentication records",
+        icon: Globe2,
+        color: "text-warning",
+        bgColor: "bg-warning/10",
+        comingSoon: true,
       },
     ],
   },
   {
-    title: "Integrations",
+    title: "Integrations & Automation",
     items: [
+      {
+        name: "Integrations",
+        description: "Connect EchoMail with external tools and services",
+        icon: Plug,
+        color: "text-info",
+        bgColor: "bg-info/10",
+        comingSoon: true,
+      },
       {
         name: "Webhooks",
         description: "Configure webhook notifications for email events",
@@ -52,27 +102,22 @@ const settingsCategories = [
         color: "text-secondary",
         bgColor: "bg-secondary/10",
       },
-    ],
-  },
-  {
-    title: "Team & Collaboration",
-    items: [
       {
-        name: "Teams",
-        description: "Manage your teams and collaborate with others",
-        icon: Users,
-        href: "/settings/teams",
-        color: "text-info",
-        bgColor: "bg-info/10",
+        name: "Unsubscribes",
+        description: "Manage suppression lists and unsubscribe records",
+        icon: UserMinus,
+        href: "/settings/unsubscribes",
+        color: "text-destructive",
+        bgColor: "bg-destructive/10",
       },
     ],
   },
   {
-    title: "Privacy & Security",
+    title: "Privacy & Billing",
     items: [
       {
-        name: "Privacy & Data (GDPR)",
-        description: "Manage your data, export, and privacy preferences",
+        name: "Privacy & Data",
+        description: "Manage exports, retention, and privacy controls",
         icon: Shield,
         href: "/settings/gdpr",
         color: "text-success",
@@ -80,24 +125,19 @@ const settingsCategories = [
       },
       {
         name: "Audit Logs",
-        description: "View activity history and account actions",
+        description: "Review workspace activity and security-related actions",
         icon: FileText,
         href: "/settings/audit-logs",
         color: "text-muted-foreground",
         bgColor: "bg-muted",
       },
-    ],
-  },
-  {
-    title: "Data Management",
-    items: [
       {
-        name: "Duplicate Contacts",
-        description: "Find and merge duplicate contacts",
-        icon: Database,
-        href: "/contacts/duplicates",
+        name: "Billing & Plan",
+        description: "Manage billing details, plan, and invoices",
+        icon: CreditCard,
         color: "text-warning",
         bgColor: "bg-warning/10",
+        comingSoon: true,
       },
     ],
   },
@@ -128,7 +168,7 @@ export default function SettingsPage() {
             Settings
           </div>
         }
-        description="Manage your EchoMail preferences and configurations"
+        description="Manage your EchoMail account, sending setup, and workspace controls"
       />
 
       {/* Settings Categories */}
@@ -138,24 +178,50 @@ export default function SettingsPage() {
             <h2 className="text-lg font-semibold mb-4">{category.title}</h2>
             <div className="grid gap-4">
               {category.items.map((item) => (
-                <Link key={item.name} href={item.href}>
-                  <Card className="transition-all duration-200 hover:shadow-md">
+                <Card
+                  key={item.name}
+                  className="transition-all duration-200 hover:shadow-md"
+                >
+                  {item.href ? (
+                    <Link href={item.href}>
+                      <CardContent className="p-5">
+                        <div className="flex items-center gap-4">
+                          <div className={`p-3 rounded-xl ${item.bgColor}`}>
+                            <item.icon className={`h-6 w-6 ${item.color}`} />
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-semibold">{item.name}</h3>
+                            <p className="text-sm text-muted-foreground">
+                              {item.description}
+                            </p>
+                          </div>
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      </CardContent>
+                    </Link>
+                  ) : (
                     <CardContent className="p-5">
                       <div className="flex items-center gap-4">
                         <div className={`p-3 rounded-xl ${item.bgColor}`}>
                           <item.icon className={`h-6 w-6 ${item.color}`} />
                         </div>
                         <div className="flex-1">
-                          <h3 className="font-semibold">{item.name}</h3>
+                          <h3 className="font-semibold flex items-center gap-2">
+                            {item.name}
+                            {item.comingSoon ? (
+                              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                Coming soon
+                              </span>
+                            ) : null}
+                          </h3>
                           <p className="text-sm text-muted-foreground">
                             {item.description}
                           </p>
                         </div>
-                        <ChevronRight className="h-5 w-5 text-muted-foreground" />
                       </div>
                     </CardContent>
-                  </Card>
-                </Link>
+                  )}
+                </Card>
               ))}
             </div>
           </div>

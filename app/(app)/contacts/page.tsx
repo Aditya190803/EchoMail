@@ -6,29 +6,27 @@ import Link from "next/link";
 
 import {
   Users,
-  Search,
   Trash2,
   Mail,
   Building,
   Phone,
   Download,
   Upload,
-  CheckCircle,
   UserPlus,
-  FileSpreadsheet,
   FolderPlus,
   Tag,
   MoreVertical,
   Edit,
   UserMinus,
-  RefreshCw,
   CloudDownload,
   Clock,
   Send,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Pagination } from "@/components/pagination";
+import { ContactGroupsTab } from "@/components/contacts/contact-groups-tab";
+import { ContactListTab } from "@/components/contacts/contact-list-tab";
+import { ContactManagementDialogs } from "@/components/contacts/contact-management-dialogs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,8 +58,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { useGmailContactsImport } from "@/hooks/useGmailContactsImport";
 import { usePagination } from "@/hooks/usePagination";
 import { useVirtualScroll } from "@/hooks/useVirtualScroll";
 import {
@@ -127,15 +126,6 @@ export default function ContactsPage() {
     description: "",
     color: "blue",
   });
-  const [showGmailImport, setShowGmailImport] = useState(false);
-  const [gmailContacts, setGmailContacts] = useState<
-    { name: string; email: string; phone?: string; company?: string }[]
-  >([]);
-  const [selectedGmailContacts, setSelectedGmailContacts] = useState<
-    Set<string>
-  >(new Set());
-  const [isLoadingGmail, setIsLoadingGmail] = useState(false);
-  const [gmailImportError, setGmailImportError] = useState<string | null>(null);
 
   // Filtered contacts - moved before conditional returns to ensure hook order is consistent
   const filteredContacts = contacts.filter((contact) => {
@@ -425,6 +415,25 @@ export default function ContactsPage() {
     }
   }, [session?.user?.email]);
 
+  const {
+    showGmailImport,
+    gmailContacts,
+    selectedGmailContacts,
+    isLoadingGmail,
+    gmailImportError,
+    isImporting,
+    openGmailImportDialog,
+    closeGmailImportDialog,
+    importSelectedGmailContacts,
+    toggleGmailContactSelection,
+    toggleAllGmailContacts,
+    fetchGmailContacts,
+  } = useGmailContactsImport({
+    userEmail: session?.user?.email ?? undefined,
+    existingContacts: contacts,
+    onImportComplete: fetchContacts,
+  });
+
   // Initial fetch and real-time subscription
   useEffect(() => {
     if (!session?.user?.email) {
@@ -675,122 +684,6 @@ export default function ContactsPage() {
         error instanceof Error ? error : undefined,
       );
       toast.error("Failed to remove contact from group");
-    }
-  };
-
-  // Gmail import functions
-  const fetchGmailContacts = async () => {
-    setIsLoadingGmail(true);
-    setGmailImportError(null);
-    try {
-      const response = await fetch("/api/import-google-contacts");
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to fetch contacts");
-      }
-
-      const data = await response.json();
-
-      // Filter out contacts that already exist
-      const existingEmails = new Set(
-        contacts.map((c) => c.email.toLowerCase()),
-      );
-      const newContacts = data.contacts.filter(
-        (c: { email: string }) => !existingEmails.has(c.email.toLowerCase()),
-      );
-
-      setGmailContacts(newContacts);
-      setSelectedGmailContacts(
-        new Set(newContacts.map((c: { email: string }) => c.email)),
-      );
-
-      if (newContacts.length === 0 && data.contacts.length > 0) {
-        toast.info("All your Google contacts are already imported!");
-      }
-    } catch (error) {
-      componentLogger.error(
-        "Error fetching Gmail contacts",
-        error instanceof Error ? error : undefined,
-      );
-      setGmailImportError(
-        error instanceof Error
-          ? error.message
-          : "Failed to fetch Google contacts",
-      );
-    }
-    setIsLoadingGmail(false);
-  };
-
-  const importSelectedGmailContacts = async () => {
-    if (!session?.user?.email) {
-      return;
-    }
-
-    const contactsToImport = gmailContacts.filter((c) =>
-      selectedGmailContacts.has(c.email),
-    );
-    if (contactsToImport.length === 0) {
-      toast.error("No contacts selected");
-      return;
-    }
-
-    setIsLoading(true);
-    const toastId = toast.loading(
-      `Importing ${contactsToImport.length} contacts from Google...`,
-    );
-    let successCount = 0;
-
-    for (const contact of contactsToImport) {
-      try {
-        await contactsService.create({
-          email: contact.email,
-          name: contact.name || undefined,
-          company: contact.company || undefined,
-          phone: contact.phone || undefined,
-          user_email: session.user.email,
-        });
-        successCount++;
-        // Update progress toast
-        if (successCount % 5 === 0) {
-          toast.loading(
-            `Importing contacts... (${successCount}/${contactsToImport.length})`,
-            { id: toastId },
-          );
-        }
-      } catch (error) {
-        componentLogger.error(
-          "Error importing contact",
-          error instanceof Error ? error : undefined,
-        );
-      }
-    }
-
-    toast.success(
-      `Successfully imported ${successCount} contacts from Google`,
-      { id: toastId },
-    );
-    setShowGmailImport(false);
-    setGmailContacts([]);
-    setSelectedGmailContacts(new Set());
-    fetchContacts();
-    setIsLoading(false);
-  };
-
-  const toggleGmailContactSelection = (email: string) => {
-    const newSelection = new Set(selectedGmailContacts);
-    if (newSelection.has(email)) {
-      newSelection.delete(email);
-    } else {
-      newSelection.add(email);
-    }
-    setSelectedGmailContacts(newSelection);
-  };
-
-  const toggleAllGmailContacts = () => {
-    if (selectedGmailContacts.size === gmailContacts.length) {
-      setSelectedGmailContacts(new Set());
-    } else {
-      setSelectedGmailContacts(new Set(gmailContacts.map((c) => c.email)));
     }
   };
 
@@ -1262,13 +1155,7 @@ export default function ContactsPage() {
               />
             </div>
 
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowGmailImport(true);
-                fetchGmailContacts();
-              }}
-            >
+            <Button variant="outline" onClick={openGmailImportDialog}>
               <CloudDownload className="h-4 w-4 mr-2" />
               Import from Gmail
             </Button>
@@ -1297,444 +1184,50 @@ export default function ContactsPage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Contacts Tab */}
-          <TabsContent value="contacts" className="space-y-6">
-            {/* Search and Filter */}
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Input
-                icon={<Search className="h-4 w-4" />}
-                placeholder="Search contacts..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="max-w-md"
-              />
-              <div className="flex items-center gap-2 bg-muted p-1 rounded-md self-start">
-                <Button
-                  variant={viewMode === "grid" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("grid")}
-                  className="h-8 px-3"
-                >
-                  Grid
-                </Button>
-                <Button
-                  variant={viewMode === "virtual" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("virtual")}
-                  className="h-8 px-3"
-                >
-                  Virtual List
-                </Button>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                <Button
-                  variant={
-                    selectedGroup === null && selectedTag === null
-                      ? "secondary"
-                      : "outline"
-                  }
-                  size="sm"
-                  onClick={() => {
-                    setSelectedGroup(null);
-                    setSelectedTag(null);
-                  }}
-                >
-                  All Contacts
-                </Button>
-                {groups.map((group) => (
-                  <Button
-                    key={group.$id}
-                    variant={
-                      selectedGroup === group.$id ? "secondary" : "outline"
-                    }
-                    size="sm"
-                    onClick={() => {
-                      setSelectedGroup(group.$id!);
-                      setSelectedTag(null);
-                    }}
-                    className="flex items-center gap-2"
-                  >
-                    <span
-                      className={`w-2 h-2 rounded-full ${getGroupColor(group.color)}`}
-                    />
-                    {group.name}
-                    <Badge variant="secondary" className="ml-1 text-xs">
-                      {group.contact_ids.length}
-                    </Badge>
-                  </Button>
-                ))}
-              </div>
-            </div>
+          <ContactListTab
+            searchTerm={searchTerm}
+            selectedGroup={selectedGroup}
+            selectedTag={selectedTag}
+            viewMode={viewMode}
+            groups={groups}
+            filteredContacts={filteredContacts}
+            contactsPagination={contactsPagination}
+            virtualScroll={virtualScroll}
+            renderContactCard={renderContactCard}
+            getAllTags={getAllTags}
+            getGroupColor={getGroupColor}
+            onSearchTermChange={setSearchTerm}
+            onSetViewMode={setViewMode}
+            onResetFilters={() => {
+              setSelectedGroup(null);
+              setSelectedTag(null);
+            }}
+            onSelectGroup={(groupId) => {
+              setSelectedGroup(groupId);
+              setSelectedTag(null);
+            }}
+            onSetSelectedTag={setSelectedTag}
+            onSetEditingContact={setEditingContact}
+            onSetShowEditContact={setShowEditContact}
+            onSetSelectedContactForGroup={setSelectedContactForGroup}
+            onSetShowAddToGroup={setShowAddToGroup}
+            onDeleteContact={deleteContact}
+            onOpenAddContact={() => setShowAddForm(true)}
+            onHandleFileImport={handleFileImport}
+          />
 
-            {/* Tag Filters */}
-            {getAllTags().length > 0 && (
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-sm text-muted-foreground mr-2">
-                  Filter by tag:
-                </span>
-                {getAllTags().map((tag) => (
-                  <Badge
-                    key={tag}
-                    variant={selectedTag === tag ? "default" : "outline"}
-                    className="cursor-pointer hover:bg-primary/20"
-                    onClick={() =>
-                      setSelectedTag(selectedTag === tag ? null : tag)
-                    }
-                  >
-                    <Tag className="h-3 w-3 mr-1" />
-                    {tag}
-                  </Badge>
-                ))}
-                {selectedTag && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setSelectedTag(null)}
-                    className="text-xs"
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
-            )}
-
-            {/* Contacts Grid */}
-            {filteredContacts.length > 0 ? (
-              <>
-                <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm text-muted-foreground">
-                    {viewMode === "grid" ? (
-                      <>
-                        Showing {contactsPagination.startIndex + 1} to{" "}
-                        {Math.min(
-                          contactsPagination.endIndex + 1,
-                          filteredContacts.length,
-                        )}{" "}
-                        of {filteredContacts.length} contacts
-                      </>
-                    ) : (
-                      <>
-                        Showing {filteredContacts.length} contacts (Virtual
-                        Scrolling)
-                      </>
-                    )}
-                    {selectedGroup &&
-                      ` in "${groups.find((g) => g.$id === selectedGroup)?.name}"`}
-                  </p>
-                </div>
-
-                {viewMode === "grid" ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {contactsPagination.paginatedItems.map((contact) =>
-                      renderContactCard(contact),
-                    )}
-                  </div>
-                ) : (
-                  <div
-                    ref={virtualScroll.containerRef}
-                    className="h-[600px] overflow-auto border rounded-lg bg-muted/30 p-4"
-                  >
-                    <div
-                      style={{
-                        height: `${virtualScroll.totalHeight}px`,
-                        position: "relative",
-                      }}
-                    >
-                      {virtualScroll.virtualItems.map((virtualItem) => (
-                        <div
-                          key={virtualItem.data.$id}
-                          style={{
-                            position: "absolute",
-                            top: 0,
-                            left: 0,
-                            width: "100%",
-                            height: `${virtualItem.height}px`,
-                            transform: `translateY(${virtualItem.top}px)`,
-                            paddingBottom: "8px",
-                          }}
-                        >
-                          <div className="h-full bg-background rounded-lg border shadow-sm p-4 flex items-center justify-between group">
-                            <div className="flex items-center gap-4 min-w-0">
-                              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold flex-shrink-0">
-                                {(virtualItem.data.name ||
-                                  virtualItem.data.email)[0].toUpperCase()}
-                              </div>
-                              <div className="min-w-0">
-                                <div className="font-medium truncate">
-                                  {virtualItem.data.name || "No Name"}
-                                </div>
-                                <div className="text-sm text-muted-foreground truncate flex items-center gap-2">
-                                  <Mail className="h-3 w-3" />
-                                  {virtualItem.data.email}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              {virtualItem.data.company && (
-                                <Badge
-                                  variant="outline"
-                                  className="hidden md:flex"
-                                >
-                                  <Building className="h-3 w-3 mr-1" />
-                                  {virtualItem.data.company}
-                                </Badge>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="opacity-0 group-hover:opacity-100"
-                                asChild
-                              >
-                                <Link
-                                  href={`/compose?to=${encodeURIComponent(virtualItem.data.email)}`}
-                                >
-                                  <Send className="h-4 w-4 mr-1" />
-                                  Send
-                                </Link>
-                              </Button>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon-sm">
-                                    <MoreVertical className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setEditingContact(virtualItem.data);
-                                      setShowEditContact(true);
-                                    }}
-                                  >
-                                    <Edit className="h-4 w-4 mr-2" />
-                                    Edit
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => {
-                                      setSelectedContactForGroup(
-                                        virtualItem.data,
-                                      );
-                                      setShowAddToGroup(true);
-                                    }}
-                                  >
-                                    <Tag className="h-4 w-4 mr-2" />
-                                    Add to Group
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      deleteContact(virtualItem.data.$id)
-                                    }
-                                    className="text-destructive"
-                                  >
-                                    <Trash2 className="h-4 w-4 mr-2" />
-                                    Delete
-                                  </DropdownMenuItem>
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Pagination */}
-                {viewMode === "grid" &&
-                  filteredContacts.length > contactsPagination.pageSize && (
-                    <div className="mt-6">
-                      <Pagination
-                        currentPage={contactsPagination.currentPage}
-                        totalPages={contactsPagination.totalPages}
-                        pageSize={contactsPagination.pageSize}
-                        totalItems={contactsPagination.totalItems}
-                        hasPreviousPage={contactsPagination.hasPreviousPage}
-                        hasNextPage={contactsPagination.hasNextPage}
-                        onPageChange={contactsPagination.goToPage}
-                        onPageSizeChange={contactsPagination.setPageSize}
-                        getPageNumbers={contactsPagination.getPageNumbers}
-                        startIndex={contactsPagination.startIndex}
-                        endIndex={contactsPagination.endIndex}
-                      />
-                    </div>
-                  )}
-              </>
-            ) : (
-              <Card>
-                <CardContent className="py-16">
-                  <div className="text-center">
-                    <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                      <Users className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <h3 className="text-lg font-semibold mb-2">
-                      {searchTerm || selectedGroup
-                        ? "No contacts found"
-                        : "No contacts yet"}
-                    </h3>
-                    <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-                      {searchTerm || selectedGroup
-                        ? "Try adjusting your search or filter"
-                        : "Get started by adding your first contact or importing a CSV file"}
-                    </p>
-                    {!searchTerm && !selectedGroup && (
-                      <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                        <Button onClick={() => setShowAddForm(true)}>
-                          <UserPlus className="h-4 w-4 mr-2" />
-                          Add Contact
-                        </Button>
-                        <div className="relative">
-                          <Button variant="outline">
-                            <FileSpreadsheet className="h-4 w-4 mr-2" />
-                            Import CSV
-                          </Button>
-                          <input
-                            type="file"
-                            accept=".csv"
-                            onChange={handleFileImport}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                          />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
-
-          {/* Groups Tab */}
-          <TabsContent value="groups" className="space-y-6">
-            {groups.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {groups.map((group) => (
-                  <Card
-                    key={group.$id}
-                    className="group hover:shadow-md transition-all"
-                  >
-                    <CardContent className="p-5">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-10 h-10 rounded-lg ${getGroupColor(group.color)} flex items-center justify-center`}
-                          >
-                            <Users className="h-5 w-5 text-white" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold">{group.name}</h3>
-                            <p className="text-sm text-muted-foreground">
-                              {group.contact_ids.length} contact
-                              {group.contact_ids.length !== 1 ? "s" : ""}
-                            </p>
-                          </div>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="opacity-0 group-hover:opacity-100"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setEditingGroup(group);
-                                setShowEditGroup(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSelectedGroup(group.$id!);
-                                setActiveTab("contacts");
-                              }}
-                            >
-                              <Users className="h-4 w-4 mr-2" />
-                              View Contacts
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <DropdownMenuItem
-                                  onSelect={(e) => e.preventDefault()}
-                                  className="text-destructive focus:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>
-                                    Delete Group
-                                  </AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete "
-                                    {group.name}"? Contacts will not be deleted.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => deleteGroup(group.$id!)}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      {group.description && (
-                        <p className="text-sm text-muted-foreground mb-3">
-                          {group.description}
-                        </p>
-                      )}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => {
-                          setSelectedGroup(group.$id!);
-                          setActiveTab("contacts");
-                        }}
-                      >
-                        View Contacts
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="py-16">
-                  <div className="text-center">
-                    <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                      <Tag className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <h3 className="text-lg font-semibold mb-2">
-                      No groups yet
-                    </h3>
-                    <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-                      Create groups to organize your contacts and send targeted
-                      campaigns
-                    </p>
-                    <Button onClick={() => setShowGroupForm(true)}>
-                      <FolderPlus className="h-4 w-4 mr-2" />
-                      Create Group
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
+          <ContactGroupsTab
+            groups={groups}
+            getGroupColor={getGroupColor}
+            onSetSelectedGroup={(groupId) => setSelectedGroup(groupId)}
+            onSetActiveTab={setActiveTab}
+            onEditGroup={(group) => {
+              setEditingGroup(group);
+              setShowEditGroup(true);
+            }}
+            onDeleteGroup={deleteGroup}
+            onOpenCreateGroup={() => setShowGroupForm(true)}
+          />
         </Tabs>
 
         {/* Quick Action */}
@@ -1760,439 +1253,47 @@ export default function ContactsPage() {
         )}
       </main>
 
-      {/* Add to Group Dialog */}
-      <Dialog open={showAddToGroup} onOpenChange={setShowAddToGroup}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add to Group</DialogTitle>
-            <DialogDescription>
-              Select a group to add{" "}
-              {selectedContactForGroup?.name || selectedContactForGroup?.email}{" "}
-              to
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 pt-4">
-            {groups.length === 0 ? (
-              <div className="text-center py-4">
-                <p className="text-muted-foreground mb-4">No groups yet</p>
-                <Button
-                  onClick={() => {
-                    setShowAddToGroup(false);
-                    setShowGroupForm(true);
-                  }}
-                >
-                  Create Group
-                </Button>
-              </div>
-            ) : (
-              groups.map((group) => {
-                const isInGroup =
-                  selectedContactForGroup &&
-                  group.contact_ids.includes(selectedContactForGroup.$id);
-                return (
-                  <button
-                    key={group.$id}
-                    disabled={!!isInGroup}
-                    onClick={() =>
-                      selectedContactForGroup &&
-                      addContactToGroup(selectedContactForGroup.$id, group.$id!)
-                    }
-                    className={`w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-colors ${
-                      isInGroup
-                        ? "opacity-50 cursor-not-allowed"
-                        : "hover:bg-muted"
-                    }`}
-                  >
-                    <div
-                      className={`w-8 h-8 rounded-lg ${getGroupColor(group.color)} flex items-center justify-center`}
-                    >
-                      <Users className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium">{group.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {group.contact_ids.length} contacts
-                      </p>
-                    </div>
-                    {isInGroup && (
-                      <CheckCircle className="h-5 w-5 text-primary" />
-                    )}
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Group Dialog */}
-      <Dialog open={showEditGroup} onOpenChange={setShowEditGroup}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Group</DialogTitle>
-            <DialogDescription>Update group details</DialogDescription>
-          </DialogHeader>
-          {editingGroup && (
-            <div className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Group Name *</label>
-                <Input
-                  value={editingGroup.name}
-                  onChange={(e) =>
-                    setEditingGroup({ ...editingGroup, name: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Description</label>
-                <Input
-                  value={editingGroup.description || ""}
-                  onChange={(e) =>
-                    setEditingGroup({
-                      ...editingGroup,
-                      description: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Color</label>
-                <div className="flex gap-2 flex-wrap">
-                  {GROUP_COLORS.map((color) => (
-                    <button
-                      key={color.value}
-                      onClick={() =>
-                        setEditingGroup({ ...editingGroup, color: color.value })
-                      }
-                      className={`w-8 h-8 rounded-full ${color.class} ${
-                        editingGroup.color === color.value
-                          ? "ring-2 ring-offset-2 ring-primary"
-                          : ""
-                      }`}
-                      title={color.label}
-                    />
-                  ))}
-                </div>
-              </div>
-              <div className="flex gap-2 pt-4">
-                <Button
-                  onClick={updateGroup}
-                  disabled={isLoading || !editingGroup.name.trim()}
-                  className="flex-1"
-                >
-                  Save Changes
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowEditGroup(false);
-                    setEditingGroup(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Gmail Import Dialog */}
-      <Dialog
-        open={showGmailImport}
-        onOpenChange={(open) => {
-          setShowGmailImport(open);
-          if (!open) {
-            setGmailContacts([]);
-            setSelectedGmailContacts(new Set());
-            setGmailImportError(null);
+      <ContactManagementDialogs
+        groups={groups}
+        groupColors={GROUP_COLORS}
+        getGroupColor={getGroupColor}
+        showAddToGroup={showAddToGroup}
+        selectedContactForGroup={selectedContactForGroup}
+        showEditGroup={showEditGroup}
+        editingGroup={editingGroup}
+        showEditContact={showEditContact}
+        editingContact={editingContact}
+        newTag={newTag}
+        showGmailImport={showGmailImport}
+        gmailContacts={gmailContacts}
+        selectedGmailContacts={selectedGmailContacts}
+        isLoadingGmail={isLoadingGmail}
+        isImporting={isImporting}
+        gmailImportError={gmailImportError}
+        onSetShowAddToGroup={setShowAddToGroup}
+        onSetShowGroupForm={setShowGroupForm}
+        onAddContactToGroup={addContactToGroup}
+        onSetShowEditGroup={setShowEditGroup}
+        onSetEditingGroup={setEditingGroup}
+        onUpdateGroup={updateGroup}
+        onSetShowEditContact={setShowEditContact}
+        onSetEditingContact={setEditingContact}
+        onSetNewTag={setNewTag}
+        onAddTagToContact={addTagToContact}
+        onRemoveTagFromContact={removeTagFromContact}
+        onUpdateContact={updateContact}
+        onGmailOpenChange={(open) => {
+          if (open) {
+            fetchGmailContacts();
+          } else {
+            closeGmailImportDialog();
           }
         }}
-      >
-        <DialogContent className="max-w-2xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CloudDownload className="h-5 w-5" />
-              Import from Google Contacts
-            </DialogTitle>
-            <DialogDescription>
-              Select contacts from your Google account to import
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 pt-2">
-            {isLoadingGmail ? (
-              <div className="flex flex-col items-center justify-center py-12">
-                <RefreshCw className="h-8 w-8 animate-spin text-primary mb-4" />
-                <p className="text-muted-foreground">
-                  Fetching your Google contacts...
-                </p>
-              </div>
-            ) : gmailImportError ? (
-              <div className="text-center py-8">
-                <div className="mx-auto w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mb-4">
-                  <Mail className="h-6 w-6 text-destructive" />
-                </div>
-                <p className="text-destructive mb-4">{gmailImportError}</p>
-                <Button onClick={fetchGmailContacts} variant="outline">
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Try Again
-                </Button>
-              </div>
-            ) : gmailContacts.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="mx-auto w-12 h-12 bg-muted rounded-full flex items-center justify-center mb-4">
-                  <Users className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <p className="text-muted-foreground">
-                  No new contacts to import
-                </p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  All your Google contacts are already imported
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="flex items-center justify-between pb-2 border-b">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={
-                        selectedGmailContacts.size === gmailContacts.length
-                      }
-                      onChange={toggleAllGmailContacts}
-                      className="rounded border-gray-300"
-                    />
-                    <span className="text-sm font-medium">
-                      Select All ({gmailContacts.length} contacts)
-                    </span>
-                  </div>
-                  <Badge variant="secondary">
-                    {selectedGmailContacts.size} selected
-                  </Badge>
-                </div>
-
-                <div className="max-h-[40vh] overflow-y-auto space-y-2">
-                  {gmailContacts.map((contact) => (
-                    <div
-                      key={contact.email}
-                      className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
-                        selectedGmailContacts.has(contact.email)
-                          ? "bg-primary/5 border-primary/30"
-                          : "hover:bg-muted"
-                      }`}
-                      onClick={() => toggleGmailContactSelection(contact.email)}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedGmailContacts.has(contact.email)}
-                        onChange={() =>
-                          toggleGmailContactSelection(contact.email)
-                        }
-                        className="rounded border-gray-300"
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">
-                          {contact.name || contact.email}
-                        </p>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {contact.email}
-                          {contact.company && ` • ${contact.company}`}
-                        </p>
-                      </div>
-                      {selectedGmailContacts.has(contact.email) && (
-                        <CheckCircle className="h-5 w-5 text-primary flex-shrink-0" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex gap-2 pt-4 border-t">
-                  <Button
-                    onClick={importSelectedGmailContacts}
-                    disabled={isLoading || selectedGmailContacts.size === 0}
-                    className="flex-1"
-                  >
-                    {isLoading ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        Importing...
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus className="h-4 w-4 mr-2" />
-                        Import {selectedGmailContacts.size} Contact
-                        {selectedGmailContacts.size !== 1 ? "s" : ""}
-                      </>
-                    )}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowGmailImport(false)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Contact Dialog */}
-      <Dialog open={showEditContact} onOpenChange={setShowEditContact}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Contact</DialogTitle>
-            <DialogDescription>Update contact information</DialogDescription>
-          </DialogHeader>
-          {editingContact && (
-            <div className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Name</label>
-                <Input
-                  value={editingContact.name || ""}
-                  onChange={(e) =>
-                    setEditingContact({
-                      ...editingContact,
-                      name: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Email *</label>
-                <Input
-                  type="email"
-                  value={editingContact.email}
-                  onChange={(e) =>
-                    setEditingContact({
-                      ...editingContact,
-                      email: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Company</label>
-                <Input
-                  value={editingContact.company || ""}
-                  onChange={(e) =>
-                    setEditingContact({
-                      ...editingContact,
-                      company: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Phone</label>
-                <Input
-                  value={editingContact.phone || ""}
-                  onChange={(e) =>
-                    setEditingContact({
-                      ...editingContact,
-                      phone: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Tags</label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Add a tag..."
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        if (newTag.trim()) {
-                          setEditingContact({
-                            ...editingContact,
-                            tags: addTagToContact(
-                              editingContact.tags || [],
-                              newTag,
-                            ),
-                          });
-                          setNewTag("");
-                        }
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (newTag.trim()) {
-                        setEditingContact({
-                          ...editingContact,
-                          tags: addTagToContact(
-                            editingContact.tags || [],
-                            newTag,
-                          ),
-                        });
-                        setNewTag("");
-                      }
-                    }}
-                  >
-                    Add
-                  </Button>
-                </div>
-                {editingContact.tags && editingContact.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {editingContact.tags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant="secondary"
-                        className="flex items-center gap-1"
-                      >
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setEditingContact({
-                              ...editingContact,
-                              tags: removeTagFromContact(
-                                editingContact.tags || [],
-                                tag,
-                              ),
-                            })
-                          }
-                          className="ml-1 hover:text-destructive"
-                        >
-                          ×
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2 pt-4">
-                <Button
-                  onClick={updateContact}
-                  disabled={isLoading || !editingContact.email.trim()}
-                  className="flex-1"
-                >
-                  Save Changes
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowEditContact(false);
-                    setEditingContact(null);
-                    setNewTag("");
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+        onGmailRetry={fetchGmailContacts}
+        onGmailToggleAll={toggleAllGmailContacts}
+        onGmailToggleContact={toggleGmailContactSelection}
+        onGmailImport={importSelectedGmailContacts}
+      />
     </div>
   );
 }

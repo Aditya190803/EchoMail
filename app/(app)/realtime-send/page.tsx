@@ -111,7 +111,7 @@ export default function RealtimeSendPage() {
               <Button
                 onClick={simulateEmailSending}
                 disabled={isLoading}
-                className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                className="w-full"
               >
                 {isLoading ? (
                   <>

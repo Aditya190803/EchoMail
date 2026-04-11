@@ -103,10 +103,6 @@ export default function ComposePage() {
 
   return (
     <PageShell>
-      <PageHeader
-        title="New Campaign"
-        description="Write and send a personalised campaign"
-      />
       <ComposeForm />
     </PageShell>
   );

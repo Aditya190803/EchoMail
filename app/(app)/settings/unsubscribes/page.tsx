@@ -266,7 +266,7 @@ export default function UnsubscribesPage() {
           <div className="flex gap-2">
             <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
               <DialogTrigger asChild>
-                <Button className="gap-2 bg-gradient-to-r from-destructive to-destructive/80 hover:opacity-90 text-white">
+                <Button variant="destructive" className="gap-2">
                   <Plus className="h-4 w-4" />
                   Add Email
                 </Button>
