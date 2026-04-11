@@ -3,11 +3,11 @@
 import { useEffect } from "react";
 
 import { useRouter } from "next/navigation";
+import Script from "next/script";
 
 import { useSession } from "next-auth/react";
 
 import { AppSidebar } from "@/components/app-sidebar";
-import { Separator } from "@/components/ui/separator";
 import {
   SidebarInset,
   SidebarProvider,
@@ -17,6 +17,21 @@ import {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
   const router = useRouter();
+
+  useEffect(() => {
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    // Keep a single scroll container in app pages (the content pane),
+    // and prevent the document itself from creating an extra scrollbar.
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, []);
 
   useEffect(() => {
     if (
@@ -49,14 +64,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <SidebarProvider>
+    <SidebarProvider className="h-svh overflow-hidden">
+      <Script
+        src="https://checkout.razorpay.com/v1/checkout.js"
+        strategy="lazyOnload"
+      />
       <AppSidebar />
-      <SidebarInset className="flex flex-col h-svh">
-        <header className="flex h-14 shrink-0 items-center gap-2 px-4 border-b">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-        </header>
-        <div className="flex-1 min-w-0 overflow-auto">{children}</div>
+      <SidebarInset className="flex h-svh flex-col">
+        <SidebarTrigger className="absolute left-3 top-3 z-20 h-9 w-9 rounded-full border border-border/70 bg-background/90 shadow-md backdrop-blur transition-shadow hover:shadow-lg md:top-[55%] md:-translate-y-1/2" />
+        <div className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
+          {children}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );
