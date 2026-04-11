@@ -74,8 +74,6 @@ export function StatsCardWidget({
   size = "small",
   loading = false,
   className,
-  gradientFrom = "primary/10",
-  gradientTo = "primary/5",
 }: StatsCardWidgetProps) {
   if (loading) {
     return (
@@ -118,12 +116,7 @@ export function StatsCardWidget({
   };
 
   return (
-    <Card
-      className={cn(
-        `bg-gradient-to-br from-${gradientFrom} to-${gradientTo}`,
-        className,
-      )}
-    >
+    <Card className={cn("bg-card border-border/80", className)}>
       <CardContent className={cn("p-5", size === "large" && "p-6")}>
         <div className="flex items-center justify-between mb-3">
           {icon && (

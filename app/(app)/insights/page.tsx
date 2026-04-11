@@ -1290,7 +1290,7 @@ export default function HistoryPage() {
           {selectedCampaign && (
             <div className="flex-1 overflow-y-auto space-y-6 pr-2">
               {/* Campaign Header */}
-              <div className="bg-gradient-to-br from-primary/10 to-accent/10 rounded-xl p-5 space-y-4">
+              <div className="bg-muted/40 rounded-xl p-5 space-y-4 border border-border/70">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold">

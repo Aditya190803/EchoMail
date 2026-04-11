@@ -83,32 +83,6 @@ export function ActivityChart({ campaigns }: Props) {
           data={data}
           margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
         >
-          <defs>
-            <linearGradient id="sentGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop
-                offset="5%"
-                stopColor="var(--color-chart-1)"
-                stopOpacity={0.15}
-              />
-              <stop
-                offset="95%"
-                stopColor="var(--color-chart-1)"
-                stopOpacity={0}
-              />
-            </linearGradient>
-            <linearGradient id="failGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop
-                offset="5%"
-                stopColor="var(--color-chart-2)"
-                stopOpacity={0.12}
-              />
-              <stop
-                offset="95%"
-                stopColor="var(--color-chart-2)"
-                stopOpacity={0}
-              />
-            </linearGradient>
-          </defs>
           <CartesianGrid
             strokeDasharray="3 3"
             stroke="var(--color-border)"
@@ -143,7 +117,8 @@ export function ActivityChart({ campaigns }: Props) {
             dataKey="sent"
             stroke="var(--color-chart-1)"
             strokeWidth={2}
-            fill="url(#sentGrad)"
+            fill="var(--color-chart-1)"
+            fillOpacity={0.14}
             name="Sent"
           />
           <Area
@@ -151,7 +126,8 @@ export function ActivityChart({ campaigns }: Props) {
             dataKey="failed"
             stroke="var(--color-chart-2)"
             strokeWidth={1.5}
-            fill="url(#failGrad)"
+            fill="var(--color-chart-2)"
+            fillOpacity={0.1}
             name="Failed"
           />
         </AreaChart>

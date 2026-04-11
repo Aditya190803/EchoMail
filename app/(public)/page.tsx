@@ -181,18 +181,7 @@ export default function HomePage() {
             aria-hidden
             className="pointer-events-none absolute inset-0 -z-10"
             style={{
-              background:
-                "radial-gradient(ellipse 70% 60% at 60% 0%, oklch(0.6231 0.188 259.8145 / 0.13) 0%, transparent 70%)",
-            }}
-          />
-          {/* dot grid */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 -z-10 opacity-[0.03]"
-            style={{
-              backgroundImage:
-                "radial-gradient(var(--color-foreground) 1px, transparent 1px)",
-              backgroundSize: "28px 28px",
+              backgroundColor: "oklch(0.97 0.01 260)",
             }}
           />
 
@@ -201,19 +190,8 @@ export default function HomePage() {
               {/* left: text */}
               <div className="space-y-7">
                 <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.08] text-balance">
-                  Send{" "}
-                  <span
-                    style={{
-                      background:
-                        "linear-gradient(135deg, oklch(0.6231 0.188 259.8145) 0%, oklch(0.55 0.22 290) 100%)",
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                      backgroundClip: "text",
-                    }}
-                  >
-                    personalised
-                  </span>{" "}
-                  emails <br className="hidden sm:block" />
+                  Send <span className="text-primary">personalised</span> emails{" "}
+                  <br className="hidden sm:block" />
                   at scale
                 </h1>
 
@@ -360,13 +338,11 @@ export default function HomePage() {
           <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
             <Reveal>
               <div className="relative rounded-2xl border bg-card overflow-hidden text-center p-10 md:p-16">
-                {/* soft gradient */}
                 <div
                   aria-hidden
                   className="pointer-events-none absolute inset-0 -z-10"
                   style={{
-                    background:
-                      "radial-gradient(ellipse 80% 60% at 50% 110%, oklch(0.6231 0.188 259.8145 / 0.10) 0%, transparent 70%)",
+                    backgroundColor: "oklch(0.97 0.01 260)",
                   }}
                 />
 

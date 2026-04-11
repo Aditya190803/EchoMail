@@ -39,18 +39,16 @@ export default function SignIn() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-accent/5 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between">
             <Link href="/" className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-accent shadow-md shadow-primary/20">
-                <Mail className="h-5 w-5 text-white" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20">
+                <Mail className="h-5 w-5" />
               </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                EchoMail
-              </span>
+              <span className="text-xl font-bold text-primary">EchoMail</span>
             </Link>
             <ThemeToggle />
           </div>
@@ -59,10 +57,10 @@ export default function SignIn() {
 
       {/* Main Content */}
       <main className="flex-1 flex items-center justify-center p-4">
-        <Card className="w-full max-w-md shadow-xl">
+        <Card className="w-full max-w-md shadow-lg border-border/80">
           <CardHeader className="text-center pb-2">
-            <div className="mx-auto mb-4 p-3 bg-gradient-to-br from-primary to-accent rounded-2xl w-fit shadow-md shadow-primary/20">
-              <Mail className="h-8 w-8 text-white" />
+            <div className="mx-auto mb-4 p-3 bg-primary/10 text-primary rounded-2xl w-fit border border-primary/20">
+              <Mail className="h-8 w-8" />
             </div>
             <CardTitle className="text-2xl font-bold">
               Welcome to EchoMail

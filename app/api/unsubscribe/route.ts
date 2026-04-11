@@ -187,8 +187,6 @@ function generateHtmlPage(title: string, message: string): string {
     body {
       font-family: 'Inter', -apple-system, sans-serif;
       background-color: #f9fafb;
-      background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
-      background-size: 24px 24px;
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -215,7 +213,7 @@ function generateHtmlPage(title: string, message: string): string {
       left: 0;
       right: 0;
       height: 4px;
-      background: linear-gradient(to right, var(--primary), var(--accent));
+      background: var(--primary);
     }
     .logo {
       font-weight: 700;
@@ -231,7 +229,7 @@ function generateHtmlPage(title: string, message: string): string {
     .logo-icon {
       width: 36px;
       height: 36px;
-      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      background: var(--primary);
       border-radius: 10px;
       display: flex;
       align-items: center;

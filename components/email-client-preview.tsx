@@ -230,7 +230,7 @@ export function EmailClientPreview({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <Card className="w-full max-w-6xl max-h-[95vh] overflow-hidden">
-        <CardHeader className="flex flex-row items-center justify-between p-4 border-b bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20">
+        <CardHeader className="flex flex-row items-center justify-between p-4 border-b bg-muted/40">
           <div>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Monitor className="h-5 w-5 text-purple-600 dark:text-purple-400" />

@@ -1474,17 +1474,7 @@ export function ComposeForm() {
         aria-hidden
         className="pointer-events-none absolute inset-x-0 -top-8 h-64 -z-10"
         style={{
-          background:
-            "radial-gradient(ellipse 70% 60% at 55% 0%, oklch(0.6231 0.188 259.8145 / 0.12) 0%, transparent 70%)",
-        }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.025]"
-        style={{
-          backgroundImage:
-            "radial-gradient(var(--color-foreground) 1px, transparent 1px)",
-          backgroundSize: "28px 28px",
+          backgroundColor: "oklch(0.97 0.01 260)",
         }}
       />
       {/* Resume Campaign Banner */}

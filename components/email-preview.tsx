@@ -102,7 +102,7 @@ export function EmailPreview({
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 z-50">
       <Card className="w-full max-w-4xl max-h-[95vh] overflow-hidden shadow-2xl">
-        <CardHeader className="flex flex-col space-y-3 p-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 sticky top-0 z-10">
+        <CardHeader className="flex flex-col space-y-3 p-4 border-b bg-muted/40 sticky top-0 z-10">
           <div className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
               <Eye className="h-5 w-5 text-blue-600 dark:text-blue-400" />
