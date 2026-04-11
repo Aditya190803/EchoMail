@@ -132,9 +132,10 @@ export function TemplateCard({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <span>
-              {template.updated_at || template.created_at
-                ? formatDate(template.updated_at || template.created_at)
-                : "Unknown date"}
+              {(() => {
+                const dateValue = template.updated_at ?? template.created_at;
+                return dateValue ? formatDate(dateValue) : "Unknown date";
+              })()}
             </span>
           </div>
           <Button size="sm" onClick={() => onUseTemplate(template)}>
