@@ -62,8 +62,6 @@ const dataNav = [
 
 const workspaceNav = [{ name: "Teams", href: "/settings/teams", icon: Users }];
 
-const settingsNav = [{ name: "Settings", href: "/settings", icon: Settings }];
-
 function NavGroup({
   label,
   items,
@@ -147,7 +145,6 @@ export function AppSidebar() {
         <NavGroup label="Main" items={mainNav} pathname={pathname} />
         <NavGroup label="Data" items={dataNav} pathname={pathname} />
         <NavGroup label="Workspace" items={workspaceNav} pathname={pathname} />
-        <NavGroup label="Settings" items={settingsNav} pathname={pathname} />
       </SidebarContent>
 
       {/* User Footer */}
