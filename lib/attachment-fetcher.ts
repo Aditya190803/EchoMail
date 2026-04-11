@@ -1,3 +1,9 @@
+import { extractAttachmentFileName } from "./attachments/metadata";
+import {
+  detectAttachmentColumn,
+  getDirectDownloadUrl,
+  isAttachmentUrl,
+} from "./attachments/url";
 import { logger } from "./logger";
 
 export interface FetchedAttachment {
@@ -6,188 +12,6 @@ export interface FetchedAttachment {
   base64: string;
   mimeType: string;
   originalUrl: string;
-}
-
-function convertGoogleDriveLink(url: string): string | null {
-  // Format: /file/d/FILE_ID/
-  const fileMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if (fileMatch) {
-    return `https://drive.google.com/uc?export=download&id=${fileMatch[1]}`;
-  }
-
-  // Format: ?id=FILE_ID
-  const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (idMatch) {
-    return `https://drive.google.com/uc?export=download&id=${idMatch[1]}`;
-  }
-
-  // Format: /document/d/FILE_ID/ (Google Docs - export as PDF by default, or docx if specified)
-  // Note: Google Docs export links usually default to PDF if not specified
-  const docMatch = url.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
-  if (docMatch) {
-    // Default to PDF export for Google Docs if no format specified
-    return `https://docs.google.com/document/d/${docMatch[1]}/export?format=pdf`;
-  }
-
-  // Format: /spreadsheets/d/FILE_ID/ (Google Sheets - export as PDF)
-  const sheetMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-  if (sheetMatch) {
-    return `https://docs.google.com/spreadsheets/d/${sheetMatch[1]}/export?format=pdf`;
-  }
-
-  // Format: /presentation/d/FILE_ID/ (Google Slides - export as PDF)
-  const slideMatch = url.match(/\/presentation\/d\/([a-zA-Z0-9_-]+)/);
-  if (slideMatch) {
-    return `https://docs.google.com/presentation/d/${slideMatch[1]}/export/pdf`;
-  }
-
-  return null;
-}
-
-/**
- * Convert OneDrive/SharePoint sharing link to direct download link
- * Supports:
- * - https://1drv.ms/...
- * - https://onedrive.live.com/...
- * - https://*.sharepoint.com/...
- */
-function convertOneDriveLink(url: string): string | null {
-  // For 1drv.ms short links, we need to follow the redirect
-  // These will be handled by the fetch with redirect following
-  if (url.includes("1drv.ms")) {
-    // Add download=1 parameter to force download
-    const separator = url.includes("?") ? "&" : "?";
-    return `${url}${separator}download=1`;
-  }
-
-  // OneDrive embed links - convert to download
-  if (url.includes("onedrive.live.com") || url.includes("sharepoint.com")) {
-    // Replace 'embed' or 'view' with 'download'
-    let downloadUrl = url.replace("/embed", "/download");
-    downloadUrl = downloadUrl.replace("action=view", "action=download");
-    downloadUrl = downloadUrl.replace("action=embed", "action=download");
-
-    // Add download parameter if not present
-    if (
-      !downloadUrl.includes("download=1") &&
-      !downloadUrl.includes("action=download")
-    ) {
-      const separator = downloadUrl.includes("?") ? "&" : "?";
-      downloadUrl = `${downloadUrl}${separator}download=1`;
-    }
-
-    return downloadUrl;
-  }
-
-  return null;
-}
-
-/**
- * Detect URL type and convert to direct download URL
- */
-function getDirectDownloadUrl(url: string): string {
-  const trimmedUrl = url.trim();
-
-  // Google Drive
-  if (
-    trimmedUrl.includes("drive.google.com") ||
-    trimmedUrl.includes("docs.google.com")
-  ) {
-    const converted = convertGoogleDriveLink(trimmedUrl);
-    if (converted) {
-      return converted;
-    }
-  }
-
-  // OneDrive / SharePoint
-  if (
-    trimmedUrl.includes("1drv.ms") ||
-    trimmedUrl.includes("onedrive.live.com") ||
-    trimmedUrl.includes("sharepoint.com")
-  ) {
-    const converted = convertOneDriveLink(trimmedUrl);
-    if (converted) {
-      return converted;
-    }
-  }
-
-  // Dropbox - convert to direct download
-  if (trimmedUrl.includes("dropbox.com")) {
-    return trimmedUrl
-      .replace("dl=0", "dl=1")
-      .replace("www.dropbox.com", "dl.dropboxusercontent.com");
-  }
-
-  // Already a direct link
-  return trimmedUrl;
-}
-
-/**
- * Extract filename from URL or Content-Disposition header
- */
-function extractFileName(
-  url: string,
-  contentDisposition?: string | null,
-  recipientName?: string,
-  contentType?: string,
-): string {
-  // Try Content-Disposition header first
-  if (contentDisposition) {
-    const filenameMatch = contentDisposition.match(
-      /filename[*]?=(?:UTF-8'')?["']?([^"';\n]+)["']?/i,
-    );
-    if (filenameMatch) {
-      return decodeURIComponent(filenameMatch[1]);
-    }
-  }
-
-  // Try to get filename from URL path
-  try {
-    const urlObj = new URL(url);
-    const pathParts = urlObj.pathname.split("/");
-    const lastPart = pathParts[pathParts.length - 1];
-
-    if (lastPart && lastPart.includes(".")) {
-      return decodeURIComponent(lastPart);
-    }
-  } catch {
-    // Invalid URL, continue to fallback
-  }
-
-  // Fallback: generate a filename based on content type or default to pdf
-  const sanitizedName = recipientName
-    ? recipientName.replace(/[^a-zA-Z0-9]/g, "_")
-    : "attachment";
-
-  // Guess extension from content type if possible
-  let extension = ".pdf"; // Default to PDF as it's the most common use case
-
-  if (contentType) {
-    if (contentType.includes("word") || contentType.includes("docx")) {
-      extension = ".docx";
-    } else if (contentType.includes("doc")) {
-      extension = ".doc";
-    } else if (
-      contentType.includes("powerpoint") ||
-      contentType.includes("pptx")
-    ) {
-      extension = ".pptx";
-    } else if (contentType.includes("ppt")) {
-      extension = ".ppt";
-    } else if (contentType.includes("excel") || contentType.includes("xlsx")) {
-      extension = ".xlsx";
-    } else if (contentType.includes("xls")) {
-      extension = ".xls";
-    } else if (contentType.includes("jpeg") || contentType.includes("jpg")) {
-      extension = ".jpg";
-    } else if (contentType.includes("png")) {
-      extension = ".png";
-    } else if (contentType.includes("zip")) {
-      extension = ".zip";
-    }
-  }
-
-  return `${sanitizedName}${extension}`;
 }
 
 /**
@@ -266,7 +90,12 @@ export async function fetchFileFromUrl(
   // Determine filename
   const fileName =
     customFileName ||
-    extractFileName(url, contentDisposition, recipientName, contentType);
+    extractAttachmentFileName(
+      url,
+      contentDisposition,
+      recipientName,
+      contentType,
+    );
 
   logger.debug(`Fetched file`, {
     fileName,
@@ -286,112 +115,6 @@ export async function fetchFileFromUrl(
 /**
  * Check if a URL is likely an attachment link
  */
-export function isAttachmentUrl(url: string): boolean {
-  if (!url || typeof url !== "string") {
-    return false;
-  }
-
-  const trimmed = url.trim().toLowerCase();
-
-  // Common file extensions
-  const extensions = [
-    ".pdf",
-    ".doc",
-    ".docx",
-    ".ppt",
-    ".pptx",
-    ".xls",
-    ".json",
-    ".xlsx",
-    ".zip",
-    ".jpg",
-    ".png",
-    ".jpeg",
-  ];
-  if (extensions.some((ext) => trimmed.endsWith(ext))) {
-    return true;
-  }
-
-  // Google Drive
-  if (
-    trimmed.includes("drive.google.com") ||
-    trimmed.includes("docs.google.com")
-  ) {
-    return true;
-  }
-
-  // OneDrive
-  if (
-    trimmed.includes("1drv.ms") ||
-    trimmed.includes("onedrive") ||
-    trimmed.includes("sharepoint")
-  ) {
-    return true;
-  }
-
-  // Dropbox
-  if (trimmed.includes("dropbox.com")) {
-    return true;
-  }
-
-  // Check for common patterns
-  if (
-    trimmed.includes("pdf") ||
-    trimmed.includes("certificate") ||
-    trimmed.includes("document") ||
-    trimmed.includes("attachment")
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-/**
- * Detect attachment URL column in CSV headers
- */
-export function detectAttachmentColumn(headers: string[]): string | null {
-  const keywords = [
-    "pdf",
-    "certificate",
-    "attachment",
-    "document",
-    "file",
-    "link",
-    "url",
-    "drive",
-    "onedrive",
-    "dropbox",
-    "doc",
-    "docx",
-    "ppt",
-    "pptx",
-  ];
-
-  for (const header of headers) {
-    const lowerHeader = header.toLowerCase();
-
-    // Exact matches first
-    if (
-      lowerHeader === "pdf" ||
-      lowerHeader === "attachment" ||
-      lowerHeader === "file" ||
-      lowerHeader === "link"
-    ) {
-      return header;
-    }
-
-    // Partial matches
-    for (const keyword of keywords) {
-      if (lowerHeader.includes(keyword)) {
-        return header;
-      }
-    }
-  }
-
-  return null;
-}
-
 /**
  * Validate that a URL is accessible (optional pre-check)
  */

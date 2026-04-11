@@ -6,7 +6,10 @@
  *
  * Architecture:
  * - types.ts: TypeScript interfaces and constants
- * - utils.ts: Emoji conversion, sanitization, validation
+ * - emoji.ts: Emoji image to unicode conversion
+ * - sanitization.ts: HTML sanitization and validation
+ * - tracking.ts: Open/click/unsubscribe tracking injection
+ * - utils.ts: Backward-compatible re-export layer
  * - inline-styles.ts: CSS to inline style transformation
  * - client.ts: Client-safe preview functions
  *
@@ -35,13 +38,9 @@ export {
 } from "./types";
 
 // Re-export utilities
-export {
-  convertEmojisToUnicode,
-  sanitizeHTML,
-  validateEmailContent,
-  injectTracking,
-  EMOJI_NAME_MAP,
-} from "./utils";
+export { convertEmojisToUnicode, EMOJI_NAME_MAP } from "./emoji";
+export { injectTracking } from "./tracking";
+export { sanitizeHTML, validateEmailContent } from "./sanitization";
 
 // Re-export inline styles
 export {
@@ -51,17 +50,14 @@ export {
 } from "./inline-styles";
 
 // Import for internal use
+import { convertEmojisToUnicode } from "./emoji";
 import { applyInlineStyles, wrapForGmail } from "./inline-styles";
+import { sanitizeHTML, validateEmailContent } from "./sanitization";
 import {
   DEFAULT_FORMATTER_OPTIONS,
   type EmailFormatterOptions,
   type FormattingResult,
 } from "./types";
-import {
-  convertEmojisToUnicode,
-  sanitizeHTML,
-  validateEmailContent,
-} from "./utils";
 
 // ============================================================================
 // MAIN FORMATTING FUNCTIONS

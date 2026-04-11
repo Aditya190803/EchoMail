@@ -323,19 +323,6 @@ export class TemplateRepository {
   }
 }
 
-/**
- * Singleton instance factory
- */
-let templateRepositoryInstance: TemplateRepository | null = null;
-
 export function getTemplateRepository(userEmail?: string): TemplateRepository {
-  if (!templateRepositoryInstance) {
-    templateRepositoryInstance = new TemplateRepository(userEmail);
-  } else if (
-    userEmail &&
-    templateRepositoryInstance.getUserEmail() !== userEmail
-  ) {
-    templateRepositoryInstance.setUserEmail(userEmail);
-  }
-  return templateRepositoryInstance;
+  return new TemplateRepository(userEmail);
 }
