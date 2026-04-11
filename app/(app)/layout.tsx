@@ -6,7 +6,13 @@ import { useRouter } from "next/navigation";
 
 import { useSession } from "next-auth/react";
 
-import { GlobalBackButton } from "@/components/global-back-button";
+import { AppSidebar } from "@/components/app-sidebar";
+import { Separator } from "@/components/ui/separator";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
@@ -43,9 +49,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden bg-background max-w-[100vw]">
-      <GlobalBackButton />
-      <main className="flex-1 overflow-auto">{children}</main>
-    </div>
+    <SidebarProvider>
+      <AppSidebar />
+      <SidebarInset className="flex flex-col h-svh">
+        <header className="flex h-14 shrink-0 items-center gap-2 px-4 border-b">
+          <SidebarTrigger className="-ml-1" />
+          <Separator orientation="vertical" className="mr-2 h-4" />
+        </header>
+        <div className="flex-1 min-w-0 overflow-auto">{children}</div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

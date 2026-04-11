@@ -362,7 +362,7 @@ export default function TeamsPage() {
       <div className="flex justify-end mb-8">
         <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90">
+            <Button className="gap-2">
               <Plus className="h-4 w-4" />
               Create Team
             </Button>

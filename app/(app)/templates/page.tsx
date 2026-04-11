@@ -2,37 +2,18 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 
-import {
-  FileText,
-  Plus,
-  Search,
-  Trash2,
-  Edit,
-  Copy,
-  MoreVertical,
-  Mail,
-  Clock,
-  Sparkles,
-} from "lucide-react";
-import { History, RotateCcw } from "lucide-react";
+import { FileText, Plus, Search, Mail, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
+import { EmptyStateCard } from "@/components/empty-state-card";
 import { PaginationControls } from "@/components/pagination";
 import { RichTextEditor } from "@/components/rich-text-editor";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { TemplateCard } from "@/components/templates/template-card";
+import { TemplateEditorDialog } from "@/components/templates/template-editor-dialog";
+import { TemplateVersionHistoryDialog } from "@/components/templates/template-version-history-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -41,12 +22,6 @@ import {
   DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -246,6 +221,17 @@ export default function TemplatesPage() {
     content: "",
     category: "other",
   });
+
+  const resetNewTemplate = () => {
+    setNewTemplate({ name: "", subject: "", content: "", category: "other" });
+  };
+
+  const handleCreateDialogOpenChange = (open: boolean) => {
+    setShowCreateDialog(open);
+    if (!open) {
+      resetNewTemplate();
+    }
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -705,7 +691,10 @@ export default function TemplatesPage() {
               Create and manage reusable email templates
             </p>
           </div>
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+          <Dialog
+            open={showCreateDialog}
+            onOpenChange={handleCreateDialogOpenChange}
+          >
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
@@ -794,7 +783,10 @@ export default function TemplatesPage() {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() => setShowCreateDialog(false)}
+                    onClick={() => {
+                      setShowCreateDialog(false);
+                      resetNewTemplate();
+                    }}
                   >
                     Cancel
                   </Button>
@@ -849,143 +841,21 @@ export default function TemplatesPage() {
               {paginatedTemplates.map((template) => {
                 const categoryInfo = getCategoryInfo(template.category);
                 return (
-                  <Card
+                  <TemplateCard
                     key={template.$id}
-                    className="group flex flex-col hover:border-primary/50 transition-colors"
-                  >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <Badge
-                              variant="secondary"
-                              className="text-xs"
-                              style={{
-                                backgroundColor: categoryInfo.color.replace(
-                                  "bg-",
-                                  "",
-                                ),
-                              }}
-                            >
-                              {categoryInfo.label}
-                            </Badge>
-                          </div>
-                          <CardTitle className="text-lg truncate">
-                            {template.name}
-                          </CardTitle>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className="opacity-0 group-hover:opacity-100"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => applyTemplate(template)}
-                            >
-                              <Mail className="h-4 w-4 mr-2" />
-                              Use Template
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setEditingTemplate(template);
-                                setShowEditDialog(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => duplicateTemplate(template)}
-                            >
-                              <Copy className="h-4 w-4 mr-2" />
-                              Duplicate
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => fetchVersions(template)}
-                            >
-                              <History className="h-4 w-4 mr-2" />
-                              Version History
-                            </DropdownMenuItem>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <DropdownMenuItem
-                                  onSelect={(e) => e.preventDefault()}
-                                  className="text-destructive focus:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  Delete
-                                </DropdownMenuItem>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>
-                                    Delete Template
-                                  </AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Are you sure you want to delete "
-                                    {template.name}"? This action cannot be
-                                    undone.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() =>
-                                      deleteTemplate(template.$id!)
-                                    }
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="flex-1">
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                          <span className="truncate text-muted-foreground">
-                            {template.subject}
-                          </span>
-                        </div>
-                        <div
-                          className="text-sm text-muted-foreground line-clamp-3 prose-sm"
-                          dangerouslySetInnerHTML={{
-                            __html:
-                              template.content
-                                ?.replace(/<[^>]*>/g, " ")
-                                .slice(0, 150) || "No content",
-                          }}
-                        />
-                      </div>
-                    </CardContent>
-                    <div className="px-6 pb-4 pt-2 border-t mt-auto">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Clock className="h-3 w-3" />
-                          {formatDate(
-                            template.updated_at || template.created_at || "",
-                          )}
-                        </div>
-                        <Button
-                          size="sm"
-                          onClick={() => applyTemplate(template)}
-                        >
-                          Use
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
+                    template={template}
+                    categoryLabel={categoryInfo.label}
+                    categoryColor={categoryInfo.color}
+                    formatDate={formatDate}
+                    onUseTemplate={applyTemplate}
+                    onEdit={(currentTemplate) => {
+                      setEditingTemplate(currentTemplate);
+                      setShowEditDialog(true);
+                    }}
+                    onDuplicate={duplicateTemplate}
+                    onShowVersions={fetchVersions}
+                    onDelete={deleteTemplate}
+                  />
                 );
               })}
             </div>
@@ -1015,31 +885,26 @@ export default function TemplatesPage() {
             )}
           </>
         ) : (
-          <Card>
-            <CardContent className="py-16">
-              <div className="text-center">
-                <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                  <FileText className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">
-                  {searchTerm || selectedCategory
-                    ? "No templates found"
-                    : "No templates yet"}
-                </h3>
-                <p className="text-muted-foreground mb-6 max-w-sm mx-auto">
-                  {searchTerm || selectedCategory
-                    ? "Try adjusting your search or filter"
-                    : "Create your first email template to speed up your workflow"}
-                </p>
-                {!searchTerm && !selectedCategory && (
-                  <Button onClick={() => setShowCreateDialog(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create Template
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          <EmptyStateCard
+            icon={<FileText className="h-8 w-8 text-muted-foreground" />}
+            title={
+              searchTerm || selectedCategory
+                ? "No templates found"
+                : "No templates yet"
+            }
+            description={
+              searchTerm || selectedCategory
+                ? "Try adjusting your search or filter"
+                : "Create your first email template to speed up your workflow"
+            }
+          >
+            {!searchTerm && !selectedCategory && (
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Template
+              </Button>
+            )}
+          </EmptyStateCard>
         )}
 
         {/* Starter Templates Section */}
@@ -1166,262 +1031,41 @@ export default function TemplatesPage() {
         </div>
       </main>
 
-      {/* Edit Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Template</DialogTitle>
-            <DialogDescription>Update your email template</DialogDescription>
-          </DialogHeader>
-          {editingTemplate && (
-            <div className="space-y-4 pt-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Template Name *</Label>
-                  <Input
-                    value={editingTemplate.name}
-                    onChange={(e) =>
-                      setEditingTemplate({
-                        ...editingTemplate,
-                        name: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Category</Label>
-                  <select
-                    value={editingTemplate.category || "other"}
-                    onChange={(e) =>
-                      setEditingTemplate({
-                        ...editingTemplate,
-                        category: e.target.value,
-                      })
-                    }
-                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                  >
-                    {TEMPLATE_CATEGORIES.map((cat) => (
-                      <option key={cat.value} value={cat.value}>
-                        {cat.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Email Subject *</Label>
-                <Input
-                  value={editingTemplate.subject}
-                  onChange={(e) =>
-                    setEditingTemplate({
-                      ...editingTemplate,
-                      subject: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Email Content</Label>
-                <RichTextEditor
-                  content={editingTemplate.content}
-                  onChange={(content) =>
-                    setEditingTemplate({ ...editingTemplate, content })
-                  }
-                />
-              </div>
-              <div className="space-y-3 pt-2 border-t">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="saveVersion"
-                    checked={saveVersion}
-                    onChange={(e) => setSaveVersion(e.target.checked)}
-                    className="h-4 w-4 rounded border-gray-300"
-                  />
-                  <Label
-                    htmlFor="saveVersion"
-                    className="text-sm font-normal cursor-pointer"
-                  >
-                    Save current version before updating (allows restoring
-                    later)
-                  </Label>
-                </div>
-                {saveVersion && (
-                  <div className="space-y-2 ml-6">
-                    <Label htmlFor="changeNote" className="text-sm">
-                      Change note (optional)
-                    </Label>
-                    <Input
-                      id="changeNote"
-                      placeholder="e.g., Updated header styling"
-                      value={changeNote}
-                      onChange={(e) => setChangeNote(e.target.value)}
-                    />
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2 pt-4">
-                <Button
-                  onClick={updateTemplate}
-                  disabled={
-                    isLoading ||
-                    !editingTemplate.name.trim() ||
-                    !editingTemplate.subject.trim()
-                  }
-                  className="flex-1"
-                >
-                  Save Changes
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowEditDialog(false);
-                    setEditingTemplate(null);
-                    setSaveVersion(false);
-                    setChangeNote("");
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      <TemplateEditorDialog
+        open={showEditDialog}
+        isLoading={isLoading}
+        editingTemplate={editingTemplate}
+        categories={TEMPLATE_CATEGORIES}
+        saveVersion={saveVersion}
+        changeNote={changeNote}
+        onOpenChange={setShowEditDialog}
+        onEditingTemplateChange={setEditingTemplate}
+        onSaveVersionChange={setSaveVersion}
+        onChangeNoteChange={setChangeNote}
+        onUpdateTemplate={updateTemplate}
+        onCancel={() => {
+          setShowEditDialog(false);
+          setEditingTemplate(null);
+          setSaveVersion(false);
+          setChangeNote("");
+        }}
+      />
 
-      {/* Version History Dialog */}
-      <Dialog open={showVersionsDialog} onOpenChange={setShowVersionsDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <History className="h-5 w-5" />
-              Version History
-            </DialogTitle>
-            <DialogDescription>
-              {versioningTemplate?.name} - View and restore previous versions
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 pt-4">
-            {isLoadingVersions ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-4 p-4 border rounded-lg"
-                  >
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <div className="flex-1 space-y-2">
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-3 w-48" />
-                    </div>
-                    <Skeleton className="h-8 w-20" />
-                  </div>
-                ))}
-              </div>
-            ) : versions.length === 0 ? (
-              <div className="text-center py-8">
-                <History className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="font-medium mb-2">No version history</h3>
-                <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                  Version history will appear here when you save versions while
-                  editing this template.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {/* Current version indicator */}
-                <div className="flex items-center gap-4 p-4 border-2 border-primary rounded-lg bg-primary/5">
-                  <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold">
-                    {versioningTemplate?.version || "?"}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">
-                        Version {versioningTemplate?.version || "?"}
-                      </span>
-                      <Badge>Current</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Last updated{" "}
-                      {formatDate(versioningTemplate?.updated_at || "")}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Previous versions */}
-                {versions.map((version) => (
-                  <div
-                    key={version.$id}
-                    className="flex items-center gap-4 p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center font-bold text-muted-foreground">
-                      {version.version}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">
-                          Version {version.version}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {version.change_note ||
-                          `Saved on ${formatDate(version.created_at)}`}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Subject: {version.subject}
-                      </p>
-                    </div>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={isLoading}
-                        >
-                          <RotateCcw className="h-3 w-3 mr-1" />
-                          Restore
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>
-                            Restore Version {version.version}?
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will replace the current template content with
-                            version {version.version}. The current version will
-                            be saved to history before restoring.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => restoreVersion(version)}
-                          >
-                            Restore
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="flex justify-end pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowVersionsDialog(false);
-                setVersioningTemplate(null);
-                setVersions([]);
-              }}
-            >
-              Close
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <TemplateVersionHistoryDialog
+        open={showVersionsDialog}
+        versions={versions}
+        isLoadingVersions={isLoadingVersions}
+        isLoading={isLoading}
+        versioningTemplate={versioningTemplate}
+        formatDate={formatDate}
+        onOpenChange={setShowVersionsDialog}
+        onRestoreVersion={restoreVersion}
+        onClose={() => {
+          setShowVersionsDialog(false);
+          setVersioningTemplate(null);
+          setVersions([]);
+        }}
+      />
     </div>
   );
 }

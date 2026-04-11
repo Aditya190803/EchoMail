@@ -22,10 +22,8 @@ import {
   Mail,
   MousePointer2,
   Paperclip,
-  Percent,
   Plus,
   Search,
-  Send,
   Users,
   XCircle,
   BarChart3,
@@ -35,7 +33,6 @@ import { toast } from "sonner";
 
 import { CampaignFunnelWidget } from "@/components/activity/campaign-funnel";
 import {
-  StatsCardWidget,
   LineChartWidget,
   ComparisonWidget,
   HeatmapWidget,
@@ -46,6 +43,9 @@ import { DeviceBreakdownChart } from "@/components/activity/device-breakdown";
 import { GlobalLeaderboard } from "@/components/activity/global-leaderboard";
 import { EmailHeatmapOverlay } from "@/components/activity/heatmap-overlay";
 import { LinkPerformanceTable } from "@/components/activity/link-performance";
+import { CampaignSelector } from "@/components/insights/campaign-selector";
+import { InsightsExportActions } from "@/components/insights/insights-export-actions";
+import { InsightsSummaryCards } from "@/components/insights/insights-summary-cards";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,13 +59,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -73,17 +67,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { PageHeader, PageShell, EmptyState } from "@/components/ui/page-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { getAttachmentUrl } from "@/lib/activity/attachment-url";
+import { buildCampaignChartData } from "@/lib/activity/chart-data";
 import { generateWeekOverWeekComparison } from "@/lib/activity/comparison";
 import { aggregateDeviceData } from "@/lib/activity/devices";
 import {
@@ -119,28 +109,6 @@ interface HistoryData {
   recentCampaigns: EmailCampaign[];
   monthlyTrend: "up" | "down" | "same";
 }
-
-// Helper to get authenticated attachment URL
-const getAttachmentUrl = (attachment: {
-  fileUrl?: string;
-  appwrite_file_id?: string;
-}) => {
-  // If we have the Appwrite file ID, use our authenticated proxy
-  if (attachment.appwrite_file_id) {
-    return `/api/appwrite/attachments/${attachment.appwrite_file_id}`;
-  }
-
-  // Try to extract file ID from Appwrite URL
-  if (attachment.fileUrl) {
-    const match = attachment.fileUrl.match(/\/files\/([^\/]+)\//);
-    if (match && match[1]) {
-      return `/api/appwrite/attachments/${match[1]}`;
-    }
-  }
-
-  // Fallback to original URL (for legacy/external attachments)
-  return attachment.fileUrl || "#";
-};
 
 export default function HistoryPage() {
   const { session, status, isLoading: _isLoading } = useAuthGuard();
@@ -183,39 +151,10 @@ export default function HistoryPage() {
   );
 
   // Prepare chart data by aggregating by date
-  const chartData = useMemo(() => {
-    if (!insightsCampaigns.length) {
-      return [];
-    }
-
-    // Sort by date ascending
-    const sorted = [...insightsCampaigns].sort(
-      (a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-    );
-
-    // Aggregate by date
-    const aggregated = sorted.reduce(
-      (acc: Record<string, number>, campaign) => {
-        const date = formatDate(campaign.createdAt);
-        acc[date] = (acc[date] || 0) + campaign.sent;
-        return acc;
-      },
-      {},
-    );
-
-    // Convert to array format for Recharts and ensure chronological order
-    return Object.entries(aggregated)
-      .map(([name, value]) => ({
-        name,
-        value,
-        // Use the first campaign's date for this group to ensure correct sorting
-        date: new Date(name),
-      }))
-      .sort((a, b) => a.date.getTime() - b.date.getTime())
-      .map(({ name, value }) => ({ name, value }))
-      .slice(-10); // Keep last 10 days of activity
-  }, [insightsCampaigns]);
+  const chartData = useMemo(
+    () => buildCampaignChartData(insightsCampaigns),
+    [insightsCampaigns],
+  );
 
   // Helper function to safely get recipients as array
   const getRecipientsArray = (recipients: any): string[] => {
@@ -574,33 +513,11 @@ export default function HistoryPage() {
           title="Insights & History"
           description="Track your campaign performance and delivery metrics"
           actions={
-            <>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" disabled={isExporting}>
-                    <Download className="h-4 w-4 mr-2" />
-                    {isExporting ? "Exporting..." : "Export Report"}
-                    <ChevronDown className="h-4 w-4 ml-2" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={handleExportCSV}>
-                    <FileText className="h-4 w-4 mr-2" />
-                    Export as CSV
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleExportPDF}>
-                    <FileText className="h-4 w-4 mr-2" />
-                    Export as PDF
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button asChild className="shadow-sm">
-                <Link href="/compose">
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Campaign
-                </Link>
-              </Button>
-            </>
+            <InsightsExportActions
+              isExporting={isExporting}
+              onExportCSV={handleExportCSV}
+              onExportPDF={handleExportPDF}
+            />
           }
         />
 
@@ -636,135 +553,23 @@ export default function HistoryPage() {
           {["performance", "heatmap", "recipients", "tracking"].includes(
             activeTab,
           ) && (
-            <Card className="border border-border/50 shadow-sm bg-card">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-primary" />
-                  Select Campaign for Analysis
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Choose a campaign to view its detailed metrics, heatmaps, and
-                  event logs.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-nowrap overflow-x-auto gap-2 pb-2 hide-scrollbar -mx-2 px-2 sm:mx-0 sm:px-0">
-                  {historyData?.recentCampaigns
-                    ?.slice(0, 12)
-                    .map((campaign) => {
-                      const isSelected =
-                        selectedHeatmapCampaignId === campaign.$id;
-                      const campaignEvents = allTrackingEvents.filter(
-                        (e) => e.campaign_id === campaign.$id,
-                      );
-                      const opens = campaignEvents.filter(
-                        (e) => e.event_type === "open",
-                      ).length;
-                      const clicks = campaignEvents.filter(
-                        (e) => e.event_type === "click",
-                      ).length;
-
-                      return (
-                        <button
-                          key={campaign.$id}
-                          onClick={() => {
-                            setSelectedHeatmapCampaignId(campaign.$id);
-                            setHeatmap(
-                              aggregateClickData(
-                                allTrackingEvents,
-                                campaign.$id,
-                              ),
-                            );
-                          }}
-                          className={cn(
-                            "shrink-0 px-3 py-2 rounded-lg border text-left transition-all hover:bg-muted/50 w-[180px]",
-                            isSelected
-                              ? "border-[var(--color-chart-1)]/50 bg-[var(--color-chart-1)]/5 ring-1 ring-[var(--color-chart-1)]/30"
-                              : "border-border/60 bg-card",
-                          )}
-                        >
-                          <div className="font-medium text-xs truncate text-foreground">
-                            {campaign.subject || "Untitled"}
-                          </div>
-                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-1.5 font-medium">
-                            <span
-                              className="flex items-center gap-1"
-                              title="Opens"
-                            >
-                              <Eye className="h-3 w-3 text-emerald-500/80" />
-                              {opens}
-                            </span>
-                            <span
-                              className="flex items-center gap-1"
-                              title="Clicks"
-                            >
-                              <MousePointer2 className="h-3 w-3 text-[var(--color-chart-2)]/80" />
-                              {clicks}
-                            </span>
-                            <span
-                              className="flex items-center gap-1"
-                              title="Sent"
-                            >
-                              <Send className="h-3 w-3 text-[var(--color-chart-1)]/80" />
-                              {campaign.sent}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                </div>
-                {(!historyData?.recentCampaigns ||
-                  historyData.recentCampaigns.length === 0) && (
-                  <div className="text-center py-6 text-muted-foreground text-sm flex flex-col items-center">
-                    <Mail className="h-6 w-6 mb-2 opacity-50" />
-                    <p>
-                      No campaigns found. Send your first email to see
-                      analytics.
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <CampaignSelector
+              campaigns={historyData?.recentCampaigns || []}
+              allTrackingEvents={allTrackingEvents}
+              selectedCampaignId={selectedHeatmapCampaignId}
+              onSelectCampaign={(campaignId, heatmapData) => {
+                setSelectedHeatmapCampaignId(campaignId);
+                setHeatmap(heatmapData);
+              }}
+            />
           )}
 
           <TabsContent value="overview" className="space-y-8">
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatsCardWidget
-                title="Total Campaigns"
-                value={historyData.totalCampaigns}
-                icon={<Mail className="h-5 w-5 text-primary" />}
-                trend={comparison?.changes.campaigns}
-              />
-              <StatsCardWidget
-                title="Delivery Rate"
-                value={`${historyData.successRate.toFixed(1)}%`}
-                icon={<Percent className="h-5 w-5 text-success" />}
-                trend={comparison?.changes.successRate}
-                gradientFrom="success/10"
-                gradientTo="success/5"
-              />
-              <StatsCardWidget
-                title="Emails Delivered"
-                value={historyData.totalSent}
-                icon={<Send className="h-5 w-5 text-secondary" />}
-                trend={comparison?.changes.sent}
-                gradientFrom="secondary/10"
-                gradientTo="secondary/5"
-              />
-              <StatsCardWidget
-                title="Open Rate"
-                value={
-                  summary?.averageOpenRate
-                    ? `${summary.averageOpenRate.toFixed(1)}%`
-                    : "N/A"
-                }
-                icon={<Eye className="h-5 w-5 text-accent" />}
-                trend={comparison?.changes.openRate}
-                gradientFrom="accent/10"
-                gradientTo="accent/5"
-              />
-            </div>
+            <InsightsSummaryCards
+              historyData={historyData}
+              summary={summary}
+              comparison={comparison}
+            />
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Activity Chart */}
@@ -789,7 +594,7 @@ export default function HistoryPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Recent Campaigns */}
               <RecentCampaignsWidget
-                campaigns={insightsCampaigns}
+                campaigns={insightsCampaigns.slice(0, 3)}
                 onViewCampaign={(id) => {
                   const c = historyData.recentCampaigns.find(
                     (rc) => rc.$id === id,
@@ -860,7 +665,7 @@ export default function HistoryPage() {
             </div>
 
             <div className="mt-8">
-              <GlobalLeaderboard events={allTrackingEvents} limit={10} />
+              <GlobalLeaderboard events={allTrackingEvents} limit={3} />
             </div>
           </TabsContent>
 

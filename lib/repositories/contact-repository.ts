@@ -433,7 +433,4 @@ export function createContactRepository(userEmail?: string): ContactRepository {
   return new ContactRepository(userEmail);
 }
 
-// Export singleton instance (requires setting userEmail before use)
-export const contactRepository = new ContactRepository();
-
 export default ContactRepository;

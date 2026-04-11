@@ -2,6 +2,27 @@ import { useState, useCallback, useRef, useEffect } from "react";
 
 import { signIn } from "next-auth/react";
 
+import { waitForNetwork } from "@/hooks/useEmailSend/network";
+import {
+  acquireLock,
+  clearCampaignStateFromStorage,
+  generateCampaignId,
+  loadSavedCampaignState,
+  refreshLock,
+  releaseLock,
+  saveCampaignStateToStorage,
+} from "@/hooks/useEmailSend/persistence";
+import {
+  clearQuota,
+  GMAIL_DAILY_LIMIT,
+  loadInitialQuota,
+  persistQuota,
+} from "@/hooks/useEmailSend/quota";
+import {
+  isPersistentError,
+  isRateLimitError,
+  isRetryableError,
+} from "@/hooks/useEmailSend/retry-helpers";
 import { emailSendLogger } from "@/lib/client-logger";
 import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
 import { getCookie } from "@/lib/utils";
@@ -50,16 +71,6 @@ const DEFAULT_BETWEEN_EMAILS_DELAY_MS = 1000; // 1 second between different emai
 const DEFAULT_TOKEN_CHECK_INTERVAL = 10; // Check token every 10 emails
 const RATE_LIMIT_INITIAL_DELAY_MS = 60000; // 1 minute initial backoff for rate limits
 const RATE_LIMIT_MAX_DELAY_MS = 300000; // 5 minutes max backoff
-const NETWORK_RETRY_DELAY_MS = 5000; // 5 seconds between network retry checks
-
-// Gmail API quotas (conservative estimates)
-// Free Gmail: ~500 emails/day, Workspace: ~2000/day
-const GMAIL_DAILY_LIMIT = 500; // Conservative default for free accounts
-
-// Storage keys
-const QUOTA_STORAGE_KEY = "echomail_gmail_quota";
-const CAMPAIGN_STATE_KEY = "echomail_campaign_state";
-const CAMPAIGN_LOCK_KEY = "echomail_campaign_lock";
 
 /**
  * Unified email sending hook that sends emails one by one sequentially.
@@ -95,40 +106,16 @@ export function useEmailSend(): UseEmailSendResult {
 
   // Quota tracking state
   const [quotaInfo, setQuotaInfo] = useState<QuotaInfo>(() => {
-    // Load quota info from localStorage on init
-    if (typeof window !== "undefined") {
-      try {
-        const stored = localStorage.getItem(QUOTA_STORAGE_KEY);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          const lastUpdated = new Date(parsed.lastUpdated);
-          const now = new Date();
-
-          // Reset quota if it's a new day (based on UTC)
-          if (lastUpdated.toDateString() !== now.toDateString()) {
-            return {
-              dailyLimit: GMAIL_DAILY_LIMIT,
-              estimatedUsed: 0,
-              estimatedRemaining: GMAIL_DAILY_LIMIT,
-              lastUpdated: null,
-            };
-          }
-
-          return {
-            ...parsed,
-            lastUpdated: lastUpdated,
-          };
-        }
-      } catch (_e) {
-        // Failed to load quota, use defaults
-      }
+    try {
+      return loadInitialQuota();
+    } catch {
+      return {
+        dailyLimit: GMAIL_DAILY_LIMIT,
+        estimatedUsed: 0,
+        estimatedRemaining: GMAIL_DAILY_LIMIT,
+        lastUpdated: null,
+      };
     }
-    return {
-      dailyLimit: GMAIL_DAILY_LIMIT,
-      estimatedUsed: 0,
-      estimatedRemaining: GMAIL_DAILY_LIMIT,
-      lastUpdated: null,
-    };
   });
 
   // Store remaining emails for retry
@@ -205,9 +192,8 @@ export function useEmailSend(): UseEmailSendResult {
 
   const checkSavedCampaign = () => {
     try {
-      const saved = localStorage.getItem(CAMPAIGN_STATE_KEY);
-      if (saved) {
-        const state: CampaignState = JSON.parse(saved);
+      const state = loadSavedCampaignState();
+      if (state) {
         if (state.status === "in-progress" || state.status === "paused") {
           const remaining = state.emails.length - state.sentIndices.length;
           setHasSavedCampaign(true);
@@ -226,90 +212,9 @@ export function useEmailSend(): UseEmailSendResult {
     }
   };
 
-  const generateCampaignId = () => {
-    return `campaign_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  };
-
-  const getTabId = (): string => {
-    if (typeof window === "undefined") {
-      return "server";
-    }
-
-    let tabId = sessionStorage.getItem("echomail_tab_id");
-    if (!tabId) {
-      tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      sessionStorage.setItem("echomail_tab_id", tabId);
-    }
-    return tabId;
-  };
-
-  const acquireLock = (): boolean => {
-    try {
-      const existingLock = localStorage.getItem(CAMPAIGN_LOCK_KEY);
-      if (existingLock) {
-        const lock = JSON.parse(existingLock);
-        // Lock expires after 5 minutes of inactivity
-        if (Date.now() - lock.timestamp < 5 * 60 * 1000) {
-          if (lock.tabId !== getTabId()) {
-            return false; // Another tab is sending
-          }
-        }
-      }
-
-      localStorage.setItem(
-        CAMPAIGN_LOCK_KEY,
-        JSON.stringify({
-          tabId: getTabId(),
-          timestamp: Date.now(),
-        }),
-      );
-      return true;
-    } catch (e) {
-      emailSendLogger.error(
-        "Error acquiring lock",
-        e instanceof Error ? e : undefined,
-      );
-      return true; // Proceed anyway if localStorage fails
-    }
-  };
-
-  const releaseLock = () => {
-    try {
-      const existingLock = localStorage.getItem(CAMPAIGN_LOCK_KEY);
-      if (existingLock) {
-        const lock = JSON.parse(existingLock);
-        if (lock.tabId === getTabId()) {
-          localStorage.removeItem(CAMPAIGN_LOCK_KEY);
-        }
-      }
-    } catch (e) {
-      emailSendLogger.error(
-        "Error releasing lock",
-        e instanceof Error ? e : undefined,
-      );
-    }
-  };
-
-  const refreshLock = () => {
-    try {
-      localStorage.setItem(
-        CAMPAIGN_LOCK_KEY,
-        JSON.stringify({
-          tabId: getTabId(),
-          timestamp: Date.now(),
-        }),
-      );
-    } catch (e) {
-      emailSendLogger.error(
-        "Error refreshing lock",
-        e instanceof Error ? e : undefined,
-      );
-    }
-  };
-
   const saveCampaignState = (state: CampaignState) => {
     try {
-      localStorage.setItem(CAMPAIGN_STATE_KEY, JSON.stringify(state));
+      saveCampaignStateToStorage(state);
     } catch (e) {
       emailSendLogger.error(
         "Error saving campaign state",
@@ -320,7 +225,7 @@ export function useEmailSend(): UseEmailSendResult {
 
   const clearCampaignState = () => {
     try {
-      localStorage.removeItem(CAMPAIGN_STATE_KEY);
+      clearCampaignStateFromStorage();
       setHasSavedCampaign(false);
       setSavedCampaignInfo(null);
     } catch (e) {
@@ -329,61 +234,6 @@ export function useEmailSend(): UseEmailSendResult {
         e instanceof Error ? e : undefined,
       );
     }
-  };
-
-  // Wait for network to come back online
-  const waitForNetwork = async (): Promise<boolean> => {
-    if (typeof window === "undefined") {
-      return true;
-    }
-    if (navigator.onLine) {
-      return true;
-    }
-
-    emailSendLogger.info("Waiting for network...");
-
-    return new Promise((resolve) => {
-      const checkNetwork = () => {
-        if (shouldStopRef.current) {
-          resolve(false);
-          return;
-        }
-        if (navigator.onLine) {
-          resolve(true);
-          return;
-        }
-        setTimeout(checkNetwork, NETWORK_RETRY_DELAY_MS);
-      };
-
-      // Also listen for the online event
-      const handleOnline = () => {
-        window.removeEventListener("online", handleOnline);
-        resolve(true);
-      };
-      window.addEventListener("online", handleOnline);
-
-      checkNetwork();
-    });
-  };
-
-  // Check if error is a rate limit (429) error
-  const isRateLimitError = (
-    errorMessage: string,
-    statusCode?: number,
-  ): boolean => {
-    if (statusCode === 429) {
-      return true;
-    }
-    const rateLimitIndicators = [
-      "429",
-      "rate limit",
-      "too many requests",
-      "quota exceeded",
-      "user-rate limit exceeded",
-    ];
-    return rateLimitIndicators.some((indicator) =>
-      errorMessage.toLowerCase().includes(indicator.toLowerCase()),
-    );
   };
 
   // Handle rate limit with exponential backoff
@@ -440,16 +290,13 @@ export function useEmailSend(): UseEmailSendResult {
         lastUpdated: new Date(),
       };
 
-      // Persist to localStorage
-      if (typeof window !== "undefined") {
-        try {
-          localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(updated));
-        } catch (e) {
-          emailSendLogger.error(
-            "Error saving quota info",
-            e instanceof Error ? e : undefined,
-          );
-        }
+      try {
+        persistQuota(updated);
+      } catch (e) {
+        emailSendLogger.error(
+          "Error saving quota info",
+          e instanceof Error ? e : undefined,
+        );
       }
 
       return updated;
@@ -466,15 +313,13 @@ export function useEmailSend(): UseEmailSendResult {
     };
     setQuotaInfo(reset);
 
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.removeItem(QUOTA_STORAGE_KEY);
-      } catch (e) {
-        emailSendLogger.error(
-          "Error clearing quota info",
-          e instanceof Error ? e : undefined,
-        );
-      }
+    try {
+      clearQuota();
+    } catch (e) {
+      emailSendLogger.error(
+        "Error clearing quota info",
+        e instanceof Error ? e : undefined,
+      );
     }
   }, []);
 
@@ -518,50 +363,6 @@ export function useEmailSend(): UseEmailSendResult {
     }
   }, []);
 
-  // Helper to check if error is retryable
-  const isRetryableError = (errorMessage: string): boolean => {
-    const nonRetryableErrors = [
-      "Session expired",
-      "Unauthorized",
-      "401",
-      "Invalid email",
-      "invalid address",
-      "Email too large",
-      "413",
-      "Recipient unsubscribed",
-      "unsubscribed",
-      "may have been sent", // Don't retry if email might have been sent (timeout with large attachment)
-      "check your Gmail Sent folder", // Same as above
-    ];
-    return !nonRetryableErrors.some((e) =>
-      errorMessage.toLowerCase().includes(e.toLowerCase()),
-    );
-  };
-
-  /**
-   * Determines if an error is "persistent" and should stop the entire campaign.
-   * Persistent errors are those that will likely affect all subsequent emails.
-   */
-  const isPersistentError = (errorMessage: string): boolean => {
-    const persistentErrors = [
-      "Session expired",
-      "Unauthorized",
-      "401",
-      "403",
-      "Forbidden",
-      "Permission denied",
-      "Invalid credentials",
-      "Access token expired",
-      "Quota exceeded",
-      "Daily limit reached",
-      "Invalid Grant",
-      "Bad Request",
-    ];
-    return persistentErrors.some((e) =>
-      errorMessage.toLowerCase().includes(e.toLowerCase()),
-    );
-  };
-
   // Helper to send a single email with retries
   const sendSingleEmailWithRetry = async (
     email: PersonalizedEmailData,
@@ -589,7 +390,9 @@ export function useEmailSend(): UseEmailSendResult {
           ...prev,
           status: `📴 Network offline. Waiting for connection...`,
         }));
-        const networkRestored = await waitForNetwork();
+        const networkRestored = await waitForNetwork(
+          () => shouldStopRef.current,
+        );
         if (!networkRestored) {
           return {
             email: email.to,
@@ -711,7 +514,9 @@ export function useEmailSend(): UseEmailSendResult {
             status: `📴 Network error. Waiting for connection...`,
           }));
 
-          const networkRestored = await waitForNetwork();
+          const networkRestored = await waitForNetwork(
+            () => shouldStopRef.current,
+          );
           if (!networkRestored) {
             return {
               email: email.to,
@@ -1168,13 +973,11 @@ export function useEmailSend(): UseEmailSendResult {
 
   const resumeCampaign = useCallback(async (): Promise<EmailResult[]> => {
     try {
-      const saved = localStorage.getItem(CAMPAIGN_STATE_KEY);
-      if (!saved) {
+      const state = loadSavedCampaignState();
+      if (!state) {
         setError("No saved campaign to resume");
         return [];
       }
-
-      const state: CampaignState = JSON.parse(saved);
 
       if (state.status !== "in-progress" && state.status !== "paused") {
         setError("Campaign already completed");

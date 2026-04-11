@@ -465,10 +465,7 @@ export default function DraftPage() {
           title="Draft Emails"
           description="Save emails for later and send when ready"
           actions={
-            <Button
-              asChild
-              className="bg-gradient-to-r from-primary to-accent hover:opacity-90"
-            >
+            <Button asChild>
               <Link href="/compose">
                 <Send className="h-4 w-4 mr-2" />
                 Create New Email

@@ -124,7 +124,7 @@ export function EmailPreview({
             <Button
               onClick={onSend}
               disabled={isLoading || loadingPreviews}
-              className="w-full h-11 shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              className="w-full h-11 shadow-lg"
             >
               {isLoading ? (
                 <>

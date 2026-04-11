@@ -323,19 +323,6 @@ export class CampaignRepository {
   }
 }
 
-/**
- * Singleton instance factory
- */
-let campaignRepositoryInstance: CampaignRepository | null = null;
-
 export function getCampaignRepository(userEmail?: string): CampaignRepository {
-  if (!campaignRepositoryInstance) {
-    campaignRepositoryInstance = new CampaignRepository(userEmail);
-  } else if (
-    userEmail &&
-    campaignRepositoryInstance.getUserEmail() !== userEmail
-  ) {
-    campaignRepositoryInstance.setUserEmail(userEmail);
-  }
-  return campaignRepositoryInstance;
+  return new CampaignRepository(userEmail);
 }

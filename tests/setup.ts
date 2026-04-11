@@ -3,11 +3,18 @@ import { cleanup } from "@testing-library/react";
 import { JSDOM } from "jsdom";
 import { afterEach, beforeEach, vi, type VitestUtils } from "vitest";
 
-Object.defineProperty(process.env, "NODE_ENV", {
-  value: "test",
-  configurable: true,
-  writable: true,
-});
+if (
+  typeof (vi as { stubEnv?: (key: string, value: string) => void }).stubEnv ===
+  "function"
+) {
+  vi.stubEnv("NODE_ENV", "test");
+} else {
+  Object.defineProperty(process.env, "NODE_ENV", {
+    value: "test",
+    configurable: true,
+    writable: true,
+  });
+}
 process.env.GOOGLE_CLIENT_ID ??= "test-google-client-id";
 process.env.GOOGLE_CLIENT_SECRET ??= "test-google-client-secret";
 process.env.NEXTAUTH_URL ??= "http://localhost:3000";
@@ -37,7 +44,46 @@ if (typeof window === "undefined" || typeof document === "undefined") {
   });
 }
 
-for (const storageKey of ["localStorage", "sessionStorage"] as const) {
+// Create simple mock storage implementations
+const createMockStorage = () => {
+  const store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, value: string) => {
+      store[key] = value;
+    },
+    removeItem: (key: string) => {
+      delete store[key];
+    },
+    clear: () => {
+      Object.keys(store).forEach((key) => delete store[key]);
+    },
+    get length() {
+      return Object.keys(store).length;
+    },
+    key: (index: number) => Object.keys(store)[index] ?? null,
+  };
+};
+
+const mockLocalStorage = createMockStorage();
+const mockSessionStorage = createMockStorage();
+
+// Assign mock storage to window before defining global getters
+if (typeof (globalThis as any).window !== "undefined") {
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: mockLocalStorage,
+  });
+  Object.defineProperty(window, "sessionStorage", {
+    configurable: true,
+    value: mockSessionStorage,
+  });
+}
+
+for (const [storageKey] of [
+  ["localStorage", mockLocalStorage],
+  ["sessionStorage", mockSessionStorage],
+] as const) {
   Object.defineProperty(globalThis, storageKey, {
     configurable: true,
     get: () => window[storageKey],
@@ -173,6 +219,8 @@ global.fetch = vi.fn();
 
 // Reset mocks between tests
 beforeEach(() => {
+  mockLocalStorage.clear();
+  mockSessionStorage.clear();
   vi.clearAllMocks();
 });
 

@@ -1,18 +1,19 @@
-import { serverStorageService } from "./appwrite-server";
-import { sanitizeHTML } from "./email-formatting";
-import { injectTracking } from "./email-formatting/utils";
+import {
+  encodeQuotedPrintable,
+  encodeSubject,
+  validateAndSanitizeEmail,
+} from "./email/encoding";
+import { buildGmailMimeBody } from "./email/mime-builder";
+import { injectTracking, sanitizeHTML } from "./email-formatting";
 import { emailLogger } from "./logger";
 
-export interface AttachmentData {
-  name: string;
-  type: string;
-  data: string; // base64 encoded data, or 'appwrite' placeholder
-  appwriteFileId?: string; // If provided, attachment will be fetched from Appwrite storage
-  appwriteUrl?: string; // Full URL to fetch attachment from Appwrite
-}
-
-// Cache for resolved attachments (keyed by appwriteFileId)
-const attachmentCache = new Map<string, string>();
+import type { AttachmentData } from "./email/attachment-manager";
+export {
+  clearAttachmentCache,
+  preResolveAttachments,
+} from "./email/attachment-manager";
+export type { AttachmentData } from "./email/attachment-manager";
+export { encodeQuotedPrintable } from "./email/encoding";
 
 // Cache for pre-built email templates (for bulk sending)
 interface EmailTemplate {
@@ -22,101 +23,6 @@ interface EmailTemplate {
   totalSize: number;
 }
 let cachedEmailTemplate: EmailTemplate | null = null;
-
-/**
- * Pre-resolve all Appwrite attachments to base64 ONCE before sending loop.
- * This prevents downloading the same attachment multiple times for bulk sends.
- * Call this once before sending emails, then pass the resolved attachments to sendEmailViaAPI.
- */
-export async function preResolveAttachments(
-  attachments: AttachmentData[],
-): Promise<AttachmentData[]> {
-  if (!attachments || attachments.length === 0) {
-    return [];
-  }
-
-  const resolvedAttachments: AttachmentData[] = [];
-
-  for (const attachment of attachments) {
-    // If already has base64 data (not a placeholder), use directly
-    if (
-      attachment.data &&
-      attachment.data !== "appwrite" &&
-      !attachment.data.startsWith("http")
-    ) {
-      resolvedAttachments.push(attachment);
-      continue;
-    }
-
-    // Determine the fileId to fetch
-    let fileId: string | null = null;
-
-    if (attachment.appwriteFileId) {
-      fileId = attachment.appwriteFileId;
-    } else if (attachment.appwriteUrl) {
-      // Extract fileId from URL
-      const match = attachment.appwriteUrl.match(/files\/([^/]+)\//);
-      if (match && match[1]) {
-        fileId = match[1];
-      }
-    }
-
-    if (!fileId) {
-      emailLogger.error(`No valid source for attachment: ${attachment.name}`);
-      throw new Error(
-        `No valid attachment source for ${attachment.name}. Please re-upload the file.`,
-      );
-    }
-
-    // Check cache first
-    if (attachmentCache.has(fileId)) {
-      emailLogger.debug(`Using cached attachment: ${attachment.name}`);
-      resolvedAttachments.push({
-        ...attachment,
-        data: attachmentCache.get(fileId)!,
-      });
-      continue;
-    }
-
-    // Download from Appwrite and cache
-    emailLogger.debug(
-      `Downloading attachment from Appwrite: ${attachment.name}`,
-      { fileId },
-    );
-    try {
-      const buffer = await serverStorageService.getFileBuffer(fileId);
-      const base64Data = buffer.toString("base64");
-
-      // Cache it for subsequent emails
-      attachmentCache.set(fileId, base64Data);
-
-      resolvedAttachments.push({
-        ...attachment,
-        data: base64Data,
-      });
-      emailLogger.debug(`Cached attachment: ${attachment.name}`);
-    } catch (error) {
-      emailLogger.error(
-        `Failed to download attachment ${attachment.name}`,
-        undefined,
-        error instanceof Error ? error : undefined,
-      );
-      throw new Error(
-        `Failed to download attachment ${attachment.name}: ${error instanceof Error ? error.message : "Unknown error"}`,
-      );
-    }
-  }
-
-  return resolvedAttachments;
-}
-
-/**
- * Clear the attachment cache. Call this after a campaign completes.
- */
-export function clearAttachmentCache(): void {
-  attachmentCache.clear();
-  cachedEmailTemplate = null;
-}
 
 /**
  * Pre-build the email template ONCE before bulk sending.
@@ -168,9 +74,6 @@ export async function preBuildEmailTemplate(
     "</html>",
   ].join("");
 
-  const mixedBoundary = "----=_Part_" + Math.random().toString(36).substr(2, 9);
-  const altBoundary = "----=_Alt_" + Math.random().toString(36).substr(2, 9);
-
   // Create plain text version
   const plainText = formattedHtmlBody
     .replace(/<br\s*\/?>/gi, "\n")
@@ -190,77 +93,11 @@ export async function preBuildEmailTemplate(
 
   const encodedSubject = encodeSubject(subject);
 
-  let bodyParts: string[];
-
-  if (attachments && attachments.length > 0) {
-    bodyParts = [
-      `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
-      "",
-      `--${mixedBoundary}`,
-      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
-      "",
-      `--${altBoundary}`,
-      `Content-Type: text/plain; charset="UTF-8"`,
-      `Content-Transfer-Encoding: quoted-printable`,
-      "",
-      encodedPlainText,
-      "",
-      `--${altBoundary}`,
-      `Content-Type: text/html; charset="UTF-8"`,
-      `Content-Transfer-Encoding: quoted-printable`,
-      "",
-      encodedHtmlBody,
-      "",
-      `--${altBoundary}--`,
-    ];
-
-    for (const attachment of attachments) {
-      const encodedFilename = `=?UTF-8?B?${Buffer.from(attachment.name, "utf8").toString("base64")}?=`;
-
-      if (
-        !attachment.data ||
-        attachment.data === "appwrite" ||
-        attachment.data.startsWith("http")
-      ) {
-        throw new Error(
-          `Attachment ${attachment.name} was not pre-resolved. Call preResolveAttachments() first.`,
-        );
-      }
-
-      bodyParts.push(`--${mixedBoundary}`);
-      bodyParts.push(
-        `Content-Type: ${attachment.type}; name="${encodedFilename}"`,
-      );
-      bodyParts.push(
-        `Content-Disposition: attachment; filename="${encodedFilename}"`,
-      );
-      bodyParts.push(`Content-Transfer-Encoding: base64`);
-      bodyParts.push("");
-      bodyParts.push(attachment.data);
-    }
-
-    bodyParts.push(`--${mixedBoundary}--`);
-  } else {
-    bodyParts = [
-      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
-      "",
-      `--${altBoundary}`,
-      `Content-Type: text/plain; charset="UTF-8"`,
-      `Content-Transfer-Encoding: quoted-printable`,
-      "",
-      encodedPlainText,
-      "",
-      `--${altBoundary}`,
-      `Content-Type: text/html; charset="UTF-8"`,
-      `Content-Transfer-Encoding: quoted-printable`,
-      "",
-      encodedHtmlBody,
-      "",
-      `--${altBoundary}--`,
-    ];
-  }
-
-  const bodyString = bodyParts.join("\r\n");
+  const bodyString = buildGmailMimeBody({
+    encodedPlainText,
+    encodedHtmlBody,
+    attachments,
+  });
 
   cachedEmailTemplate = {
     fromEmail,
@@ -365,132 +202,6 @@ export async function sendEmailWithTemplate(
       );
     }
     throw error;
-  }
-}
-
-function sanitizeText(text: string): string {
-  // Normalize Unicode characters and ensure proper UTF-8 encoding
-  return text
-    .normalize("NFC")
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/[\u201C\u201D]/g, '"');
-}
-
-// RFC 2045 quoted-printable encoder to keep long HTML lines intact for email clients
-export function encodeQuotedPrintable(input: string): string {
-  if (!input) {
-    return "";
-  }
-
-  const safeChar = (byte: number): boolean => {
-    return (
-      (byte >= 33 && byte <= 60) || // printable ASCII before '='
-      (byte >= 62 && byte <= 126)
-    );
-  };
-
-  const toHex = (byte: number): string => {
-    return "=" + byte.toString(16).toUpperCase().padStart(2, "0");
-  };
-
-  const encodeLine = (line: string): string => {
-    const bytes = Buffer.from(line, "utf8");
-    let encoded = "";
-    let currentLength = 0;
-
-    const lastNonWhitespaceIndex = (() => {
-      for (let j = bytes.length - 1; j >= 0; j--) {
-        if (bytes[j] !== 0x20 && bytes[j] !== 0x09) {
-          return j;
-        }
-      }
-      return -1;
-    })();
-
-    const pushChunk = (chunk: string) => {
-      if (currentLength + chunk.length > 75) {
-        encoded += "=\r\n";
-        currentLength = 0;
-      }
-
-      encoded += chunk;
-      currentLength += chunk.length;
-    };
-
-    for (let i = 0; i < bytes.length; i++) {
-      const byte = bytes[i];
-      const isSpaceOrTab = byte === 0x20 || byte === 0x09;
-      const isTrailingWhitespace = i > lastNonWhitespaceIndex;
-
-      if (!isSpaceOrTab && safeChar(byte) && byte !== 0x3d) {
-        pushChunk(String.fromCharCode(byte));
-        continue;
-      }
-
-      if (isSpaceOrTab && !isTrailingWhitespace) {
-        pushChunk(String.fromCharCode(byte));
-        continue;
-      }
-
-      pushChunk(toHex(byte));
-    }
-
-    return encoded;
-  };
-
-  return input.replace(/\r\n/g, "\n").split("\n").map(encodeLine).join("\r\n");
-}
-
-// Helper function to validate and sanitize email addresses
-function validateAndSanitizeEmail(email: string): string {
-  if (!email || typeof email !== "string") {
-    throw new Error("Email address is required and must be a string");
-  }
-
-  // Remove any whitespace and normalize
-  const cleanEmail = email.trim().toLowerCase();
-
-  // Basic email validation regex
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-
-  if (!emailRegex.test(cleanEmail)) {
-    throw new Error(`Invalid email address format: ${cleanEmail}`);
-  }
-
-  // Additional Gmail-specific validation
-  if (cleanEmail.length > 254) {
-    throw new Error(`Email address too long: ${cleanEmail}`);
-  }
-
-  return cleanEmail;
-}
-
-// Helper function to encode subject line for proper UTF-8 handling
-function encodeSubject(subject: string): string {
-  // Always encode for consistent UTF-8 handling, even for ASCII characters
-  const sanitized = sanitizeText(subject);
-  const encoded = Buffer.from(sanitized, "utf8").toString("base64");
-  return `=?UTF-8?B?${encoded}?=`;
-}
-
-// Helper function to download attachment from URL and convert to base64
-async function _downloadAttachmentToBase64(url: string): Promise<string> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to download attachment: ${response.statusText}`);
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    return buffer.toString("base64");
-  } catch (error) {
-    emailLogger.error(
-      "Error downloading attachment",
-      { url },
-      error instanceof Error ? error : undefined,
-    );
-    throw new Error(`Failed to download attachment from ${url}`);
   }
 }
 
@@ -679,11 +390,6 @@ export async function sendEmailViaAPI(
     ].join("\n");
   }
 
-  // Build email in Gmail's native format
-  // Gmail sends emails with multipart/alternative (text + html) wrapped in multipart/mixed if attachments
-  const mixedBoundary = "----=_Part_" + Math.random().toString(36).substr(2, 9);
-  const altBoundary = "----=_Alt_" + Math.random().toString(36).substr(2, 9);
-
   // Create plain text version by stripping HTML
   const plainText = formattedHtmlBody
     .replace(/<br\s*\/?>/gi, "\n")
@@ -701,100 +407,19 @@ export async function sendEmailViaAPI(
   const encodedPlainText = encodeQuotedPrintable(plainText);
   const encodedHtmlBody = encodeQuotedPrintable(formattedHtmlBody);
 
-  let email: string[];
+  const mimeBody = buildGmailMimeBody({
+    encodedPlainText,
+    encodedHtmlBody,
+    attachments,
+  });
 
-  if (attachments && attachments.length > 0) {
-    // With attachments: multipart/mixed containing multipart/alternative + attachments
-    email = [
-      `From: ${fromEmail}`,
-      `To: ${validatedTo}`,
-      `Subject: ${encodedSubject}`,
-      `MIME-Version: 1.0`,
-      `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
-      "",
-      `--${mixedBoundary}`,
-      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
-      "",
-      `--${altBoundary}`,
-      `Content-Type: text/plain; charset="UTF-8"`,
-      `Content-Transfer-Encoding: quoted-printable`,
-      "",
-      encodedPlainText,
-      "",
-      `--${altBoundary}`,
-      `Content-Type: text/html; charset="UTF-8"`,
-      `Content-Transfer-Encoding: quoted-printable`,
-      "",
-      encodedHtmlBody,
-      "",
-      `--${altBoundary}--`,
-    ];
-
-    emailLogger.debug(`Processing attachments`, {
-      count: attachments.length,
-      to: validatedTo,
-    });
-
-    for (const attachment of attachments) {
-      const encodedFilename = `=?UTF-8?B?${Buffer.from(attachment.name, "utf8").toString("base64")}?=`;
-
-      // Attachments should be pre-resolved with base64 data before calling sendEmailViaAPI
-      // Use preResolveAttachments() once before the send loop for efficiency
-      const attachmentData = attachment.data;
-
-      if (
-        !attachmentData ||
-        attachmentData === "appwrite" ||
-        attachmentData.startsWith("http")
-      ) {
-        emailLogger.error(
-          `Attachment not pre-resolved: ${attachment.name}. Call preResolveAttachments() first.`,
-        );
-        throw new Error(
-          `Attachment ${attachment.name} was not pre-resolved. Please ensure attachments are resolved before sending.`,
-        );
-      }
-
-      emailLogger.debug(`Using attachment`, {
-        name: attachment.name,
-        type: attachment.type,
-      });
-
-      email.push(`--${mixedBoundary}`);
-      email.push(`Content-Type: ${attachment.type}; name="${encodedFilename}"`);
-      email.push(
-        `Content-Disposition: attachment; filename="${encodedFilename}"`,
-      );
-      email.push(`Content-Transfer-Encoding: base64`);
-      email.push("");
-      email.push(attachmentData);
-    }
-
-    email.push(`--${mixedBoundary}--`);
-  } else {
-    // No attachments: simple multipart/alternative with text and html
-    email = [
-      `From: ${fromEmail}`,
-      `To: ${validatedTo}`,
-      `Subject: ${encodedSubject}`,
-      `MIME-Version: 1.0`,
-      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
-      "",
-      `--${altBoundary}`,
-      `Content-Type: text/plain; charset="UTF-8"`,
-      `Content-Transfer-Encoding: quoted-printable`,
-      "",
-      encodedPlainText,
-      "",
-      `--${altBoundary}`,
-      `Content-Type: text/html; charset="UTF-8"`,
-      `Content-Transfer-Encoding: quoted-printable`,
-      "",
-      encodedHtmlBody,
-      "",
-      `--${altBoundary}--`,
-    ];
-  }
+  const email = [
+    `From: ${fromEmail}`,
+    `To: ${validatedTo}`,
+    `Subject: ${encodedSubject}`,
+    `MIME-Version: 1.0`,
+    mimeBody,
+  ];
 
   // Explicitly encode as UTF-8 to handle international characters properly
   const encodedEmail = Buffer.from(email.join("\r\n"), "utf8")

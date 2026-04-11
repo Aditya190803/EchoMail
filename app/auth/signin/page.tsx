@@ -86,7 +86,7 @@ export default function SignIn() {
               <Button
                 onClick={handleGoogleSignIn}
                 disabled={isLoading}
-                className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 text-white font-medium py-3"
+                className="w-full font-medium py-3"
                 size="lg"
               >
                 {isLoading ? (

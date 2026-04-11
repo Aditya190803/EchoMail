@@ -426,10 +426,7 @@ export default function ABTestingPage() {
           title="A/B Testing"
           description="Test different email variants to optimize your campaigns"
           actions={
-            <Button
-              onClick={() => setShowCreateDialog(true)}
-              className="bg-gradient-to-r from-primary to-accent hover:opacity-90"
-            >
+            <Button onClick={() => setShowCreateDialog(true)}>
               <Plus className="h-4 w-4 mr-2" />
               New Test
             </Button>

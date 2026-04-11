@@ -334,7 +334,7 @@ export default function WebhooksPage() {
           actions={
             <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
               <DialogTrigger asChild>
-                <Button className="gap-2 bg-gradient-to-r from-primary to-accent hover:opacity-90">
+                <Button className="gap-2">
                   <Plus className="h-4 w-4" />
                   Add Webhook
                 </Button>
