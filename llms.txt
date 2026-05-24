@@ -1,0 +1,47 @@
+# EchoMail
+
+> A modern email marketing platform with Gmail API integration for personalized bulk email campaigns.
+
+## Overview
+EchoMail is a powerful email marketing platform that seamlessly integrates with Gmail API to send personalized bulk emails, manage contacts, create templates, and track campaign performance.
+
+## Key Features
+- **Email Campaign Management** — Create, schedule, and send bulk email campaigns
+- **Contact Management** — Import contacts from Gmail, CSV upload, and group organization
+- **Template System** — Rich text email templates with version history
+- **Analytics Dashboard** — Campaign metrics, funnel analysis, global leaderboard, heatmap
+- **Real-time Tracking** — Open rates, click tracking, device breakdown
+- **A/B Testing** — Compare campaign variants
+- **Team Collaboration** — Multi-user team support with audit logs
+- **GDPR Compliance** — Built-in privacy and unsubscribe management
+- **Drip Campaigns** — Automated email sequences
+- **Spam Checking** — Pre-send spam score analysis
+
+## Pages
+- `/` — Landing page
+- `/dashboard` — Main dashboard
+- `/compose` — Compose email campaign
+- `/contacts` — Contact management
+- `/contacts/duplicates` — Duplicate contact handling
+- `/templates` — Email templates
+- `/insights` — Campaign analytics
+- `/ab-testing` — A/B testing
+- `/draft` — Saved drafts
+- `/realtime-send` — Real-time sending
+- `/settings` — Settings
+- `/settings/teams` — Team management
+- `/settings/audit-logs` — Audit logs
+- `/settings/gdpr` — GDPR settings
+- `/settings/unsubscribes` — Unsubscribe management
+- `/settings/webhooks` — Webhook configuration
+- `/settings/signatures` — Email signatures
+- `/api-docs` — API documentation
+- `/privacy` — Privacy policy
+- `/tos` — Terms of service
+
+## Tech Stack
+- Next.js (App Router)
+- Appwrite (Backend)
+- Gmail API
+- React Query
+- Tailwind CSS
