@@ -11,7 +11,6 @@ import {
   Plug,
   Link2,
   UserMinus,
-  CreditCard,
   Settings,
   ChevronRight,
   ShieldCheck,
@@ -113,7 +112,7 @@ const settingsCategories = [
     ],
   },
   {
-    title: "Privacy & Billing",
+    title: "Privacy & Security",
     items: [
       {
         name: "Privacy & Data",
@@ -130,14 +129,6 @@ const settingsCategories = [
         href: "/settings/audit-logs",
         color: "text-muted-foreground",
         bgColor: "bg-muted",
-      },
-      {
-        name: "Billing & Plan",
-        description: "Manage billing details, plan, and invoices",
-        icon: CreditCard,
-        color: "text-warning",
-        bgColor: "bg-warning/10",
-        comingSoon: true,
       },
     ],
   },

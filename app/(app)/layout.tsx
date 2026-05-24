@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 
 import { useRouter } from "next/navigation";
-import Script from "next/script";
 
 import { useSession } from "next-auth/react";
 
@@ -65,10 +64,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">
-      <Script
-        src="https://checkout.razorpay.com/v1/checkout.js"
-        strategy="lazyOnload"
-      />
       <AppSidebar />
       <SidebarInset className="flex h-svh flex-col">
         <SidebarTrigger className="absolute left-3 top-3 z-20 h-9 w-9 rounded-full border border-border/70 bg-background/90 shadow-md backdrop-blur transition-shadow hover:shadow-lg md:top-[55%] md:-translate-y-1/2" />
