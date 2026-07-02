@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { formatEmailSendErrorForUser } from "@/lib/gmail-user-message";
 import { apiLogger } from "@/lib/logger";
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { EmailService } from "@/lib/services/email-service";
@@ -69,7 +70,14 @@ export async function POST(request: NextRequest) {
     );
 
     if (result.status === "error") {
-      return NextResponse.json({ error: result.error }, { status: 500 });
+      const raw = result.error || "Send failed";
+      return NextResponse.json(
+        {
+          error: raw,
+          userMessage: formatEmailSendErrorForUser(raw),
+        },
+        { status: 500 },
+      );
     }
 
     return NextResponse.json({

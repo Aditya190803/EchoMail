@@ -5,6 +5,7 @@ import {
 } from "./email/encoding";
 import { buildGmailMimeBody } from "./email/mime-builder";
 import { injectTracking, sanitizeHTML } from "./email-formatting";
+import { gmailProfileFailureMessage } from "./gmail-user-message";
 import { emailLogger } from "./logger";
 
 import type { AttachmentData } from "./email/attachment-manager";
@@ -47,7 +48,12 @@ export async function preBuildEmailTemplate(
   );
 
   if (!userResponse.ok) {
-    throw new Error("Failed to get user profile from Gmail API");
+    const body = await userResponse.text();
+    emailLogger.error("Gmail profile fetch failed (preBuild)", {
+      status: userResponse.status,
+      body: body.slice(0, 500),
+    });
+    throw new Error(gmailProfileFailureMessage(userResponse.status, body));
   }
 
   const userProfile = await userResponse.json();
@@ -322,7 +328,12 @@ export async function sendEmailViaAPI(
   );
 
   if (!userResponse.ok) {
-    throw new Error("Failed to get user profile from Gmail API");
+    const body = await userResponse.text();
+    emailLogger.error("Gmail profile fetch failed", {
+      status: userResponse.status,
+      body: body.slice(0, 500),
+    });
+    throw new Error(gmailProfileFailureMessage(userResponse.status, body));
   }
 
   const userProfile = await userResponse.json();

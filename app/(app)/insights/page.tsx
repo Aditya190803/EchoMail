@@ -87,6 +87,11 @@ import { aggregateClickData } from "@/lib/activity/heatmap";
 import type { EmailCampaign } from "@/lib/appwrite";
 import { campaignsService } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
+import {
+  formatEmailSendErrorForUser,
+  formatSendResultLabel,
+  sendResultBadgeVariant,
+} from "@/lib/gmail-user-message";
 import { metricsService } from "@/lib/services/metrics-service";
 import { cn, formatDate } from "@/lib/utils";
 import type {
@@ -1823,22 +1828,16 @@ export default function HistoryPage() {
                                   {result.email}
                                 </div>
                                 {result.error && (
-                                  <div className="text-xs text-destructive">
-                                    {result.error}
+                                  <div className="text-xs text-muted-foreground">
+                                    {formatEmailSendErrorForUser(result.error)}
                                   </div>
                                 )}
                               </div>
                             </div>
                             <Badge
-                              variant={
-                                result.status === "success"
-                                  ? "success"
-                                  : "destructive"
-                              }
+                              variant={sendResultBadgeVariant(result.status)}
                             >
-                              {result.status === "success"
-                                ? "Delivered"
-                                : "Failed"}
+                              {formatSendResultLabel(result.status)}
                             </Badge>
                           </div>
                         ))}

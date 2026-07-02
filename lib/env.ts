@@ -64,7 +64,7 @@ const envSchema = z.object({
   NEXT_PUBLIC_APP_URL: z
     .string()
     .url()
-    .default("https://echomail.adityamer.live"),
+    .default("https://echomail.adityamer.dev"),
 });
 
 // Parse and validate environment variables

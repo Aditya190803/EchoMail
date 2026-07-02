@@ -1418,10 +1418,7 @@ export function ComposeForm() {
           })),
           send_results: results.map((r) => ({
             email: r.email,
-            status:
-              r.status === "skipped"
-                ? ("error" as const)
-                : (r.status as "success" | "error"),
+            status: r.status,
             error: r.error,
           })),
           // Save personalized attachment info

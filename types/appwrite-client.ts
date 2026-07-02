@@ -27,7 +27,7 @@ export interface EmailCampaignInput {
   }[];
   send_results?: {
     email: string;
-    status: "success" | "error";
+    status: "success" | "error" | "skipped" | "cancelled";
     error?: string;
     messageId?: string;
   }[];

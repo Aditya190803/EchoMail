@@ -10,6 +10,7 @@ import {
   WifiOff,
 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,8 +20,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
+import {
+  formatEmailSendErrorForUser,
+  formatSendResultLabel,
+  sendResultBadgeVariant,
+} from "@/lib/gmail-user-message";
 
 interface SendStatusItem {
+  email?: string;
   status:
     | "success"
     | "error"
@@ -28,6 +35,7 @@ interface SendStatusItem {
     | "cancelled"
     | "pending"
     | "retrying";
+  error?: string;
 }
 
 interface ProgressState {
@@ -139,7 +147,49 @@ export function SendingStatusDialog({
 
           {sendError && (
             <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-              <p className="text-sm text-destructive">{sendError}</p>
+              <p className="text-sm text-destructive">
+                {formatEmailSendErrorForUser(sendError)}
+              </p>
+            </div>
+          )}
+
+          {sendStatus.some(
+            (s) =>
+              s.email &&
+              (s.status === "error" ||
+                s.status === "cancelled" ||
+                s.status === "skipped"),
+          ) && (
+            <div className="max-h-40 overflow-y-auto rounded-lg border divide-y text-sm">
+              {sendStatus
+                .filter(
+                  (s) =>
+                    s.email &&
+                    (s.status === "error" ||
+                      s.status === "cancelled" ||
+                      s.status === "skipped"),
+                )
+                .map((s, i) => (
+                  <div
+                    key={`${s.email}-${i}`}
+                    className="px-3 py-2 space-y-0.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate font-medium">{s.email}</span>
+                      <Badge
+                        variant={sendResultBadgeVariant(s.status)}
+                        className="text-[10px] shrink-0"
+                      >
+                        {formatSendResultLabel(s.status)}
+                      </Badge>
+                    </div>
+                    {s.error && (
+                      <p className="text-xs text-muted-foreground">
+                        {formatEmailSendErrorForUser(s.error)}
+                      </p>
+                    )}
+                  </div>
+                ))}
             </div>
           )}
 

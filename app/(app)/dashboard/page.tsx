@@ -9,6 +9,7 @@ import {
   Users,
   CheckCircle,
   XCircle,
+  Clock,
   Copy,
   Download,
   FileText,
@@ -36,6 +37,11 @@ import type { EmailCampaign } from "@/lib/appwrite";
 import { campaignsService } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 import { getEmailPreview } from "@/lib/email-formatting/client";
+import {
+  formatEmailSendErrorForUser,
+  formatSendResultLabel,
+  sendResultBadgeVariant,
+} from "@/lib/gmail-user-message";
 import { parseRecipients } from "@/lib/utils/recipients";
 
 import { ActivityChart } from "./_components/activity-chart";
@@ -240,8 +246,8 @@ export default function DashboardPage() {
     const rows: string[][] = c.send_results?.length
       ? c.send_results.map((r: any) => [
           r.email || "",
-          r.status === "success" ? "Sent" : "Failed",
-          r.error || "",
+          formatSendResultLabel(r.status),
+          r.error ? formatEmailSendErrorForUser(r.error) : "",
           r.timestamp || c.created_at || "",
         ])
       : parseRecipients(c.recipients).map((e) => [
@@ -558,27 +564,29 @@ export default function DashboardPage() {
                       .map((r: any, i: number) => (
                         <div
                           key={i}
-                          className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 text-sm"
+                          className="px-4 py-2.5 hover:bg-muted/30 text-sm space-y-0.5"
                         >
-                          {r.status === "success" ? (
-                            <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                          ) : (
-                            <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
-                          )}
-                          <span className="flex-1 truncate">{r.email}</span>
+                          <div className="flex items-center gap-3">
+                            {r.status === "success" ? (
+                              <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                            ) : r.status === "cancelled" ? (
+                              <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            ) : (
+                              <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                            )}
+                            <span className="flex-1 truncate">{r.email}</span>
+                            <Badge
+                              variant={sendResultBadgeVariant(r.status)}
+                              className="text-[10px] shrink-0"
+                            >
+                              {formatSendResultLabel(r.status)}
+                            </Badge>
+                          </div>
                           {r.error && (
-                            <span className="text-xs text-red-500 truncate max-w-[160px]">
-                              {r.error}
-                            </span>
+                            <p className="text-xs text-muted-foreground pl-6">
+                              {formatEmailSendErrorForUser(r.error)}
+                            </p>
                           )}
-                          <Badge
-                            variant={
-                              r.status === "success" ? "success" : "destructive"
-                            }
-                            className="text-[10px] shrink-0"
-                          >
-                            {r.status === "success" ? "Delivered" : "Failed"}
-                          </Badge>
                         </div>
                       ))
                   ) : (
