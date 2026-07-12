@@ -223,9 +223,13 @@ export async function sendEmailViaAPI(
     enabled?: boolean;
   },
   isTransactional?: boolean,
+  cc?: string[],
+  bcc?: string[],
 ) {
   // Validate and sanitize the recipient email
   const validatedTo = validateAndSanitizeEmail(to);
+  const validatedCc = (cc ?? []).map(validateAndSanitizeEmail);
+  const validatedBcc = (bcc ?? []).map(validateAndSanitizeEmail);
 
   // Check total attachment size - Gmail has a 25MB limit
   const GMAIL_ATTACHMENT_LIMIT = 25 * 1024 * 1024; // 25MB
@@ -427,6 +431,8 @@ export async function sendEmailViaAPI(
   const email = [
     `From: ${fromEmail}`,
     `To: ${validatedTo}`,
+    ...(validatedCc.length ? [`Cc: ${validatedCc.join(", ")}`] : []),
+    ...(validatedBcc.length ? [`Bcc: ${validatedBcc.join(", ")}`] : []),
     `Subject: ${encodedSubject}`,
     `MIME-Version: 1.0`,
     mimeBody,

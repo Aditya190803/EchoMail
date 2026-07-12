@@ -445,6 +445,8 @@ export function useEmailSend(): UseEmailSendResult {
           campaignId: campaignIdRef.current,
           isTransactional,
           trackingEnabled: trackingEnabledRef.current,
+          ...(email.cc?.length ? { cc: email.cc } : {}),
+          ...(email.bcc?.length ? { bcc: email.bcc } : {}),
         };
 
         const csrfToken = getCookie(CSRF_TOKEN_NAME);
@@ -600,7 +602,17 @@ export function useEmailSend(): UseEmailSendResult {
       const campaignId = options?.campaignId || generateCampaignId();
       campaignIdRef.current = campaignId;
 
-      const totalEmails = personalizedEmails.length;
+      // Campaign-level cc/bcc fill in when a message doesn't set its own
+      const emails =
+        options?.cc?.length || options?.bcc?.length
+          ? personalizedEmails.map((email) => ({
+              ...email,
+              cc: email.cc ?? options.cc,
+              bcc: email.bcc ?? options.bcc,
+            }))
+          : personalizedEmails;
+
+      const totalEmails = emails.length;
       emailSendLogger.info(`Starting email campaign`, {
         totalEmails,
         maxRetries: MAX_RETRIES,
@@ -638,7 +650,7 @@ export function useEmailSend(): UseEmailSendResult {
 
       // Initialize all emails as pending with unique index
       setSendStatus(
-        personalizedEmails.map((email, index) => ({
+        emails.map((email, index) => ({
           email: email.to,
           status: "pending" as const,
           index,
@@ -648,7 +660,7 @@ export function useEmailSend(): UseEmailSendResult {
       // Initialize campaign state for persistence
       const campaignState: CampaignState = {
         campaignId,
-        emails: personalizedEmails,
+        emails: emails,
         sentIndices: [],
         failedIndices: [],
         status: "in-progress",
@@ -662,10 +674,10 @@ export function useEmailSend(): UseEmailSendResult {
       let _successCount = 0;
 
       try {
-        for (let i = 0; i < personalizedEmails.length; i++) {
+        for (let i = 0; i < emails.length; i++) {
           // Check if stop was requested
           if (shouldStopRef.current) {
-            const remainingEmails = personalizedEmails.slice(i);
+            const remainingEmails = emails.slice(i);
             remainingEmailsRef.current = remainingEmails;
 
             // Mark remaining as cancelled
@@ -714,7 +726,7 @@ export function useEmailSend(): UseEmailSendResult {
             break;
           }
 
-          const email = personalizedEmails[i];
+          const email = emails[i];
 
           // Check token every N emails to prevent expiry during long campaigns
           if (i > 0 && i % tokenCheckInterval === 0) {
@@ -727,7 +739,7 @@ export function useEmailSend(): UseEmailSendResult {
             if (!tokenStatus.valid) {
               emailSendLogger.error("Token expired during campaign");
               // Store remaining emails for retry
-              const remainingEmails = personalizedEmails.slice(i);
+              const remainingEmails = emails.slice(i);
               remainingEmailsRef.current = remainingEmails;
               setFailedEmails(remainingEmails);
               setStoppedDueToError(true);
@@ -834,7 +846,7 @@ export function useEmailSend(): UseEmailSendResult {
               );
 
               // Mark remaining emails as skipped
-              const remainingEmails = personalizedEmails.slice(i + 1);
+              const remainingEmails = emails.slice(i + 1);
               remainingEmailsRef.current = remainingEmails;
               setFailedEmails([email, ...remainingEmails]);
 
@@ -895,7 +907,7 @@ export function useEmailSend(): UseEmailSendResult {
           }
 
           // Wait between emails to avoid rate limits (using configurable delay)
-          if (i < personalizedEmails.length - 1) {
+          if (i < emails.length - 1) {
             setProgress((prev) => ({
               ...prev,
               status: `Sent ${i + 1}/${totalEmails}. Waiting ${delayBetweenEmails / 1000}s before next...`,
@@ -909,8 +921,7 @@ export function useEmailSend(): UseEmailSendResult {
         // Check if completed successfully
         const errorCount = results.filter((r) => r.status === "error").length;
         const allProcessed =
-          !shouldStopRef.current &&
-          results.length === personalizedEmails.length;
+          !shouldStopRef.current && results.length === emails.length;
 
         if (allProcessed) {
           const sent = results.filter((r) => r.status === "success").length;

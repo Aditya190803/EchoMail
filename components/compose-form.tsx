@@ -57,6 +57,7 @@ import {
 } from "@/lib/email/preview-utils";
 import { getEmailPreview } from "@/lib/email-formatting/client";
 import { getCookie } from "@/lib/utils";
+import { isValidEmail } from "@/lib/validation";
 import type { CSVRow } from "@/types/email";
 
 // Draft storage key
@@ -97,6 +98,10 @@ export function ComposeForm() {
   // Form state
   const [subject, setSubject] = useState("");
   const [content, setContent] = useState("");
+  const [cc, setCc] = useState("");
+  const [bcc, setBcc] = useState("");
+  const [showCc, setShowCc] = useState(false);
+  const [showBcc, setShowBcc] = useState(false);
   const [recipients, setRecipients] = useState<string[]>([]);
   const [attachments, setAttachments] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -1161,6 +1166,22 @@ export function ComposeForm() {
       return;
     }
 
+    const parseList = (raw: string) => [
+      ...new Set(
+        raw
+          .split(/[,;\s]+/)
+          .map((s) => s.trim().toLowerCase())
+          .filter(Boolean),
+      ),
+    ];
+    const ccList = parseList(cc);
+    const bccList = parseList(bcc);
+    const bad = [...ccList, ...bccList].filter((e) => !isValidEmail(e));
+    if (bad.length) {
+      toast.error(`Invalid Cc/Bcc address: ${bad[0]}`);
+      return;
+    }
+
     // Immediately show preparing state to prevent double-clicks
     setIsPreparingSend(true);
 
@@ -1390,10 +1411,13 @@ export function ComposeForm() {
 
     try {
       const campaignId = generateCampaignId();
+
       const results = await sendEmails(personalizedEmails, {
         campaignId,
         isTransactional: !isMarketing,
         trackingEnabled,
+        ...(ccList.length ? { cc: ccList } : {}),
+        ...(bccList.length ? { bcc: bccList } : {}),
       });
 
       const successCount = results.filter((r) => r.status === "success").length;
@@ -1758,6 +1782,10 @@ export function ComposeForm() {
                 isLoadingTemplates={isLoadingTemplates}
                 subject={subject}
                 content={content}
+                cc={cc}
+                bcc={bcc}
+                showCc={showCc}
+                showBcc={showBcc}
                 attachments={attachments}
                 isUploading={isUploading}
                 csvData={csvData}
@@ -1776,6 +1804,10 @@ export function ComposeForm() {
                 setTemplateSearch={setTemplateSearch}
                 setSubject={setSubject}
                 setContent={setContent}
+                setCc={setCc}
+                setBcc={setBcc}
+                setShowCc={setShowCc}
+                setShowBcc={setShowBcc}
                 handleFileUpload={handleFileUpload}
                 removeAttachment={removeAttachment}
                 setPreviewAttachmentUrl={setPreviewAttachmentUrl}

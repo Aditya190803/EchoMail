@@ -100,6 +100,8 @@ export const sendSingleEmailSchema = z.object({
   originalRowData: z.record(z.string(), z.string()).optional(),
   attachments: z.array(attachmentSchema).optional(),
   personalizedAttachment: personalizedAttachmentSchema.optional(),
+  cc: z.array(emailSchema).max(50).optional(),
+  bcc: z.array(emailSchema).max(50).optional(),
 });
 
 /**

@@ -52,6 +52,10 @@ export interface EmailContent {
   body: string;
   /** Optional email signature to append */
   signature?: string;
+  /** Optional CC addresses */
+  cc?: string[];
+  /** Optional BCC addresses */
+  bcc?: string[];
 }
 
 /**
@@ -274,6 +278,8 @@ export class EmailService {
         resolvedAttachments,
         tracking,
         isTransactional,
+        content.cc,
+        content.bcc,
       );
 
       // Record "sent" event

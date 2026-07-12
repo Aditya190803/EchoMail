@@ -79,6 +79,10 @@ export interface PersonalizedEmailData {
   originalRowData: CSVRow;
   attachments?: AttachmentData[];
   personalizedAttachment?: PersonalizedAttachment;
+  /** Optional CC addresses for this message */
+  cc?: string[];
+  /** Optional BCC addresses for this message */
+  bcc?: string[];
 }
 
 /**
@@ -91,6 +95,10 @@ export interface SendOptions {
   campaignSubject?: string;
   isTransactional?: boolean;
   trackingEnabled?: boolean;
+  /** Applied to every message unless the email sets its own */
+  cc?: string[];
+  /** Applied to every message unless the email sets its own */
+  bcc?: string[];
 }
 
 /**

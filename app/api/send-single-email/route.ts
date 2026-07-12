@@ -38,6 +38,8 @@ export async function POST(request: NextRequest) {
       campaignId,
       trackingEnabled = true,
       isTransactional = false,
+      cc,
+      bcc,
     } = data;
 
     if (!to || !subject || !message) {
@@ -58,6 +60,8 @@ export async function POST(request: NextRequest) {
       {
         subject,
         body: message,
+        cc: Array.isArray(cc) ? cc : undefined,
+        bcc: Array.isArray(bcc) ? bcc : undefined,
       },
       attachments,
       trackingEnabled
