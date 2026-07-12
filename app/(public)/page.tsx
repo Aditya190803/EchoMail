@@ -190,9 +190,9 @@ export default function HomePage() {
               {/* left: text */}
               <div className="space-y-7">
                 <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.08] text-balance">
-                  Send <span className="text-primary">personalised</span> emails{" "}
+                  Send your <span className="text-primary">Flier</span>{" "}
                   <br className="hidden sm:block" />
-                  at scale
+                  to the whole list
                 </h1>
 
                 <p className="text-base sm:text-lg text-muted-foreground leading-relaxed max-w-md">

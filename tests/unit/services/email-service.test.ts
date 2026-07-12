@@ -85,18 +85,27 @@ vi.mock("@/lib/attachment-fetcher", () => ({
   fetchFileFromUrl: vi.fn(),
 }));
 
-vi.mock("@/lib/services/verification-service", () => ({
-  VerificationService: {
-    verifyEmail: vi.fn(verifyEmailLikeReal),
-    verifyBatch: vi.fn(async (emails: string[]) => {
-      const results = new Map();
-      for (const email of emails) {
-        results.set(email, await verifyEmailLikeReal(email));
-      }
-      return results;
-    }),
-  },
-}));
+vi.mock("@/lib/services/verification-service", () => {
+  const verifyEmail = vi.fn(async (email: string) => {
+    const trimmed = email.trim().toLowerCase();
+    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmed)) {
+      return { isValid: false, reason: "Invalid syntax", score: 0 };
+    }
+    return { isValid: true, score: 100 };
+  });
+  return {
+    VerificationService: {
+      verifyEmail,
+      verifyBatch: vi.fn(async (emails: string[]) => {
+        const results = new Map();
+        for (const e of emails) {
+          results.set(e, await verifyEmail(e));
+        }
+        return results;
+      }),
+    },
+  };
+});
 
 describe("EmailService", () => {
   let emailService: EmailService;

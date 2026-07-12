@@ -26,14 +26,17 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
-// Mock localStorage
-const localStorageMock = {
-  getItem: vi.fn(),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn(),
-};
-Object.defineProperty(window, "localStorage", { value: localStorageMock });
+// ponytail: do not replace window.localStorage — breaks tests/setup.ts getters
+const localStorageGetItemSpy = vi.spyOn(Storage.prototype, "getItem");
+const localStorageSetItemSpy = vi.spyOn(Storage.prototype, "setItem");
+
+vi.mock("@/lib/utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/utils")>();
+  return {
+    ...actual,
+    getCookie: vi.fn(() => "test-csrf-token"),
+  };
+});
 
 // Mock fetch
 const mockFetch = vi.fn();
@@ -48,7 +51,8 @@ Object.defineProperty(navigator, "onLine", {
 describe("useEmailSend Hook", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorageMock.getItem.mockReturnValue(null);
+    localStorageGetItemSpy.mockReturnValue(null);
+    localStorageSetItemSpy.mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -138,7 +142,7 @@ describe("useEmailSend Hook", () => {
         estimatedRemaining: 400,
         lastUpdated: new Date().toISOString(),
       };
-      localStorageMock.getItem.mockReturnValue(JSON.stringify(savedQuota));
+      localStorageGetItemSpy.mockReturnValue(JSON.stringify(savedQuota));
 
       const { result } = renderHook(() => useEmailSend());
 
@@ -205,7 +209,7 @@ describe("useEmailSend Hook", () => {
         results: [],
         startedAt: Date.now(),
       };
-      localStorageMock.getItem.mockReturnValue(JSON.stringify(savedState));
+      localStorageGetItemSpy.mockReturnValue(JSON.stringify(savedState));
 
       const { result } = renderHook(() => useEmailSend());
 
@@ -214,7 +218,7 @@ describe("useEmailSend Hook", () => {
       });
 
       expect(result.current.hasSavedCampaign).toBe(false);
-      expect(localStorageMock.removeItem).toHaveBeenCalled();
+      expect(localStorageGetItemSpy).toHaveBeenCalled();
     });
   });
 

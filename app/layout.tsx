@@ -29,6 +29,7 @@ export const metadata: Metadata = {
     "notices",
   ],
   authors: [{ name: APP_NAME }],
+  manifest: "/manifest.json",
 };
 
 export const viewport: Viewport = {

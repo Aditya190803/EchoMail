@@ -4,6 +4,15 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
+vi.mock("@/lib/logger", () => {
+  const { createMockLoggerModule, createSpyLogger } =
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require("../../helpers/mockLoggerModule");
+  return createMockLoggerModule({
+    authLogger: createSpyLogger(),
+  });
+});
+
 import {
   validateToken,
   shouldAttemptRefresh,
@@ -12,17 +21,6 @@ import {
   sanitizeTokenForLogging,
   type TokenInfo,
 } from "@/lib/token-security";
-import {
-  createMockLoggerModule,
-  createSpyLogger,
-} from "@/tests/helpers/mockLoggerModule";
-
-// Mock logger
-vi.mock("@/lib/logger", () =>
-  createMockLoggerModule({
-    authLogger: createSpyLogger(),
-  }),
-);
 
 // Mock fetch
 const mockFetch = vi.fn();

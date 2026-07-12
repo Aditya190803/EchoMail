@@ -61,7 +61,7 @@ const envSchema = z.object({
   NEXT_PUBLIC_APPWRITE_TEAM_MEMBERS_COLLECTION_ID: z.string().default(""),
 
   // Analytics
-  NEXT_PUBLIC_APP_URL: z.string().url().default("https://flier.tech"),
+  NEXT_PUBLIC_APP_URL: z.string().url().default("https://sendflier.tech"),
 });
 
 // Parse and validate environment variables

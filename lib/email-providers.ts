@@ -224,7 +224,7 @@ export class SendGridProvider implements EmailProvider {
     try {
       const payload = {
         personalizations: [{ to: [{ email: message.to }] }],
-        from: { email: message.from || "noreply@flier.tech" },
+        from: { email: message.from || "noreply@sendflier.tech" },
         subject: message.subject,
         content: [
           { type: "text/html", value: message.html },
