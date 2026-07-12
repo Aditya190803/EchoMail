@@ -330,7 +330,7 @@ export default function WebhooksPage() {
               Webhooks
             </div>
           }
-          description="Integrate EchoMail with your apps and services in real-time"
+          description="Integrate Flier with your apps and services in real-time"
           actions={
             <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
               <DialogTrigger asChild>
@@ -427,7 +427,7 @@ export default function WebhooksPage() {
                     />
                     <p className="text-xs text-muted-foreground">
                       If set, payloads will be signed with HMAC-SHA256 in the
-                      X-EchoMail-Signature header
+                      X-Flier-Signature header
                     </p>
                   </div>
                   <div className="flex gap-2 pt-4">
@@ -640,7 +640,7 @@ export default function WebhooksPage() {
                     </div>
                     <p className="text-sm text-muted-foreground">
                       Webhooks send instant HTTP POST requests to your server
-                      whenever an event occurs in EchoMail, enabling real-time
+                      whenever an event occurs in Flier, enabling real-time
                       integrations.
                     </p>
                   </CardContent>
@@ -656,7 +656,7 @@ export default function WebhooksPage() {
                     </div>
                     <p className="text-sm text-muted-foreground">
                       Optional HMAC-SHA256 signatures verify that webhook
-                      requests genuinely come from EchoMail, protecting against
+                      requests genuinely come from Flier, protecting against
                       spoofed requests.
                     </p>
                   </CardContent>
@@ -806,7 +806,7 @@ export default function WebhooksPage() {
                     <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
                       <div className="flex-1">
                         <code className="text-sm font-semibold">
-                          X-EchoMail-Event
+                          X-Flier-Event
                         </code>
                         <p className="text-xs text-muted-foreground mt-1">
                           The event type (e.g., campaign.sent)
@@ -816,7 +816,7 @@ export default function WebhooksPage() {
                     <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
                       <div className="flex-1">
                         <code className="text-sm font-semibold">
-                          X-EchoMail-Timestamp
+                          X-Flier-Timestamp
                         </code>
                         <p className="text-xs text-muted-foreground mt-1">
                           Unix timestamp of when the event occurred
@@ -827,7 +827,7 @@ export default function WebhooksPage() {
                       <Key className="h-4 w-4 text-primary mt-0.5" />
                       <div className="flex-1">
                         <code className="text-sm font-semibold">
-                          X-EchoMail-Signature
+                          X-Flier-Signature
                         </code>
                         <p className="text-xs text-muted-foreground mt-1">
                           HMAC-SHA256 signature (only if secret is configured).
@@ -875,7 +875,7 @@ function verifyWebhookSignature(payload, signature, secret) {
 
 // In your webhook handler:
 app.post('/webhook', (req, res) => {
-  const signature = req.headers['x-echomail-signature'];
+  const signature = req.headers['x-flier-signature'] ?? req.headers['x-echomail-signature'];
   const isValid = verifyWebhookSignature(req.body, signature, YOUR_SECRET);
   
   if (!isValid) {
@@ -911,7 +911,7 @@ function verifyWebhookSignature(payload, signature, secret) {
 
 // In your webhook handler:
 app.post('/webhook', (req, res) => {
-  const signature = req.headers['x-echomail-signature'];
+  const signature = req.headers['x-flier-signature'] ?? req.headers['x-echomail-signature'];
   const isValid = verifyWebhookSignature(req.body, signature, YOUR_SECRET);
   
   if (!isValid) {
@@ -1012,8 +1012,8 @@ app.post('/webhook', (req, res) => {
                         <strong className="text-foreground">
                           Verify signatures
                         </strong>{" "}
-                        – Always verify the X-EchoMail-Signature header to
-                        ensure authenticity
+                        – Always verify the X-Flier-Signature header to ensure
+                        authenticity
                       </span>
                     </li>
                     <li className="flex items-start gap-2">

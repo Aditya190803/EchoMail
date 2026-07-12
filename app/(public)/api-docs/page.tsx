@@ -22,9 +22,10 @@ export default function ApiDocsPage() {
             API & Webhooks Documentation
           </h1>
           <p className="text-muted-foreground">
-            Interactive API and Webhooks documentation for the EchoMail email
+            Interactive API and Webhooks documentation for the Flier email
             campaign platform. API endpoints require authentication via active
-            session or API keys. Webhooks can be configured in your account settings.
+            session or API keys. Webhooks can be configured in your account
+            settings.
           </p>
         </header>
 

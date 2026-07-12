@@ -25,7 +25,7 @@ export function FloatingNav() {
             <Mail className="h-3 w-3 text-primary-foreground" />
           </div>
           <span className="text-sm font-semibold hidden sm:inline-block">
-            EchoMail
+            Flier
           </span>
         </Link>
 

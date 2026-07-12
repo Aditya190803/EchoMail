@@ -58,28 +58,28 @@ const consentTypes = [
     type: "data_processing",
     title: "Data Processing",
     description:
-      "Required for the core functionality of EchoMail. This allows us to store and process your email campaigns, contacts, and templates.",
+      "Required for the core functionality of Flier. This allows us to store and process your email campaigns, contacts, and templates.",
     required: true,
   },
   {
     type: "analytics",
     title: "Analytics & Tracking",
     description:
-      "Help us improve EchoMail by allowing anonymous usage analytics. This includes feature usage statistics and performance metrics.",
+      "Help us improve Flier by allowing anonymous usage analytics. This includes feature usage statistics and performance metrics.",
     required: false,
   },
   {
     type: "marketing",
     title: "Marketing Communications",
     description:
-      "Receive updates about new features, tips, and promotional offers from EchoMail.",
+      "Receive updates about new features, tips, and promotional offers from Flier.",
     required: false,
   },
   {
     type: "third_party",
     title: "Third-Party Integrations",
     description:
-      "Allow data sharing with integrated third-party services you connect to EchoMail.",
+      "Allow data sharing with integrated third-party services you connect to Flier.",
     required: false,
   },
 ];
@@ -176,7 +176,7 @@ export default function GDPRPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `echomail-data-export-${new Date().toISOString().split("T")[0]}.json`;
+      a.download = `flier-data-export-${new Date().toISOString().split("T")[0]}.json`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -265,7 +265,7 @@ export default function GDPRPage() {
               Export Your Data
             </CardTitle>
             <CardDescription>
-              Download a copy of all your data stored in EchoMail
+              Download a copy of all your data stored in Flier
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -372,7 +372,7 @@ export default function GDPRPage() {
               Delete Your Data
             </CardTitle>
             <CardDescription>
-              Permanently delete all your data from EchoMail
+              Permanently delete all your data from Flier
             </CardDescription>
           </CardHeader>
           <CardContent>

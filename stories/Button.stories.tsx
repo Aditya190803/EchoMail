@@ -181,7 +181,7 @@ export const Disabled: Story = {
 };
 
 /**
- * Send email button - common use case in EchoMail.
+ * Send email button - common use case in Flier.
  */
 export const SendEmail: Story = {
   args: {

@@ -50,7 +50,11 @@ import {
 } from "@/lib/appwrite";
 import { detectPdfColumn, isPdfUrl } from "@/lib/attachment-fetcher";
 import { componentLogger } from "@/lib/client-logger";
-import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
+import {
+  CSRF_HEADER_NAME,
+  CSRF_TOKEN_NAME,
+  STORAGE_KEY_COMPOSE_DRAFT,
+} from "@/lib/constants";
 import {
   createGmailPreviewWrapper as buildGmailPreviewWrapper,
   replacePlaceholders,
@@ -59,8 +63,7 @@ import { getEmailPreview } from "@/lib/email-formatting/client";
 import { getCookie } from "@/lib/utils";
 import type { CSVRow } from "@/types/email";
 
-// Draft storage key
-const DRAFT_STORAGE_KEY = "echomail_draft";
+const DRAFT_STORAGE_KEY = STORAGE_KEY_COMPOSE_DRAFT;
 
 // File size threshold for immediate Appwrite upload (5MB)
 const LARGE_FILE_THRESHOLD = 5 * 1024 * 1024;

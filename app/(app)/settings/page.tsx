@@ -87,7 +87,7 @@ const settingsCategories = [
     items: [
       {
         name: "Integrations",
-        description: "Connect EchoMail with external tools and services",
+        description: "Connect Flier with external tools and services",
         icon: Plug,
         color: "text-info",
         bgColor: "bg-info/10",
@@ -159,7 +159,7 @@ export default function SettingsPage() {
             Settings
           </div>
         }
-        description="Manage your EchoMail account, sending setup, and workspace controls"
+        description="Manage your Flier account, sending setup, and workspace controls"
       />
 
       {/* Settings Categories */}

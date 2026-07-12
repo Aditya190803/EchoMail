@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
         method: "HEAD",
         redirect: "follow",
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; EchoMail/1.0)",
+          "User-Agent": "Mozilla/5.0 (compatible; Flier/1.0)",
         },
       });
 
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
           method: "GET",
           redirect: "follow",
           headers: {
-            "User-Agent": "Mozilla/5.0 (compatible; EchoMail/1.0)",
+            "User-Agent": "Mozilla/5.0 (compatible; Flier/1.0)",
             Range: "bytes=0-0", // Only fetch first byte to get headers
           },
         });

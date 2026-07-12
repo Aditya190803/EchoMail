@@ -167,7 +167,7 @@ function generateHtmlPage(title: string, message: string): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title} | EchoMail</title>
+  <title>${title} | Flier</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -311,7 +311,7 @@ function generateHtmlPage(title: string, message: string): string {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
         </svg>
       </div>
-      EchoMail
+      Flier
     </div>
     <div class="status-icon">
       ${
@@ -326,7 +326,7 @@ function generateHtmlPage(title: string, message: string): string {
     <p>${message}</p>
     <a href="/" class="btn">Back to Home</a>
     <div class="footer">
-      Powered by <a href="/">EchoMail</a>
+      Powered by <a href="/">Flier</a>
     </div>
   </div>
 </body>

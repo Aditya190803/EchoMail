@@ -201,7 +201,16 @@ export const FEATURE_TEAMS = process.env.NEXT_PUBLIC_FEATURE_TEAMS === "true";
 /**
  * LocalStorage key for theme preference
  */
-export const STORAGE_KEY_THEME = "echomail-theme";
+export const STORAGE_KEY_THEME = "flier-theme";
+
+/** Compose draft in localStorage */
+export const STORAGE_KEY_COMPOSE_DRAFT = "flier_draft";
+
+/** In-flight campaign persistence */
+export const STORAGE_KEY_CAMPAIGN_STATE = "flier_campaign_state";
+export const STORAGE_KEY_CAMPAIGN_LOCK = "flier_campaign_lock";
+export const STORAGE_KEY_TAB_ID = "flier_tab_id";
+export const STORAGE_KEY_GMAIL_QUOTA = "flier_gmail_quota";
 
 /**
  * SessionStorage key for selected template

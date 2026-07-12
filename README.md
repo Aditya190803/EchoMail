@@ -1,4 +1,4 @@
-# EchoMail 📧
+# Flier 📧
 
 [![Built with Next.js](https://img.shields.io/badge/Built%20with-Next.js%2015-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -7,7 +7,7 @@
 
 ## 🚀 Overview
 
-**EchoMail** is a powerful, modern email marketing platform that seamlessly integrates with Gmail API to send personalized bulk emails. Built with Next.js 15 and TypeScript, it offers a professional-grade solution for businesses and individuals looking to manage email campaigns with Gmail-like formatting and reliability.
+**Flier** is a powerful, modern email marketing platform that seamlessly integrates with Gmail API to send personalized bulk emails. Built with Next.js 15 and TypeScript, it offers a professional-grade solution for businesses and individuals looking to manage email campaigns with Gmail-like formatting and reliability.
 
 ## ✨ Key Features
 
@@ -124,8 +124,8 @@ Before you begin, ensure you have:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/Aditya190803/echomail.git
-cd echomail
+git clone https://github.com/Aditya190803/flier.git
+cd flier
 ```
 
 ### 2. Install Dependencies
@@ -188,7 +188,7 @@ UPSTASH_REDIS_REST_TOKEN=your-upstash-token
 4. Create OAuth 2.0 credentials
 5. Add authorized redirect URIs:
    - `http://localhost:3000/api/auth/callback/google` (development)
-   - `https://echomail.adityamer.dev/api/auth/callback/google` (production)
+   - `https://flier.tech/api/auth/callback/google` (production)
 
 ### 5. Set Up Appwrite
 
@@ -265,7 +265,7 @@ Open [http://localhost:3000](http://localhost:3000) to see your application.
 
 ## 🔒 Token Refresh
 
-EchoMail includes automatic token refresh for long-running campaigns:
+Flier includes automatic token refresh for long-running campaigns:
 
 - Monitors token expiry during bulk email sends
 - Automatically refreshes tokens every 10 emails
@@ -316,7 +316,7 @@ Error: invalid_grant
 
 - Ensure redirect URIs in Google Cloud Console match exactly:
   - Development: `http://localhost:3000/api/auth/callback/google`
-  - Production: `https://echomail.adityamer.dev/api/auth/callback/google`
+  - Production: `https://flier.tech/api/auth/callback/google`
 - Note: URIs are case-sensitive and must not have trailing slashes
 
 **Problem:** "Access blocked: This app's request is invalid"
@@ -332,7 +332,7 @@ Error: invalid_grant
 **Solution:**
 
 - Gmail API has daily limits (500 emails/day for free accounts, 2000 for Google Workspace)
-- Add delays between bulk sends (EchoMail adds 1 second automatically)
+- Add delays between bulk sends (Flier adds 1 second automatically)
 - Check the sending progress in `/dashboard`
 - Wait 24 hours if quota exceeded
 

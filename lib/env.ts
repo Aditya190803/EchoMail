@@ -61,10 +61,7 @@ const envSchema = z.object({
   NEXT_PUBLIC_APPWRITE_TEAM_MEMBERS_COLLECTION_ID: z.string().default(""),
 
   // Analytics
-  NEXT_PUBLIC_APP_URL: z
-    .string()
-    .url()
-    .default("https://echomail.adityamer.dev"),
+  NEXT_PUBLIC_APP_URL: z.string().url().default("https://flier.tech"),
 });
 
 // Parse and validate environment variables

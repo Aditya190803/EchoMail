@@ -8,9 +8,11 @@ import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { initGA4 } from "@/lib/activity/ga4";
 import { QueryProvider } from "@/lib/query-client";
+import { migrateLegacyStorageKeys } from "@/lib/storage-migration";
 
 export function Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
+    migrateLegacyStorageKeys();
     // Initialize GA4 with the measurement ID from env
     const measurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
     if (measurementId) {

@@ -136,7 +136,7 @@ export function KeyboardShortcutsModal() {
             Keyboard Shortcuts
           </DialogTitle>
           <DialogDescription>
-            Quick reference for all keyboard shortcuts in EchoMail
+            Quick reference for all keyboard shortcuts in Flier
           </DialogDescription>
         </DialogHeader>
         <div className="h-[60vh] overflow-y-auto pr-4">

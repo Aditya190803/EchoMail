@@ -1,12 +1,12 @@
 /**
- * Service Worker for EchoMail
+ * Service Worker for Flier
  *
  * Provides offline support, caching strategies, and background sync
  * for improved performance and reliability.
  */
 
-const STATIC_CACHE_NAME = "echomail-static-v1";
-const DYNAMIC_CACHE_NAME = "echomail-dynamic-v1";
+const STATIC_CACHE_NAME = "flier-static-v2";
+const DYNAMIC_CACHE_NAME = "flier-dynamic-v2";
 
 // Static assets to cache on install
 const STATIC_ASSETS = ["/"];
@@ -44,7 +44,7 @@ self.addEventListener("activate", (event) => {
         cacheNames
           .filter((name) => {
             return (
-              name.startsWith("echomail-") &&
+              (name.startsWith("echomail-") || name.startsWith("flier-")) &&
               name !== STATIC_CACHE_NAME &&
               name !== DYNAMIC_CACHE_NAME
             );
@@ -243,7 +243,7 @@ self.addEventListener("push", (event) => {
   const data = event.data.json();
 
   event.waitUntil(
-    self.registration.showNotification(data.title || "EchoMail", {
+    self.registration.showNotification(data.title || "Flier", {
       body: data.body || "You have a new notification",
       icon: "/icons/icon-192x192.png",
       badge: "/icons/badge-72x72.png",

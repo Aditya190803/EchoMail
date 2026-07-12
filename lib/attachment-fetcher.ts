@@ -31,7 +31,7 @@ async function fetchWithRetry(
         method: "GET",
         redirect: "follow",
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; EchoMail/1.0)",
+          "User-Agent": "Mozilla/5.0 (compatible; Flier/1.0)",
         },
       });
 

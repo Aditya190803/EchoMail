@@ -13,4 +13,4 @@ Disallow: /insights/
 Disallow: /settings/
 Disallow: /auth/
 
-Sitemap: https://echomail.adityamer.dev/sitemap.xml
+Sitemap: https://flier.tech/sitemap.xml

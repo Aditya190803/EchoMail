@@ -49,7 +49,7 @@ const defaultConfig: LoggerConfig = {
   minLevel: process.env.NODE_ENV === "production" ? "info" : "debug",
   includeTimestamp: true,
   jsonFormat: process.env.NODE_ENV === "production",
-  appName: "EchoMail",
+  appName: "Flier",
 };
 
 class Logger {

@@ -166,9 +166,7 @@ export function ServiceWorkerUpdateNotification() {
     >
       <div>
         <p className="font-medium">Update available!</p>
-        <p className="text-sm opacity-90">
-          A new version of EchoMail is ready.
-        </p>
+        <p className="text-sm opacity-90">A new version of Flier is ready.</p>
       </div>
       <div className="flex gap-2">
         <button

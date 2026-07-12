@@ -426,7 +426,7 @@ export default function HistoryPage() {
     });
     downloadFile(
       csv,
-      `echomail-insights-${new Date().toISOString().split("T")[0]}.csv`,
+      `flier-insights-${new Date().toISOString().split("T")[0]}.csv`,
       "text/csv",
     );
     toast.success("CSV report exported!");
@@ -450,7 +450,7 @@ export default function HistoryPage() {
       });
       downloadFile(
         pdf,
-        `echomail-insights-${new Date().toISOString().split("T")[0]}.pdf`,
+        `flier-insights-${new Date().toISOString().split("T")[0]}.pdf`,
         "application/pdf",
       );
       toast.success("PDF report exported!");

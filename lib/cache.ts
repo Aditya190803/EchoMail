@@ -53,7 +53,7 @@ class MemoryCache implements CacheProvider {
     this.config = {
       defaultTTL: DEFAULT_CACHE_TTL_SECONDS,
       maxEntries: 1000,
-      keyPrefix: "echomail:",
+      keyPrefix: "flier:",
       ...config,
     };
   }
@@ -164,7 +164,7 @@ class UpstashCache implements CacheProvider {
     this.config = {
       defaultTTL: DEFAULT_CACHE_TTL_SECONDS,
       maxEntries: 10000,
-      keyPrefix: "echomail:",
+      keyPrefix: "flier:",
       ...config,
     };
 

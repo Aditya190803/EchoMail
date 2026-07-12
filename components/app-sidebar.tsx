@@ -129,7 +129,7 @@ export function AppSidebar() {
                   <Mail className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">EchoMail</span>
+                  <span className="truncate font-semibold">Flier</span>
                   <span className="truncate text-xs text-muted-foreground">
                     Email Campaigns
                   </span>

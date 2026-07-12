@@ -48,7 +48,7 @@ export function PublicHeader() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm group-hover:scale-105 transition-transform duration-200">
               <Mail className="h-4 w-4" />
             </div>
-            <span className="text-base font-bold tracking-tight">EchoMail</span>
+            <span className="text-base font-bold tracking-tight">Flier</span>
           </Link>
 
           {/* Desktop nav */}

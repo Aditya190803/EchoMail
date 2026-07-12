@@ -1,6 +1,6 @@
 /**
  * Google Analytics 4 Integration
- * Provides GA4 event tracking for EchoMail
+ * Provides GA4 event tracking for Flier
  */
 
 import type { GA4Config, GA4Event } from "@/types/activity";

@@ -230,7 +230,7 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Content-Disposition": `attachment; filename="echomail-data-export-${new Date().toISOString().split("T")[0]}.json"`,
+        "Content-Disposition": `attachment; filename="flier-data-export-${new Date().toISOString().split("T")[0]}.json"`,
       },
     });
   } catch (error: any) {

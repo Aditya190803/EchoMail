@@ -1,7 +1,9 @@
+import { STORAGE_KEY_GMAIL_QUOTA } from "@/lib/constants";
 import type { QuotaInfo } from "@/types/campaign";
 
 export const GMAIL_DAILY_LIMIT = 500;
-export const QUOTA_STORAGE_KEY = "echomail_gmail_quota";
+
+export const QUOTA_STORAGE_KEY = STORAGE_KEY_GMAIL_QUOTA;
 
 export const loadInitialQuota = (): QuotaInfo => {
   if (typeof window === "undefined") {

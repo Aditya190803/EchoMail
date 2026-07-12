@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  
-  Shield,
-  Eye,
-  Lock,
-  Database,
-  UserCheck,
-  Mail,
-} from "lucide-react";
+import { Shield, Eye, Lock, Database, UserCheck, Mail } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -38,7 +30,7 @@ export default function PrivacyPolicyPage() {
                     <h2 className="text-lg font-semibold">Introduction</h2>
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
-                    At EchoMail, we take your privacy seriously. This Privacy
+                    At Flier, we take your privacy seriously. This Privacy
                     Policy explains how we collect, use, and protect your
                     information when you use our Gmail API integration service
                     for sending personalized bulk emails.
@@ -169,9 +161,9 @@ export default function PrivacyPolicyPage() {
                     </h2>
                   </div>
                   <p className="text-muted-foreground">
-                    EchoMail integrates with Google Gmail API to send emails.
-                    Your use of Gmail is subject to Google's Privacy Policy and
-                    Terms of Service. We do not share your data with any other
+                    Flier integrates with Google Gmail API to send emails. Your
+                    use of Gmail is subject to Google's Privacy Policy and Terms
+                    of Service. We do not share your data with any other
                     third-party services.
                   </p>
                 </section>

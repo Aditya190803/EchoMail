@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "echomail",
+      "name": "flier",
       "dependencies": {
         "@auth/core": "^0.34.3",
         "@hookform/resolvers": "5.2.2",

@@ -1,7 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 
 import { emailSendLogger } from "@/lib/client-logger";
-import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
+import {
+  CSRF_HEADER_NAME,
+  CSRF_TOKEN_NAME,
+  STORAGE_KEY_CAMPAIGN_LOCK,
+  STORAGE_KEY_CAMPAIGN_STATE,
+  STORAGE_KEY_TAB_ID,
+} from "@/lib/constants";
 import { getCookie } from "@/lib/utils";
 import type {
   EmailResult,
@@ -37,8 +43,8 @@ interface UseSimpleEmailSendResult {
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 2000;
 const BETWEEN_EMAILS_DELAY_MS = 1000;
-const CAMPAIGN_STATE_KEY = "echomail_campaign_state";
-const CAMPAIGN_LOCK_KEY = "echomail_campaign_lock";
+const CAMPAIGN_STATE_KEY = STORAGE_KEY_CAMPAIGN_STATE;
+const CAMPAIGN_LOCK_KEY = STORAGE_KEY_CAMPAIGN_LOCK;
 
 /**
  * Simple email sending hook with retry logic, stop/resume, and persistence.
@@ -108,10 +114,10 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
       return "server";
     }
 
-    let tabId = sessionStorage.getItem("echomail_tab_id");
+    let tabId = sessionStorage.getItem(STORAGE_KEY_TAB_ID);
     if (!tabId) {
       tabId = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      sessionStorage.setItem("echomail_tab_id", tabId);
+      sessionStorage.setItem(STORAGE_KEY_TAB_ID, tabId);
     }
     return tabId;
   };

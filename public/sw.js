@@ -1,28 +1,19 @@
-/// <reference lib="webworker" />
-
 /**
- * Service Worker for EchoMail
- * 
+ * Service Worker for Flier
+ *
  * Provides offline support, caching strategies, and background sync
  * for improved performance and reliability.
  */
 
-const CACHE_NAME = 'echomail-v1';
-const STATIC_CACHE_NAME = 'echomail-static-v1';
-const DYNAMIC_CACHE_NAME = 'echomail-dynamic-v1';
+const CACHE_NAME = "flier-v2";
+const STATIC_CACHE_NAME = "flier-static-v2";
+const DYNAMIC_CACHE_NAME = "flier-dynamic-v2";
 
 // Static assets to cache on install
-const STATIC_ASSETS = [
-  '/',
-  '/offline',
-  '/manifest.json',
-];
+const STATIC_ASSETS = ["/", "/offline", "/manifest.json"];
 
 // API routes to cache with network-first strategy
-const API_CACHE_ROUTES = [
-  '/api/appwrite/templates',
-  '/api/appwrite/contacts',
-];
+const API_CACHE_ROUTES = ["/api/appwrite/templates", "/api/appwrite/contacts"];
 
 // Maximum age for cached responses (in ms)
 const CACHE_MAX_AGE = {
@@ -34,12 +25,12 @@ const CACHE_MAX_AGE = {
 /**
  * Install event - cache static assets
  */
-self.addEventListener('install', (event: ExtendableEvent) => {
+self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE_NAME).then((cache) => {
-      console.log('[SW] Caching static assets');
+      console.log("[SW] Caching static assets");
       return cache.addAll(STATIC_ASSETS);
-    })
+    }),
   );
   // Activate immediately
   self.skipWaiting();
@@ -48,24 +39,24 @@ self.addEventListener('install', (event: ExtendableEvent) => {
 /**
  * Activate event - clean up old caches
  */
-self.addEventListener('activate', (event: ExtendableEvent) => {
+self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
           .filter((name) => {
             return (
-              name.startsWith('echomail-') &&
+              (name.startsWith("echomail-") || name.startsWith("flier-")) &&
               name !== STATIC_CACHE_NAME &&
               name !== DYNAMIC_CACHE_NAME
             );
           })
           .map((name) => {
-            console.log('[SW] Deleting old cache:', name);
+            console.log("[SW] Deleting old cache:", name);
             return caches.delete(name);
-          })
+          }),
       );
-    })
+    }),
   );
   // Take control immediately
   self.clients.claim();
@@ -74,12 +65,12 @@ self.addEventListener('activate', (event: ExtendableEvent) => {
 /**
  * Fetch event - implement caching strategies
  */
-self.addEventListener('fetch', (event: FetchEvent) => {
+self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
   // Skip non-GET requests
-  if (request.method !== 'GET') {
+  if (request.method !== "GET") {
     return;
   }
 
@@ -89,7 +80,7 @@ self.addEventListener('fetch', (event: FetchEvent) => {
   }
 
   // API routes - network first, fallback to cache
-  if (url.pathname.startsWith('/api/')) {
+  if (url.pathname.startsWith("/api/")) {
     if (API_CACHE_ROUTES.some((route) => url.pathname.startsWith(route))) {
       event.respondWith(networkFirst(request, DYNAMIC_CACHE_NAME));
     }
@@ -110,24 +101,21 @@ self.addEventListener('fetch', (event: FetchEvent) => {
  * Cache-first strategy
  * Returns cached response if available, otherwise fetches from network
  */
-async function cacheFirst(
-  request: Request,
-  cacheName: string
-): Promise<Response> {
+async function cacheFirst(request, cacheName) {
   const cachedResponse = await caches.match(request);
-  
+
   if (cachedResponse) {
     return cachedResponse;
   }
 
   try {
     const networkResponse = await fetch(request);
-    
+
     if (networkResponse.ok) {
       const cache = await caches.open(cacheName);
       cache.put(request, networkResponse.clone());
     }
-    
+
     return networkResponse;
   } catch {
     return createOfflineResponse();
@@ -138,26 +126,23 @@ async function cacheFirst(
  * Network-first strategy
  * Tries network first, falls back to cache if offline
  */
-async function networkFirst(
-  request: Request,
-  cacheName: string
-): Promise<Response> {
+async function networkFirst(request, cacheName) {
   try {
     const networkResponse = await fetch(request);
-    
+
     if (networkResponse.ok) {
       const cache = await caches.open(cacheName);
       cache.put(request, networkResponse.clone());
     }
-    
+
     return networkResponse;
   } catch {
     const cachedResponse = await caches.match(request);
-    
+
     if (cachedResponse) {
       return cachedResponse;
     }
-    
+
     return createOfflineResponse();
   }
 }
@@ -166,10 +151,7 @@ async function networkFirst(
  * Stale-while-revalidate strategy
  * Returns cached response immediately, updates cache in background
  */
-async function staleWhileRevalidate(
-  request: Request,
-  cacheName: string
-): Promise<Response> {
+async function staleWhileRevalidate(request, cacheName) {
   const cache = await caches.open(cacheName);
   const cachedResponse = await cache.match(request);
 
@@ -200,49 +182,49 @@ async function staleWhileRevalidate(
 /**
  * Check if URL is a static asset
  */
-function isStaticAsset(pathname: string): boolean {
+function isStaticAsset(pathname) {
   const staticExtensions = [
-    '.js',
-    '.css',
-    '.png',
-    '.jpg',
-    '.jpeg',
-    '.gif',
-    '.svg',
-    '.ico',
-    '.woff',
-    '.woff2',
-    '.ttf',
-    '.eot',
+    ".js",
+    ".css",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".svg",
+    ".ico",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".eot",
   ];
-  
+
   return staticExtensions.some((ext) => pathname.endsWith(ext));
 }
 
 /**
  * Create offline fallback response
  */
-function createOfflineResponse(): Response {
+function createOfflineResponse() {
   return new Response(
     JSON.stringify({
-      error: 'Offline',
-      message: 'You are currently offline. Please check your connection.',
+      error: "Offline",
+      message: "You are currently offline. Please check your connection.",
     }),
     {
       status: 503,
-      statusText: 'Service Unavailable',
+      statusText: "Service Unavailable",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
-    }
+    },
   );
 }
 
 /**
  * Background sync for failed email sends
  */
-self.addEventListener('sync', (event: SyncEvent) => {
-  if (event.tag === 'send-email') {
+self.addEventListener("sync", (event) => {
+  if (event.tag === "send-email") {
     event.waitUntil(retrySendEmails());
   }
 });
@@ -250,42 +232,42 @@ self.addEventListener('sync', (event: SyncEvent) => {
 /**
  * Retry sending queued emails
  */
-async function retrySendEmails(): Promise<void> {
+async function retrySendEmails() {
   // This would integrate with IndexedDB to get queued emails
-  console.log('[SW] Retrying queued email sends');
+  console.log("[SW] Retrying queued email sends");
 }
 
 /**
  * Push notification handler
  */
-self.addEventListener('push', (event: PushEvent) => {
+self.addEventListener("push", (event) => {
   if (!event.data) return;
 
   const data = event.data.json();
-  
+
   event.waitUntil(
-    self.registration.showNotification(data.title || 'EchoMail', {
-      body: data.body || 'You have a new notification',
-      icon: '/icons/icon-192x192.png',
-      badge: '/icons/badge-72x72.png',
+    self.registration.showNotification(data.title || "Flier", {
+      body: data.body || "You have a new notification",
+      icon: "/icons/icon-192x192.png",
+      badge: "/icons/badge-72x72.png",
       data: data.data,
-    })
+    }),
   );
 });
 
 /**
  * Notification click handler
  */
-self.addEventListener('notificationclick', (event: NotificationEvent) => {
+self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  
-  const urlToOpen = event.notification.data?.url || '/';
-  
+
+  const urlToOpen = event.notification.data?.url || "/";
+
   event.waitUntil(
-    self.clients.matchAll({ type: 'window' }).then((clientList) => {
+    self.clients.matchAll({ type: "window" }).then((clientList) => {
       // Focus existing window if available
       for (const client of clientList) {
-        if (client.url === urlToOpen && 'focus' in client) {
+        if (client.url === urlToOpen && "focus" in client) {
           return client.focus();
         }
       }
@@ -293,13 +275,6 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
       if (self.clients.openWindow) {
         return self.clients.openWindow(urlToOpen);
       }
-    })
+    }),
   );
 });
-
-// Type declarations for sync events
-interface SyncEvent extends ExtendableEvent {
-  tag: string;
-}
-
-export {};

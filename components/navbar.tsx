@@ -24,7 +24,7 @@ export function Navbar() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
                 <Mail className="h-4 w-4" />
               </div>
-              <span className="text-xl font-bold tracking-tight">EchoMail</span>
+              <span className="text-xl font-bold tracking-tight">Flier</span>
             </Link>
           </div>
 

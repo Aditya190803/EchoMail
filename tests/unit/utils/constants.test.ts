@@ -139,7 +139,7 @@ describe("Constants", () => {
 
   describe("Storage Keys", () => {
     it("should have all required storage keys", () => {
-      expect(STORAGE_KEY_THEME).toBe("echomail-theme");
+      expect(STORAGE_KEY_THEME).toBe("flier-theme");
       expect(STORAGE_KEY_SELECTED_TEMPLATE).toBe("selectedTemplate");
       expect(STORAGE_KEY_DRAFT_EMAIL).toBe("draftEmail");
     });

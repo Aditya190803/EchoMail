@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  
   FileText,
   Shield,
   AlertTriangle,
@@ -40,9 +39,9 @@ export default function TermsOfServicePage() {
                     </h2>
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
-                    By accessing and using EchoMail ("the Service"), you agree
-                    to be bound by these Terms of Service ("Terms"). If you do
-                    not agree to these Terms, please do not use our Service.
+                    By accessing and using Flier ("the Service"), you agree to
+                    be bound by these Terms of Service ("Terms"). If you do not
+                    agree to these Terms, please do not use our Service.
                   </p>
                 </section>
 
@@ -57,7 +56,7 @@ export default function TermsOfServicePage() {
                     </h2>
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
-                    EchoMail is a web-based service that allows users to send
+                    Flier is a web-based service that allows users to send
                     personalized bulk emails through their Gmail accounts using
                     Google's Gmail API. The Service includes features for
                     uploading recipient lists via CSV, composing rich text
@@ -113,7 +112,7 @@ export default function TermsOfServicePage() {
                   </div>
                   <div className="space-y-3">
                     <p className="text-muted-foreground">
-                      You agree to use EchoMail only for lawful purposes and in
+                      You agree to use Flier only for lawful purposes and in
                       accordance with these Terms. You agree NOT to use the
                       Service:
                     </p>

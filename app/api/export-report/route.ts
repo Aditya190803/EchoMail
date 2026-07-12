@@ -111,7 +111,7 @@ export async function GET(request: NextRequest) {
     return new NextResponse(fullCsv, {
       headers: {
         "Content-Type": "text/csv",
-        "Content-Disposition": `attachment; filename="echomail-report-${new Date().toISOString().split("T")[0]}.csv"`,
+        "Content-Disposition": `attachment; filename="flier-report-${new Date().toISOString().split("T")[0]}.csv"`,
       },
     });
   } catch (error) {
