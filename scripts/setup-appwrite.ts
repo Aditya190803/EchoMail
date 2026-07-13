@@ -672,6 +672,8 @@ async function generateEnvVariables() {
   console.log("# GDPR & Compliance");
   console.log(`NEXT_PUBLIC_APPWRITE_AUDIT_LOGS_COLLECTION_ID=audit_logs`);
   console.log(`NEXT_PUBLIC_APPWRITE_CONSENTS_COLLECTION_ID=consents`);
+  console.log("\n# Billing");
+  console.log(`NEXT_PUBLIC_APPWRITE_SUBSCRIPTIONS_COLLECTION_ID=subscriptions`);
   console.log("");
 }
 
