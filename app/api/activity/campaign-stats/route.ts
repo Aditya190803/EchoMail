@@ -5,6 +5,11 @@ import { getServerSession } from "next-auth";
 import { aggregateDeviceData } from "@/lib/activity/devices";
 import { databases, config, Query } from "@/lib/appwrite-server";
 import { authOptions } from "@/lib/auth";
+import {
+  PlanLimitError,
+  assertFeature,
+  planLimitResponse,
+} from "@/lib/billing";
 import { apiLogger } from "@/lib/logger";
 import type { TrackingEvent } from "@/types/activity";
 import type { CampaignDocument } from "@/types/appwrite";
@@ -31,6 +36,21 @@ export async function GET(request: NextRequest) {
         { error: "Campaign ID is required" },
         { status: 400 },
       );
+    }
+
+    if (advanced) {
+      try {
+        await assertFeature(
+          session.user.email,
+          "advancedAnalytics",
+          "Advanced analytics",
+        );
+      } catch (error) {
+        if (error instanceof PlanLimitError) {
+          return planLimitResponse(error);
+        }
+        throw error;
+      }
     }
 
     // Verify campaign belongs to user

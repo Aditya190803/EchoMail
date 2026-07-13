@@ -206,6 +206,15 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    try {
+      await assertFeature(session.user.email, "abTesting", "A/B testing");
+    } catch (error) {
+      if (error instanceof PlanLimitError) {
+        return planLimitResponse(error);
+      }
+      throw error;
+    }
+
     const body = await request.json();
     const { id, complete, ...updates } = body;
 

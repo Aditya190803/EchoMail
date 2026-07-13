@@ -5,6 +5,11 @@ import { getServerSession } from "next-auth";
 
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
 import { authOptions } from "@/lib/auth";
+import {
+  PlanLimitError,
+  assertFeature,
+  planLimitResponse,
+} from "@/lib/billing";
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/teams/members - List members of a team
@@ -87,6 +92,15 @@ export async function POST(request: NextRequest) {
 
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    try {
+      await assertFeature(session.user.email, "teams", "Teams");
+    } catch (error) {
+      if (error instanceof PlanLimitError) {
+        return planLimitResponse(error);
+      }
+      throw error;
     }
 
     if (!config.teamsCollectionId || !config.teamMembersCollectionId) {
