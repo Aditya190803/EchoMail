@@ -445,8 +445,9 @@ export function useEmailSend(): UseEmailSendResult {
           campaignId: campaignIdRef.current,
           isTransactional,
           trackingEnabled: trackingEnabledRef.current,
-          ...(email.cc?.length ? { cc: email.cc } : {}),
-          ...(email.bcc?.length ? { bcc: email.bcc } : {}),
+          // Always send arrays so the API never drops campaign Cc/Bcc
+          cc: email.cc ?? [],
+          bcc: email.bcc ?? [],
         };
 
         const csrfToken = getCookie(CSRF_TOKEN_NAME);

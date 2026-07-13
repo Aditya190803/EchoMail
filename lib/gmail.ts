@@ -252,6 +252,8 @@ export async function sendEmailViaAPI(
 
   emailLogger.debug("Sending email", {
     to: validatedTo,
+    cc: validatedCc,
+    bcc: validatedBcc,
     subject,
     subjectLength: subject.length,
     hasSpecialChars: /[^\x00-\x7F]/.test(subject),

@@ -298,8 +298,8 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
             personalizedAttachment: email.personalizedAttachment || undefined,
             campaignId: campaignIdRef.current,
             isTransactional,
-            ...(email.cc?.length ? { cc: email.cc } : {}),
-            ...(email.bcc?.length ? { bcc: email.bcc } : {}),
+            cc: email.cc ?? [],
+            bcc: email.bcc ?? [],
           }),
         });
 

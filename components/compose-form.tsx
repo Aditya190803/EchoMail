@@ -1831,6 +1831,8 @@ export function ComposeForm() {
                 getPersonalizedContent={getPersonalizedContent}
                 subject={subject}
                 content={content}
+                cc={cc}
+                bcc={bcc}
                 csvData={csvData}
                 manualEntries={manualEntries}
                 isLoadingPreview={isLoadingPreview}

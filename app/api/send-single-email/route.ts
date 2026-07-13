@@ -50,6 +50,24 @@ export async function POST(request: NextRequest) {
     }
 
     const emailService = new EmailService(session.accessToken);
+    const ccList = Array.isArray(cc)
+      ? cc.filter(
+          (e): e is string => typeof e === "string" && e.trim().length > 0,
+        )
+      : [];
+    const bccList = Array.isArray(bcc)
+      ? bcc.filter(
+          (e): e is string => typeof e === "string" && e.trim().length > 0,
+        )
+      : [];
+
+    if (ccList.length || bccList.length) {
+      apiLogger.info("Sending with Cc/Bcc", {
+        to,
+        ccCount: ccList.length,
+        bccCount: bccList.length,
+      });
+    }
 
     const result = await emailService.sendSingle(
       {
@@ -60,8 +78,8 @@ export async function POST(request: NextRequest) {
       {
         subject,
         body: message,
-        cc: Array.isArray(cc) ? cc : undefined,
-        bcc: Array.isArray(bcc) ? bcc : undefined,
+        cc: ccList.length ? ccList : undefined,
+        bcc: bccList.length ? bccList : undefined,
       },
       attachments,
       trackingEnabled

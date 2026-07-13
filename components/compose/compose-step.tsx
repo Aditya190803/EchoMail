@@ -38,6 +38,7 @@ import type { EmailSignature, EmailTemplate } from "@/lib/appwrite";
 import { detectPdfColumn, isPdfUrl } from "@/lib/attachment-fetcher";
 import { LARGE_FILE_THRESHOLD } from "@/lib/attachments/client";
 
+import { EmailChipInput } from "./email-chip-input";
 import { TemplatePickerDialog } from "./template-picker-dialog";
 
 import type { ComposeAttachment } from "./compose-types";
@@ -280,37 +281,35 @@ export function ComposeStep({
         </div>
 
         {showCc && (
-          <div className="flex items-center px-4 py-2 border-b bg-card gap-2">
+          <div className="flex items-start px-4 py-2 border-b bg-card gap-2">
             <Label
               htmlFor="cc"
-              className="text-muted-foreground font-medium text-sm w-20 mb-0 shrink-0"
+              className="text-muted-foreground font-medium text-sm w-20 mb-0 shrink-0 pt-1"
             >
               Cc:
             </Label>
-            <Input
+            <EmailChipInput
               id="cc"
-              placeholder="cc@example.com, ..."
               value={cc}
-              onChange={(e) => setCc(e.target.value)}
-              className="border-0 focus-visible:ring-0 shadow-none px-0 bg-transparent flex-1 h-auto py-0 text-sm"
+              onChange={setCc}
+              placeholder="Add Cc…"
             />
           </div>
         )}
 
         {showBcc && (
-          <div className="flex items-center px-4 py-2 border-b bg-card gap-2">
+          <div className="flex items-start px-4 py-2 border-b bg-card gap-2">
             <Label
               htmlFor="bcc"
-              className="text-muted-foreground font-medium text-sm w-20 mb-0 shrink-0"
+              className="text-muted-foreground font-medium text-sm w-20 mb-0 shrink-0 pt-1"
             >
               Bcc:
             </Label>
-            <Input
+            <EmailChipInput
               id="bcc"
-              placeholder="bcc@example.com, ..."
               value={bcc}
-              onChange={(e) => setBcc(e.target.value)}
-              className="border-0 focus-visible:ring-0 shadow-none px-0 bg-transparent flex-1 h-auto py-0 text-sm"
+              onChange={setBcc}
+              placeholder="Add Bcc…"
             />
           </div>
         )}
