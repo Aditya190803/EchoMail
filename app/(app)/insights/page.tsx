@@ -46,6 +46,7 @@ import { LinkPerformanceTable } from "@/components/activity/link-performance";
 import { CampaignSelector } from "@/components/insights/campaign-selector";
 import { InsightsExportActions } from "@/components/insights/insights-export-actions";
 import { InsightsSummaryCards } from "@/components/insights/insights-summary-cards";
+import { PremiumGate } from "@/components/insights/premium-gate";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -72,6 +73,7 @@ import { PageHeader, PageShell, EmptyState } from "@/components/ui/page-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { useBilling } from "@/hooks/useBilling";
 import { getAttachmentUrl } from "@/lib/activity/attachment-url";
 import { buildCampaignChartData } from "@/lib/activity/chart-data";
 import { generateWeekOverWeekComparison } from "@/lib/activity/comparison";
@@ -116,6 +118,10 @@ interface HistoryData {
 }
 
 export default function HistoryPage() {
+  const { isPremiumAnalytics } = useBilling();
+  const goUpgrade = () => {
+    window.location.href = "/pricing";
+  };
   const { session, status, isLoading: _isLoading } = useAuthGuard();
   const router = useRouter();
   const [historyData, setHistoryData] = useState<HistoryData | null>(null);
@@ -518,11 +524,17 @@ export default function HistoryPage() {
           title="Insights & History"
           description="Track your campaign performance and delivery metrics"
           actions={
-            <InsightsExportActions
-              isExporting={isExporting}
-              onExportCSV={handleExportCSV}
-              onExportPDF={handleExportPDF}
-            />
+            isPremiumAnalytics ? (
+              <InsightsExportActions
+                isExporting={isExporting}
+                onExportCSV={handleExportCSV}
+                onExportPDF={handleExportPDF}
+              />
+            ) : (
+              <Button size="sm" variant="outline" onClick={goUpgrade}>
+                Upgrade for export
+              </Button>
+            )
           }
         />
 
@@ -670,7 +682,13 @@ export default function HistoryPage() {
             </div>
 
             <div className="mt-8">
-              <GlobalLeaderboard events={allTrackingEvents} limit={3} />
+              <PremiumGate
+                featureName="Recipient leaderboard"
+                isPremium={isPremiumAnalytics}
+                onUpgrade={goUpgrade}
+              >
+                <GlobalLeaderboard events={allTrackingEvents} limit={3} />
+              </PremiumGate>
             </div>
           </TabsContent>
 
@@ -1078,7 +1096,11 @@ export default function HistoryPage() {
                   }
 
                   return (
-                    <>
+                    <PremiumGate
+                      featureName="Campaign performance analytics"
+                      isPremium={isPremiumAnalytics}
+                      onUpgrade={goUpgrade}
+                    >
                       <CampaignFunnelWidget sent={sent} events={events} />
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
                         <DeviceBreakdownChart events={events} />
@@ -1087,7 +1109,7 @@ export default function HistoryPage() {
                           uniqueOpens={openedEmails.size}
                         />
                       </div>
-                    </>
+                    </PremiumGate>
                   );
                 })()}
               </div>
@@ -1112,11 +1134,17 @@ export default function HistoryPage() {
                   Send-Time Heatmap
                 </h2>
                 {heatmap && heatmap.links && heatmap.links.length > 0 ? (
-                  <HeatmapWidget
-                    links={heatmap.links}
-                    totalClicks={heatmap.totalClicks}
-                    title="When do your recipients open emails?"
-                  />
+                  <PremiumGate
+                    featureName="Send-time heatmap"
+                    isPremium={isPremiumAnalytics}
+                    onUpgrade={goUpgrade}
+                  >
+                    <HeatmapWidget
+                      links={heatmap.links}
+                      totalClicks={heatmap.totalClicks}
+                      title="When do your recipients open emails?"
+                    />
+                  </PremiumGate>
                 ) : (
                   <div className="border border-border/50 rounded-xl bg-card p-12 flex flex-col items-center justify-center text-center text-muted-foreground shadow-sm mt-4">
                     <MousePointer2 className="h-10 w-10 mb-4 opacity-40" />

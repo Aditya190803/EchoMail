@@ -44,7 +44,7 @@ export function PremiumGate({
           className="shadow-lg shadow-primary/25 hover:shadow-primary/35"
         >
           <Zap className="h-3.5 w-3.5 mr-2 text-yellow-300 fill-yellow-300" />
-          Upgrade to Pro
+          Upgrade to Insights
         </Button>
       </div>
     </div>

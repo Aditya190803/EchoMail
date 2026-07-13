@@ -363,14 +363,16 @@ export default function HomePage() {
                 </div>
 
                 <div className="mt-8 flex flex-wrap items-center justify-center gap-5 text-sm text-muted-foreground">
-                  {["No credit card", "Free forever tier", "Open source"].map(
-                    (t) => (
-                      <div key={t} className="flex items-center gap-1.5">
-                        <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
-                        {t}
-                      </div>
-                    ),
-                  )}
+                  {[
+                    "No credit card",
+                    "Free forever tier",
+                    "Plans from ₹299",
+                  ].map((t) => (
+                    <div key={t} className="flex items-center gap-1.5">
+                      <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />
+                      {t}
+                    </div>
+                  ))}
                 </div>
               </div>
             </Reveal>
