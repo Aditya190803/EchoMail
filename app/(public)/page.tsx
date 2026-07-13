@@ -179,10 +179,7 @@ export default function HomePage() {
           {/* mesh glow */}
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-0 -z-10"
-            style={{
-              backgroundColor: "oklch(0.97 0.01 260)",
-            }}
+            className="pointer-events-none absolute inset-0 -z-10 bg-primary/5"
           />
 
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-20 lg:py-28">
@@ -340,10 +337,7 @@ export default function HomePage() {
               <div className="relative rounded-2xl border bg-card overflow-hidden text-center p-10 md:p-16">
                 <div
                   aria-hidden
-                  className="pointer-events-none absolute inset-0 -z-10"
-                  style={{
-                    backgroundColor: "oklch(0.97 0.01 260)",
-                  }}
+                  className="pointer-events-none absolute inset-0 -z-10 bg-primary/5"
                 />
 
                 <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 mb-6">

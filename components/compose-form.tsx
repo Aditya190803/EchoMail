@@ -1493,10 +1493,7 @@ export function ComposeForm() {
     <div className="relative space-y-8 pb-32">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 -top-8 h-64 -z-10"
-        style={{
-          backgroundColor: "oklch(0.97 0.01 260)",
-        }}
+        className="pointer-events-none absolute inset-x-0 -top-8 h-64 -z-10 bg-primary/5"
       />
       {/* Resume Campaign Banner */}
       {hasSavedCampaign && savedCampaignInfo && (
