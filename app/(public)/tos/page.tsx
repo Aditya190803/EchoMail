@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  
   FileText,
   Shield,
   AlertTriangle,
@@ -237,9 +236,12 @@ export default function TermsOfServicePage() {
                   <div className="bg-muted/50 p-4 rounded-lg mt-3">
                     <p className="text-sm">
                       <strong>Email:</strong>{" "}
-                      <span className="text-muted-foreground">
+                      <a
+                        href="mailto:adityamer.work@gmail.com"
+                        className="text-primary underline underline-offset-2"
+                      >
                         adityamer.work@gmail.com
-                      </span>
+                      </a>
                     </p>
                   </div>
                 </section>

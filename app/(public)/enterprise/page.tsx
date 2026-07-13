@@ -54,7 +54,7 @@ export default function EnterprisePage() {
 
           <div className="pt-6 flex flex-col sm:flex-row gap-3">
             <Button asChild className="flex-1">
-              <a href="mailto:enterprise@echomail.adityamer.dev?subject=EchoMail%20Enterprise">
+              <a href="mailto:adityamer.work@gmail.com?subject=EchoMail%20Enterprise">
                 <Mail className="h-4 w-4 mr-2" />
                 Email sales
               </a>
