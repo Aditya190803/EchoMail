@@ -59,12 +59,25 @@ const envSchema = z.object({
   NEXT_PUBLIC_APPWRITE_CONSENTS_COLLECTION_ID: z.string().default(""),
   NEXT_PUBLIC_APPWRITE_TEAMS_COLLECTION_ID: z.string().default(""),
   NEXT_PUBLIC_APPWRITE_TEAM_MEMBERS_COLLECTION_ID: z.string().default(""),
+  NEXT_PUBLIC_APPWRITE_SUBSCRIPTIONS_COLLECTION_ID: z
+    .string()
+    .default("subscriptions"),
 
   // Analytics
   NEXT_PUBLIC_APP_URL: z
     .string()
     .url()
     .default("https://echomail.adityamer.dev"),
+
+  // Razorpay (optional until billing is enabled)
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+  RAZORPAY_PLAN_INSIGHTS_MONTHLY: z.string().optional(),
+  RAZORPAY_PLAN_INSIGHTS_ANNUAL: z.string().optional(),
+  RAZORPAY_PLAN_PRO_MONTHLY: z.string().optional(),
+  RAZORPAY_PLAN_PRO_ANNUAL: z.string().optional(),
+  NEXT_PUBLIC_RAZORPAY_KEY_ID: z.string().optional(),
 });
 
 // Parse and validate environment variables
@@ -111,6 +124,16 @@ const _env = envSchema.safeParse({
     process.env.NEXT_PUBLIC_APPWRITE_TEAMS_COLLECTION_ID,
   NEXT_PUBLIC_APPWRITE_TEAM_MEMBERS_COLLECTION_ID:
     process.env.NEXT_PUBLIC_APPWRITE_TEAM_MEMBERS_COLLECTION_ID,
+  NEXT_PUBLIC_APPWRITE_SUBSCRIPTIONS_COLLECTION_ID:
+    process.env.NEXT_PUBLIC_APPWRITE_SUBSCRIPTIONS_COLLECTION_ID,
+  RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID,
+  RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET,
+  RAZORPAY_WEBHOOK_SECRET: process.env.RAZORPAY_WEBHOOK_SECRET,
+  RAZORPAY_PLAN_INSIGHTS_MONTHLY: process.env.RAZORPAY_PLAN_INSIGHTS_MONTHLY,
+  RAZORPAY_PLAN_INSIGHTS_ANNUAL: process.env.RAZORPAY_PLAN_INSIGHTS_ANNUAL,
+  RAZORPAY_PLAN_PRO_MONTHLY: process.env.RAZORPAY_PLAN_PRO_MONTHLY,
+  RAZORPAY_PLAN_PRO_ANNUAL: process.env.RAZORPAY_PLAN_PRO_ANNUAL,
+  NEXT_PUBLIC_RAZORPAY_KEY_ID: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
 });
 
 if (!_env.success) {
