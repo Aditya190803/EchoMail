@@ -82,7 +82,10 @@ export async function POST(request: NextRequest) {
       return userRateLimitResponse;
     }
 
-    const emailService = new EmailService(session.accessToken);
+    const emailService = new EmailService(
+      session.accessToken,
+      session.user.email!,
+    );
 
     const summary = await emailService.sendPersonalizedBatch(
       personalizedEmails,

@@ -69,23 +69,8 @@ export class GmailProvider implements EmailProvider {
   }
 
   async verifyConfiguration(): Promise<boolean> {
-    if (!this.accessToken) {
-      return false;
-    }
-
-    try {
-      const response = await fetch(
-        "https://www.googleapis.com/gmail/v1/users/me/profile",
-        {
-          headers: {
-            Authorization: `Bearer ${this.accessToken}`,
-          },
-        },
-      );
-      return response.ok;
-    } catch {
-      return false;
-    }
+    // gmail.send only — no profile read; token presence is the check
+    return !!this.accessToken;
   }
 
   async send(message: EmailMessage): Promise<SendResult> {

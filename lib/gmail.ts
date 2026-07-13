@@ -5,7 +5,6 @@ import {
 } from "./email/encoding";
 import { buildGmailMimeBody } from "./email/mime-builder";
 import { injectTracking, sanitizeHTML } from "./email-formatting";
-import { gmailProfileFailureMessage } from "./gmail-user-message";
 import { emailLogger } from "./logger";
 
 import type { AttachmentData } from "./email/attachment-manager";
@@ -31,33 +30,15 @@ let cachedEmailTemplate: EmailTemplate | null = null;
  * This dramatically speeds up bulk sends with large attachments.
  */
 export async function preBuildEmailTemplate(
-  accessToken: string,
+  fromEmail: string,
   subject: string,
   htmlBody: string,
   attachments?: AttachmentData[],
 ): Promise<void> {
-  emailLogger.info("Pre-building email template for bulk send");
-
-  // Get user profile
-  const userResponse = await fetch(
-    "https://gmail.googleapis.com/gmail/v1/users/me/profile",
-    {
-      method: "GET",
-      headers: { Authorization: `Bearer ${accessToken}` },
-    },
-  );
-
-  if (!userResponse.ok) {
-    const body = await userResponse.text();
-    emailLogger.error("Gmail profile fetch failed (preBuild)", {
-      status: userResponse.status,
-      body: body.slice(0, 500),
-    });
-    throw new Error(gmailProfileFailureMessage(userResponse.status, body));
+  if (!fromEmail?.trim()) {
+    throw new Error("From email is required");
   }
-
-  const userProfile = await userResponse.json();
-  const fromEmail = userProfile.emailAddress;
+  emailLogger.info("Pre-building email template for bulk send");
 
   // Build the MIME body parts (everything that stays constant)
   const sanitizedHtmlBody = sanitizeHTML(htmlBody);
@@ -219,6 +200,7 @@ export async function sendEmailWithTemplate(
 
 export async function sendEmailViaAPI(
   accessToken: string,
+  fromEmail: string,
   to: string,
   subject: string,
   htmlBody: string,
@@ -232,6 +214,10 @@ export async function sendEmailViaAPI(
   cc?: string[],
   bcc?: string[],
 ) {
+  if (!fromEmail?.trim()) {
+    throw new Error("From email is required");
+  }
+
   // Validate and sanitize the recipient email
   const validatedTo = validateAndSanitizeEmail(to);
   const validatedCc = (cc ?? []).map(validateAndSanitizeEmail);
@@ -285,7 +271,6 @@ export async function sendEmailViaAPI(
     BASE_TIMEOUT +
     Math.ceil(totalAttachmentSize / (5 * 1024 * 1024)) * TIMEOUT_PER_5MB;
   const SEND_TIMEOUT = Math.min(calculatedTimeout, MAX_TIMEOUT);
-  const PROFILE_TIMEOUT = 15000; // 15s for profile fetch
 
   emailLogger.debug(`Send timeout set`, {
     timeoutSec: SEND_TIMEOUT / 1000,
@@ -325,31 +310,6 @@ export async function sendEmailViaAPI(
       throw error;
     }
   };
-
-  // First, get the user's email address to use as 'From'
-  const userResponse = await fetchWithTimeout(
-    "https://gmail.googleapis.com/gmail/v1/users/me/profile",
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
-    PROFILE_TIMEOUT,
-    false,
-  );
-
-  if (!userResponse.ok) {
-    const body = await userResponse.text();
-    emailLogger.error("Gmail profile fetch failed", {
-      status: userResponse.status,
-      body: body.slice(0, 500),
-    });
-    throw new Error(gmailProfileFailureMessage(userResponse.status, body));
-  }
-
-  const userProfile = await userResponse.json();
-  const fromEmail = userProfile.emailAddress;
 
   // Properly encode the subject line to handle UTF-8 characters
   const encodedSubject = encodeSubject(subject);

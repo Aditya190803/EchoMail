@@ -134,7 +134,7 @@ export interface PersonalizedEmail {
  *
  * @example
  * ```typescript
- * const emailService = new EmailService(accessToken);
+ * const emailService = new EmailService(accessToken, session.user.email);
  *
  * // Send a single email
  * await emailService.sendSingle({
@@ -153,17 +153,23 @@ export interface PersonalizedEmail {
  */
 export class EmailService {
   private accessToken: string;
+  private fromEmail: string;
   private defaultDelayMs: number = 1000;
 
   /**
    * Create a new EmailService instance
    * @param accessToken - Gmail API OAuth access token
+   * @param fromEmail - Sender address (session.user.email)
    */
-  constructor(accessToken: string) {
+  constructor(accessToken: string, fromEmail: string) {
     if (!accessToken) {
       throw new Error("Access token is required for EmailService");
     }
+    if (!fromEmail?.trim()) {
+      throw new Error("From email is required for EmailService");
+    }
     this.accessToken = accessToken;
+    this.fromEmail = fromEmail;
   }
 
   /**
@@ -274,6 +280,7 @@ export class EmailService {
       // Send the email
       const result = await sendEmailViaAPI(
         this.accessToken,
+        this.fromEmail,
         recipient.email,
         personalizedSubject,
         personalizedBody,
@@ -557,6 +564,7 @@ export class EmailService {
         try {
           const result = await sendEmailViaAPI(
             this.accessToken,
+            this.fromEmail,
             email.to,
             email.subject,
             email.message,
@@ -658,7 +666,7 @@ export class EmailService {
 
     // Pre-build template once
     await preBuildEmailTemplate(
-      this.accessToken,
+      this.fromEmail,
       content.subject,
       body,
       attachments,
@@ -865,8 +873,11 @@ export class EmailService {
  * Create an EmailService instance with the given access token
  * Factory function for convenience
  */
-export function createEmailService(accessToken: string): EmailService {
-  return new EmailService(accessToken);
+export function createEmailService(
+  accessToken: string,
+  fromEmail: string,
+): EmailService {
+  return new EmailService(accessToken, fromEmail);
 }
 
 export default EmailService;

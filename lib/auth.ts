@@ -103,7 +103,7 @@ export const authOptions: NextAuthOptions = {
         url: "https://accounts.google.com/o/oauth2/v2/auth",
         params: {
           scope:
-            "openid email profile https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/contacts.readonly",
+            "openid email profile https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/contacts.readonly",
           access_type: "offline",
           prompt: "consent",
         },

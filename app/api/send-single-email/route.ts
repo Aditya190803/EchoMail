@@ -63,7 +63,10 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const emailService = new EmailService(session.accessToken);
+    const emailService = new EmailService(
+      session.accessToken,
+      session.user.email!,
+    );
 
     const result = await emailService.sendSingle(
       {

@@ -132,7 +132,7 @@ describe("EmailService", () => {
         return results;
       },
     );
-    emailService = new EmailService(mockAccessToken);
+    emailService = new EmailService(mockAccessToken, "sender@example.com");
   });
 
   describe("sendCampaign", () => {

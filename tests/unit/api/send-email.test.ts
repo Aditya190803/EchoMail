@@ -98,6 +98,7 @@ describe("Send Email API", () => {
 
       const result = await sendEmailViaAPI(
         "valid-token",
+        "sender@example.com",
         "recipient@example.com",
         "Test Subject",
         "<p>Test message</p>",
@@ -115,6 +116,7 @@ describe("Send Email API", () => {
 
       const result = await sendEmailViaAPI(
         "valid-token",
+        "sender@example.com",
         "recipient@example.com",
         "Test Subject",
         "<p>Test message</p>",
@@ -183,6 +185,7 @@ describe("Send Email API", () => {
       for (const email of emails) {
         const result = await sendEmailViaAPI(
           "token",
+          "sender@example.com",
           email,
           "Subject",
           "Message",

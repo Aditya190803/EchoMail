@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
       try {
         // Pre-build the email template ONCE
         await preBuildEmailTemplate(
-          session.accessToken,
+          session.user.email!,
           (doc as any).subject,
           (doc as any).content,
           resolvedAttachments,
@@ -280,6 +280,7 @@ export async function POST(request: NextRequest) {
         try {
           await sendEmailViaAPI(
             session.accessToken,
+            session.user.email!,
             recipientEmail,
             personalizedSubject,
             personalizedContent,
