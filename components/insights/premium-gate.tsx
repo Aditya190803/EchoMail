@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { Lock, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -6,7 +8,10 @@ interface PremiumGateProps {
   children: React.ReactNode;
   featureName: string;
   isPremium: boolean;
-  onUpgrade: () => void;
+  onUpgrade?: () => void;
+  /** Default: Insights (analytics tier) */
+  ctaLabel?: string;
+  href?: string;
 }
 
 export function PremiumGate({
@@ -14,6 +19,8 @@ export function PremiumGate({
   featureName,
   isPremium,
   onUpgrade,
+  ctaLabel = "Upgrade to Insights",
+  href = "/pricing",
 }: PremiumGateProps) {
   if (isPremium) {
     return children;
@@ -35,17 +42,30 @@ export function PremiumGate({
           Unlock {featureName}
         </h3>
         <p className="text-xs text-muted-foreground max-w-xs mb-5">
-          Advanced tracking widgets and behavioral analytics are premium
-          features. Upgrade your plan to unlock.
+          Advanced tracking and export are on Insights (₹299/mo) and above. Same
+          send volume as Free — just the data.
         </p>
-        <Button
-          size="sm"
-          onClick={onUpgrade}
-          className="shadow-lg shadow-primary/25 hover:shadow-primary/35"
-        >
-          <Zap className="h-3.5 w-3.5 mr-2 text-yellow-300 fill-yellow-300" />
-          Upgrade to Insights
-        </Button>
+        {onUpgrade ? (
+          <Button
+            size="sm"
+            onClick={onUpgrade}
+            className="shadow-lg shadow-primary/25 hover:shadow-primary/35"
+          >
+            <Zap className="h-3.5 w-3.5 mr-2 text-yellow-300 fill-yellow-300" />
+            {ctaLabel}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            asChild
+            className="shadow-lg shadow-primary/25 hover:shadow-primary/35"
+          >
+            <Link href={href}>
+              <Zap className="h-3.5 w-3.5 mr-2 text-yellow-300 fill-yellow-300" />
+              {ctaLabel}
+            </Link>
+          </Button>
+        )}
       </div>
     </div>
   );

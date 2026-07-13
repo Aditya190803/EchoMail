@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -23,7 +23,15 @@ import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { startCheckout, useBilling } from "@/hooks/useBilling";
 import { formatInr, type BillingInterval, type PlanId } from "@/lib/plans";
 
-export default function BillingSettingsPage() {
+function BillingLoading() {
+  return (
+    <div className="min-h-[50vh] flex items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+    </div>
+  );
+}
+
+function BillingSettingsInner() {
   const { isLoading: authLoading } = useAuthGuard();
   const { data, loading, refresh, plan } = useBilling();
   const searchParams = useSearchParams();
@@ -38,11 +46,7 @@ export default function BillingSettingsPage() {
   }, [searchParams, refresh]);
 
   if (authLoading || loading) {
-    return (
-      <div className="min-h-[50vh] flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <BillingLoading />;
   }
 
   const usage = data?.usage;
@@ -50,6 +54,14 @@ export default function BillingSettingsPage() {
   const dailyPct =
     plan && usage
       ? Math.min(100, (usage.emailsToday / plan.emailsPerDay) * 100)
+      : 0;
+  const monthPct =
+    plan && usage
+      ? Math.min(100, (usage.emailsThisMonth / plan.emailsPerMonth) * 100)
+      : 0;
+  const contactPct =
+    contacts && contacts.max > 0
+      ? Math.min(100, (contacts.used / contacts.max) * 100)
       : 0;
 
   const upgrade = async (planId: PlanId) => {
@@ -69,7 +81,7 @@ export default function BillingSettingsPage() {
       const res = await fetch("/api/billing/cancel", { method: "POST" });
       const json = await res.json();
       if (!res.ok) {
-        throw new Error(json.error || "Cancel failed");
+        throw new Error(json.message || json.error || "Cancel failed");
       }
       toast.success(json.message || "Cancelled at period end");
       await refresh();
@@ -97,9 +109,14 @@ export default function BillingSettingsPage() {
       <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 flex-wrap">
               Current plan
               <Badge variant="secondary">{plan?.planName ?? "Free"}</Badge>
+              {plan?.interval && plan.planId !== "free" && (
+                <Badge variant="outline" className="capitalize">
+                  {plan.interval}
+                </Badge>
+              )}
             </CardTitle>
             <CardDescription>
               Status: {plan?.status === "none" ? "active" : plan?.status}
@@ -120,19 +137,23 @@ export default function BillingSettingsPage() {
               </div>
               <Progress value={dailyPct} />
             </div>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <div className="text-muted-foreground">This month</div>
-                <div className="font-medium tabular-nums">
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span>Emails this month</span>
+                <span className="tabular-nums">
                   {usage?.emailsThisMonth ?? 0} / {plan?.emailsPerMonth ?? 2000}
-                </div>
+                </span>
               </div>
-              <div>
-                <div className="text-muted-foreground">Contacts</div>
-                <div className="font-medium tabular-nums">
+              <Progress value={monthPct} />
+            </div>
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span>Contacts</span>
+                <span className="tabular-nums">
                   {contacts?.used ?? 0} / {contacts?.max ?? 1000}
-                </div>
+                </span>
               </div>
+              <Progress value={contactPct} />
             </div>
           </CardContent>
         </Card>
@@ -141,16 +162,17 @@ export default function BillingSettingsPage() {
           <CardHeader>
             <CardTitle>Change plan</CardTitle>
             <CardDescription>
-              Payments via Razorpay.{" "}
+              Payments via Razorpay (UPI, cards, netbanking).{" "}
               <Link href="/pricing" className="underline underline-offset-2">
                 Full comparison
               </Link>
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="inline-flex rounded-lg border p-1 bg-muted/40">
+            <div className="inline-flex rounded-full border p-1 bg-muted/40">
               <Button
                 size="sm"
+                className="rounded-full"
                 variant={interval === "monthly" ? "default" : "ghost"}
                 onClick={() => setInterval("monthly")}
               >
@@ -158,10 +180,12 @@ export default function BillingSettingsPage() {
               </Button>
               <Button
                 size="sm"
+                className="rounded-full"
                 variant={interval === "annual" ? "default" : "ghost"}
                 onClick={() => setInterval("annual")}
               >
                 Annual
+                <span className="ml-1.5 text-[10px] opacity-80">2 mo free</span>
               </Button>
             </div>
 
@@ -177,12 +201,14 @@ export default function BillingSettingsPage() {
                   return (
                     <div
                       key={p.id}
-                      className="rounded-xl border p-4 flex flex-col gap-2"
+                      className={`rounded-xl border p-4 flex flex-col gap-2 ${
+                        p.popular ? "border-primary/50 bg-primary/5" : ""
+                      }`}
                     >
                       <div className="font-semibold flex items-center gap-2">
                         {p.name}
                         {p.popular && (
-                          <Zap className="h-3.5 w-3.5 text-yellow-500" />
+                          <Zap className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500" />
                         )}
                       </div>
                       <div className="text-sm text-muted-foreground">
@@ -210,15 +236,25 @@ export default function BillingSettingsPage() {
               <Button
                 variant="ghost"
                 className="text-destructive"
-                disabled={busy}
+                disabled={busy || plan.cancelAtPeriodEnd}
                 onClick={() => void cancel()}
               >
-                Cancel at period end
+                {plan.cancelAtPeriodEnd
+                  ? "Cancellation scheduled"
+                  : "Cancel at period end"}
               </Button>
             )}
           </CardContent>
         </Card>
       </div>
     </PageShell>
+  );
+}
+
+export default function BillingSettingsPage() {
+  return (
+    <Suspense fallback={<BillingLoading />}>
+      <BillingSettingsInner />
+    </Suspense>
   );
 }
