@@ -512,5 +512,12 @@ export function replacePlaceholders(
   template: string,
   data: Record<string, string>,
 ): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (match, key) => data[key] || match);
+  // Support both {{name}} and {name}; match keys case-insensitively
+  // so {Name} works when data has name: "…" (same as preview).
+  const lookup = (key: string) =>
+    data[key] ?? data[key.toLowerCase()] ?? data[key.toUpperCase()];
+
+  return template
+    .replace(/\{\{(\w+)\}\}/g, (match, key: string) => lookup(key) || match)
+    .replace(/\{(\w+)\}/g, (match, key: string) => lookup(key) || match);
 }
