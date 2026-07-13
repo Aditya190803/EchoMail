@@ -4,6 +4,11 @@ import { getServerSession } from "next-auth";
 
 import { databases, config, Query } from "@/lib/appwrite-server";
 import { authOptions } from "@/lib/auth";
+import {
+  PlanLimitError,
+  assertFeature,
+  planLimitResponse,
+} from "@/lib/billing";
 import { apiLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -17,6 +22,15 @@ export async function GET(request: NextRequest) {
 
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    try {
+      await assertFeature(session.user.email, "exportReports", "Report export");
+    } catch (error) {
+      if (error instanceof PlanLimitError) {
+        return planLimitResponse(error);
+      }
+      throw error;
     }
 
     const { searchParams } = new URL(request.url);

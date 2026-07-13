@@ -3,6 +3,12 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import {
+  PlanLimitError,
+  assertEmailQuota,
+  planLimitResponse,
+  incrementEmailUsage,
+} from "@/lib/billing";
 import { apiLogger } from "@/lib/logger";
 import { rateLimit, rateLimitUserEmail, RATE_LIMITS } from "@/lib/rate-limit";
 import {
@@ -73,13 +79,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Apply per-user rate limiting based on number of emails
+    // Burst rate limit (per-minute)
     const userRateLimitResponse = rateLimitUserEmail(
       session.user.email,
       personalizedEmails.length,
     );
     if (userRateLimitResponse) {
       return userRateLimitResponse;
+    }
+
+    // Plan daily/monthly quota
+    try {
+      await assertEmailQuota(session.user.email, personalizedEmails.length);
+    } catch (error) {
+      if (error instanceof PlanLimitError) {
+        return planLimitResponse(error);
+      }
+      throw error;
     }
 
     const emailService = new EmailService(session.accessToken);
@@ -101,6 +117,10 @@ export async function POST(request: NextRequest) {
       },
     );
 
+    if (summary.sent > 0) {
+      await incrementEmailUsage(session.user.email, summary.sent);
+    }
+
     return NextResponse.json({
       results: summary.results,
       summary: {
@@ -113,6 +133,9 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof PlanLimitError) {
+      return planLimitResponse(error);
+    }
     apiLogger.error(
       "Send email API error",
       error instanceof Error ? error : undefined,

@@ -4,6 +4,12 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import {
+  PlanLimitError,
+  assertEmailQuota,
+  incrementEmailUsage,
+  planLimitResponse,
+} from "@/lib/billing";
 import { formatEmailSendErrorForUser } from "@/lib/gmail-user-message";
 import { apiLogger } from "@/lib/logger";
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
@@ -63,6 +69,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    try {
+      await assertEmailQuota(session.user.email, 1);
+    } catch (error) {
+      if (error instanceof PlanLimitError) {
+        return planLimitResponse(error);
+      }
+      throw error;
+    }
+
     const emailService = new EmailService(session.accessToken);
 
     const result = await emailService.sendSingle(
@@ -98,11 +113,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    await incrementEmailUsage(session.user.email, 1);
+
     return NextResponse.json({
       success: true,
       messageId: result.messageId,
     });
   } catch (error) {
+    if (error instanceof PlanLimitError) {
+      return planLimitResponse(error);
+    }
     apiLogger.error(
       "Send single email API error",
       error instanceof Error ? error : undefined,

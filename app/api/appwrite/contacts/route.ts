@@ -5,6 +5,11 @@ import { getServerSession } from "next-auth";
 
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
 import { authOptions } from "@/lib/auth";
+import {
+  PlanLimitError,
+  assertContactQuota,
+  planLimitResponse,
+} from "@/lib/billing";
 import { apiLogger } from "@/lib/logger";
 import type { ContactDocument } from "@/types/appwrite";
 
@@ -57,6 +62,15 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { email, name, company, phone, tags } = body;
+
+    try {
+      await assertContactQuota(session.user.email, 1);
+    } catch (error) {
+      if (error instanceof PlanLimitError) {
+        return planLimitResponse(error);
+      }
+      throw error;
+    }
 
     const result = await databases.createDocument(
       config.databaseId,

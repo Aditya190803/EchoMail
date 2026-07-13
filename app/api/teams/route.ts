@@ -5,6 +5,11 @@ import { getServerSession } from "next-auth";
 
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
 import { authOptions } from "@/lib/auth";
+import {
+  PlanLimitError,
+  assertFeature,
+  planLimitResponse,
+} from "@/lib/billing";
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/teams - List teams the user is a member of
@@ -97,6 +102,15 @@ export async function POST(request: NextRequest) {
         { error: "Teams feature not configured" },
         { status: 503 },
       );
+    }
+
+    try {
+      await assertFeature(session.user.email, "teams", "Teams");
+    } catch (error) {
+      if (error instanceof PlanLimitError) {
+        return planLimitResponse(error);
+      }
+      throw error;
     }
 
     const body = await request.json();

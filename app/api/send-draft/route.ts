@@ -5,6 +5,12 @@ import { getServerSession } from "next-auth";
 import { databases, config } from "@/lib/appwrite-server";
 import { authOptions } from "@/lib/auth";
 import {
+  PlanLimitError,
+  assertEmailQuota,
+  incrementEmailUsage,
+  planLimitResponse,
+} from "@/lib/billing";
+import {
   sendEmailViaAPI,
   replacePlaceholders,
   preResolveAttachments,
@@ -60,6 +66,18 @@ export async function POST(request: NextRequest) {
       typeof (doc as any).recipients === "string"
         ? JSON.parse((doc as any).recipients)
         : (doc as any).recipients || [];
+
+    try {
+      await assertEmailQuota(
+        session.user.email,
+        Array.isArray(recipients) ? recipients.length : 1,
+      );
+    } catch (error) {
+      if (error instanceof PlanLimitError) {
+        return planLimitResponse(error);
+      }
+      throw error;
+    }
 
     const attachments = (doc as any).attachments
       ? typeof (doc as any).attachments === "string"
@@ -349,6 +367,10 @@ export async function POST(request: NextRequest) {
       },
     );
 
+    if (successCount > 0) {
+      await incrementEmailUsage(session.user.email, successCount);
+    }
+
     return NextResponse.json({
       success: true,
       results,
@@ -359,6 +381,9 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof PlanLimitError) {
+      return planLimitResponse(error);
+    }
     apiLogger.error(
       "Send draft error",
       error instanceof Error ? error : undefined,
