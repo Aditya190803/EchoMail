@@ -6,13 +6,15 @@ import React from "react";
 import { renderHook, act, render } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const mockPush = vi.fn();
-const mockToast = {
-  info: vi.fn(),
-  success: vi.fn(),
-  warning: vi.fn(),
-  error: vi.fn(),
-};
+const { mockPush, mockToast } = vi.hoisted(() => ({
+  mockPush: vi.fn(),
+  mockToast: {
+    info: vi.fn(),
+    success: vi.fn(),
+    warning: vi.fn(),
+    error: vi.fn(),
+  },
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
