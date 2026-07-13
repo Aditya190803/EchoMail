@@ -100,7 +100,7 @@ export function AttachmentPreviewDialog({
                         <FileText className="h-8 w-8 text-orange-500" />
                       )}
                       {metadata.fileType === "other" && (
-                        <Paperclip className="h-8 w-8 text-gray-500" />
+                        <Paperclip className="h-8 w-8 text-muted-foreground" />
                       )}
                     </div>
                     <div className="flex-1">

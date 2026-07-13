@@ -68,12 +68,12 @@ export const messageSchema = z
 export const attachmentSchema = z.object({
   name: z.string().min(1).max(255),
   type: z.string().min(1).max(100),
-  data: z.string(), // base64 encoded
-  appwriteUrl: z.string().url().optional(),
+  data: z.string(), // base64 encoded or "appwrite" placeholder
+  appwriteUrl: z.union([z.string().url(), z.literal("")]).optional(),
   appwriteFileId: z.string().optional(),
   fileSize: z
     .number()
-    .positive()
+    .nonnegative()
     .max(25 * 1024 * 1024)
     .optional(), // 25MB max
 });
@@ -100,6 +100,8 @@ export const sendSingleEmailSchema = z.object({
   originalRowData: z.record(z.string(), z.string()).optional(),
   attachments: z.array(attachmentSchema).optional(),
   personalizedAttachment: personalizedAttachmentSchema.optional(),
+  cc: z.array(emailSchema).max(50).optional(),
+  bcc: z.array(emailSchema).max(50).optional(),
 });
 
 /**

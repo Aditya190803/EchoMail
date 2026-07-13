@@ -66,6 +66,7 @@ import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { draftEmailsService, type DraftEmail } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
+import { replacePlaceholders } from "@/lib/email/placeholders";
 import { getCookie } from "@/lib/utils";
 
 export default function DraftPage() {
@@ -125,22 +126,6 @@ export default function DraftPage() {
   useEffect(() => {
     setPreviewRecipientIndex(0);
   }, [previewEmail?.$id]);
-
-  // Replace placeholders in text with recipient data
-  const replacePlaceholders = (
-    text: string,
-    data: Record<string, string>,
-  ): string => {
-    return text
-      .replace(
-        /\{\{(\w+)\}\}/g,
-        (match, key) => data[key.toLowerCase()] || data[key] || match,
-      )
-      .replace(
-        /\{(\w+)\}/g,
-        (match, key) => data[key.toLowerCase()] || data[key] || match,
-      );
-  };
 
   // Get personalized content for a specific recipient
   const getPreviewContent = (email: DraftEmail, recipientIndex: number) => {
@@ -275,6 +260,8 @@ export default function DraftPage() {
         saved_at: email.saved_at,
         attachments: email.attachments,
         csv_data: email.csv_data,
+        cc: email.cc,
+        bcc: email.bcc,
         // Include personalized attachment settings
         has_personalized_attachments: email.has_personalized_attachments,
         personalized_attachment_column: email.personalized_attachment_column,
@@ -297,6 +284,8 @@ export default function DraftPage() {
         saved_at: new Date().toISOString(),
         attachments: email.attachments,
         csv_data: email.csv_data,
+        cc: email.cc,
+        bcc: email.bcc,
         // Include personalized attachment settings
         has_personalized_attachments: email.has_personalized_attachments,
         personalized_attachment_column: email.personalized_attachment_column,

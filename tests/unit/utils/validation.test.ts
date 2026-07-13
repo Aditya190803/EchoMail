@@ -117,6 +117,47 @@ describe("Validation Schemas", () => {
       expect(result.success).toBe(true);
     });
 
+    it("should accept optional cc/bcc arrays", () => {
+      const result = sendSingleEmailSchema.safeParse({
+        to: "test@example.com",
+        subject: "Test Subject",
+        message: "<p>Test message</p>",
+        cc: ["cc@example.com"],
+        bcc: ["bcc@example.com"],
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject invalid cc addresses", () => {
+      const result = sendSingleEmailSchema.safeParse({
+        to: "test@example.com",
+        subject: "Test Subject",
+        message: "<p>Test message</p>",
+        cc: ["not-an-email"],
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject more than 50 cc addresses", () => {
+      const result = sendSingleEmailSchema.safeParse({
+        to: "test@example.com",
+        subject: "Test Subject",
+        message: "<p>Test message</p>",
+        cc: Array.from({ length: 51 }, (_, i) => `cc${i}@example.com`),
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("should accept exactly 50 bcc addresses", () => {
+      const result = sendSingleEmailSchema.safeParse({
+        to: "test@example.com",
+        subject: "Test Subject",
+        message: "<p>Test message</p>",
+        bcc: Array.from({ length: 50 }, (_, i) => `bcc${i}@example.com`),
+      });
+      expect(result.success).toBe(true);
+    });
+
     it("should accept payloads with attachments", () => {
       const validPayload = {
         to: "test@example.com",

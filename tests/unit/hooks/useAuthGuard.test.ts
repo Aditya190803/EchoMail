@@ -7,8 +7,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 
-const mockPush = vi.fn();
-const mockSignOut = vi.fn();
+const { mockPush, mockSignOut } = vi.hoisted(() => ({
+  mockPush: vi.fn(),
+  mockSignOut: vi.fn(),
+}));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({

@@ -51,12 +51,14 @@ import {
 import { detectPdfColumn, isPdfUrl } from "@/lib/attachment-fetcher";
 import { componentLogger } from "@/lib/client-logger";
 import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
+import { parseEmailList, serializeEmailList } from "@/lib/email/parse-list";
 import {
   createGmailPreviewWrapper as buildGmailPreviewWrapper,
   replacePlaceholders,
 } from "@/lib/email/preview-utils";
 import { getEmailPreview } from "@/lib/email-formatting/client";
 import { getCookie } from "@/lib/utils";
+import { isValidEmail } from "@/lib/validation";
 import type { CSVRow } from "@/types/email";
 
 // Draft storage key
@@ -97,6 +99,10 @@ export function ComposeForm() {
   // Form state
   const [subject, setSubject] = useState("");
   const [content, setContent] = useState("");
+  const [cc, setCc] = useState("");
+  const [bcc, setBcc] = useState("");
+  const [showCc, setShowCc] = useState(false);
+  const [showBcc, setShowBcc] = useState(false);
   const [recipients, setRecipients] = useState<string[]>([]);
   const [attachments, setAttachments] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -301,6 +307,14 @@ export function ComposeForm() {
             setSubject(draft.subject || "");
             setContent(draft.content || "");
             setRecipients(draft.recipients || []);
+            if (Array.isArray(draft.cc) && draft.cc.length) {
+              setCc(serializeEmailList(draft.cc));
+              setShowCc(true);
+            }
+            if (Array.isArray(draft.bcc) && draft.bcc.length) {
+              setBcc(serializeEmailList(draft.bcc));
+              setShowBcc(true);
+            }
             setSaveAsDraft(true); // Keep it as draft mode when editing
 
             // Handle attachments
@@ -1161,6 +1175,18 @@ export function ComposeForm() {
       return;
     }
 
+    const ccList = parseEmailList(cc);
+    const bccList = parseEmailList(bcc);
+    if (ccList.length > 50 || bccList.length > 50) {
+      toast.error("Cc and Bcc can each contain at most 50 addresses");
+      return;
+    }
+    const bad = [...ccList, ...bccList].filter((e) => !isValidEmail(e));
+    if (bad.length) {
+      toast.error(`Invalid Cc/Bcc address: ${bad[0]}`);
+      return;
+    }
+
     // Immediately show preparing state to prevent double-clicks
     setIsPreparingSend(true);
 
@@ -1306,6 +1332,8 @@ export function ComposeForm() {
           saved_at: savedAt,
           attachments: processedAttachments.filter((a) => a.appwrite_file_id), // Only save attachments that were uploaded
           csv_data: recipientCsvData,
+          cc: ccList,
+          bcc: bccList,
           // Save personalized attachment settings
           has_personalized_attachments:
             !!pdfColumn && showPersonalizedAttachments,
@@ -1390,10 +1418,13 @@ export function ComposeForm() {
 
     try {
       const campaignId = generateCampaignId();
+
       const results = await sendEmails(personalizedEmails, {
         campaignId,
         isTransactional: !isMarketing,
         trackingEnabled,
+        ...(ccList.length ? { cc: ccList } : {}),
+        ...(bccList.length ? { bcc: bccList } : {}),
       });
 
       const successCount = results.filter((r) => r.status === "success").length;
@@ -1469,10 +1500,7 @@ export function ComposeForm() {
     <div className="relative space-y-8 pb-32">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 -top-8 h-64 -z-10"
-        style={{
-          backgroundColor: "oklch(0.97 0.01 260)",
-        }}
+        className="pointer-events-none absolute inset-x-0 -top-8 h-64 -z-10 bg-primary/5"
       />
       {/* Resume Campaign Banner */}
       {hasSavedCampaign && savedCampaignInfo && (
@@ -1758,6 +1786,10 @@ export function ComposeForm() {
                 isLoadingTemplates={isLoadingTemplates}
                 subject={subject}
                 content={content}
+                cc={cc}
+                bcc={bcc}
+                showCc={showCc}
+                showBcc={showBcc}
                 attachments={attachments}
                 isUploading={isUploading}
                 csvData={csvData}
@@ -1776,6 +1808,10 @@ export function ComposeForm() {
                 setTemplateSearch={setTemplateSearch}
                 setSubject={setSubject}
                 setContent={setContent}
+                setCc={setCc}
+                setBcc={setBcc}
+                setShowCc={setShowCc}
+                setShowBcc={setShowBcc}
                 handleFileUpload={handleFileUpload}
                 removeAttachment={removeAttachment}
                 setPreviewAttachmentUrl={setPreviewAttachmentUrl}
@@ -1802,6 +1838,8 @@ export function ComposeForm() {
                 getPersonalizedContent={getPersonalizedContent}
                 subject={subject}
                 content={content}
+                cc={cc}
+                bcc={bcc}
                 csvData={csvData}
                 manualEntries={manualEntries}
                 isLoadingPreview={isLoadingPreview}

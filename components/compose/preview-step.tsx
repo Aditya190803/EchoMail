@@ -31,6 +31,8 @@ interface PreviewStepProps {
   getPersonalizedContent: (recipientIndex: number) => PersonalizedPreview;
   subject: string;
   content: string;
+  cc?: string;
+  bcc?: string;
   csvData: Record<string, string>[];
   manualEntries: { email: string; name: string }[];
   isLoadingPreview: boolean;
@@ -50,6 +52,8 @@ export function PreviewStep({
   getPersonalizedContent,
   subject,
   content,
+  cc = "",
+  bcc = "",
   csvData,
   manualEntries,
   isLoadingPreview,
@@ -118,7 +122,7 @@ export function PreviewStep({
           previewMode === "mobile" ? "max-w-[390px] mx-auto" : ""
         }`}
       >
-        <div className="border-b bg-muted/20 px-4 py-3">
+        <div className="border-b bg-muted/20 px-4 py-3 space-y-2">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground truncate">To</p>
@@ -135,6 +139,24 @@ export function PreviewStep({
               </p>
             </div>
           </div>
+          {(cc.trim() || bcc.trim()) && (
+            <div className="grid gap-1 text-sm">
+              {cc.trim() ? (
+                <p className="truncate">
+                  <span className="text-xs text-muted-foreground mr-2">Cc</span>
+                  {cc.trim()}
+                </p>
+              ) : null}
+              {bcc.trim() ? (
+                <p className="truncate">
+                  <span className="text-xs text-muted-foreground mr-2">
+                    Bcc
+                  </span>
+                  {bcc.trim()}
+                </p>
+              ) : null}
+            </div>
+          )}
         </div>
 
         {recipients.length > 0 && (

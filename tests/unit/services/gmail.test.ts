@@ -44,6 +44,15 @@ describe("Gmail Utilities", () => {
       expect(result).toBe("Hello John, your {{unknown}} is ready.");
     });
 
+    it("should replace single-brace placeholders case-insensitively", () => {
+      const template = "Hiii {Name}";
+      const data = { name: "Test" };
+
+      const result = replacePlaceholders(template, data);
+
+      expect(result).toBe("Hiii Test");
+    });
+
     it("should handle empty data object", () => {
       const template = "Hello {{name}}";
       const data = {};

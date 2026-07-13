@@ -1,5 +1,6 @@
 export const TEXT_COLORS = [
-  { name: "Default", color: "#222222" },
+  // inherit = unset inline color so editor uses theme text-foreground
+  { name: "Default", color: "inherit" },
   { name: "Red", color: "#dc2626" },
   { name: "Orange", color: "#ea580c" },
   { name: "Amber", color: "#d97706" },

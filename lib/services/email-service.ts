@@ -52,6 +52,10 @@ export interface EmailContent {
   body: string;
   /** Optional email signature to append */
   signature?: string;
+  /** Optional CC addresses */
+  cc?: string[];
+  /** Optional BCC addresses */
+  bcc?: string[];
 }
 
 /**
@@ -114,6 +118,8 @@ export interface PersonalizedEmail {
     url: string;
     fileName?: string;
   };
+  cc?: string[];
+  bcc?: string[];
 }
 
 /**
@@ -274,6 +280,8 @@ export class EmailService {
         resolvedAttachments,
         tracking,
         isTransactional,
+        content.cc,
+        content.bcc,
       );
 
       // Record "sent" event
@@ -559,6 +567,9 @@ export class EmailService {
                   userEmail: tracking.userEmail,
                 }
               : undefined,
+            undefined,
+            email.cc,
+            email.bcc,
           );
 
           const emailResult: EmailResult = {
@@ -658,7 +669,13 @@ export class EmailService {
       const recipient = recipients[i];
 
       try {
-        await sendEmailWithTemplate(this.accessToken, recipient.email);
+        await sendEmailWithTemplate(
+          this.accessToken,
+          recipient.email,
+          undefined,
+          content.cc,
+          content.bcc,
+        );
 
         results.push({
           email: recipient.email,

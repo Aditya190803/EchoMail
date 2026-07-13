@@ -129,7 +129,7 @@ export function EditorDialogs({
                 }}
               />
             </div>
-            <div className="text-xs text-gray-500 text-center">or</div>
+            <div className="text-xs text-muted-foreground text-center">or</div>
             <div>
               <Label htmlFor="image-upload" className="text-xs">
                 Upload Image

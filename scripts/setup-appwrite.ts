@@ -158,6 +158,8 @@ const collections = [
       { key: "status", type: "string", size: 50, required: false },
       { key: "attachments", type: "string", size: 100000, required: false },
       { key: "csv_data", type: "string", size: 1000000, required: false },
+      // JSON: { cc: string[], bcc: string[] } — single attr (collection size limit)
+      { key: "cc", type: "string", size: 10000, required: false },
       { key: "user_email", type: "string", size: 255, required: true },
       { key: "created_at", type: "string", size: 50, required: false },
       { key: "sent_at", type: "string", size: 50, required: false },

@@ -274,9 +274,12 @@ export function EditorToolbar({
             <div className="grid grid-cols-4 gap-1.5">
               {TEXT_COLORS.map((c) => (
                 <button
-                  key={c.color}
+                  key={c.name}
                   className="w-7 h-7 rounded-md border border-gray-200 dark:border-zinc-600 hover:scale-110 hover:shadow-md transition-all duration-150"
-                  style={{ backgroundColor: c.color }}
+                  style={{
+                    backgroundColor:
+                      c.color === "inherit" ? "var(--foreground)" : c.color,
+                  }}
                   onClick={() => onSetTextColor(c.color)}
                   title={c.name}
                 />

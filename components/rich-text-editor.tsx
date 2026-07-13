@@ -102,10 +102,10 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "max-w-none focus:outline-none min-h-[150px] p-3 font-sans text-[14px] leading-[1.5] text-[#222222]",
+          "max-w-none focus:outline-none min-h-[150px] p-3 font-sans text-[14px] leading-[1.5] text-foreground",
         spellcheck: "true",
         style:
-          "font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #222222; word-spacing: normal; letter-spacing: normal;",
+          "font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; word-spacing: normal; letter-spacing: normal;",
       },
       handlePaste: createEditorPasteHandler(() => editorRef.current),
     },
@@ -237,10 +237,15 @@ export function RichTextEditor({
 
   const setTextColor = useCallback(
     (color: string) => {
-      if (editor) {
-        editor.chain().focus().setColor(color).run();
-        setIsColorPickerOpen(false);
+      if (!editor) {
+        return;
       }
+      if (!color || color === "inherit") {
+        editor.chain().focus().unsetColor().run();
+      } else {
+        editor.chain().focus().setColor(color).run();
+      }
+      setIsColorPickerOpen(false);
     },
     [editor],
   );
@@ -380,7 +385,7 @@ export function RichTextEditor({
         />
       </div>
 
-      {/* Editor Styles */}
+      {/* Editor Styles — theme tokens so light/dark both work */}
       <style jsx global>{`
         .ProseMirror p {
           margin: 0.5em 0;
@@ -406,15 +411,15 @@ export function RichTextEditor({
           margin: 1em 0;
         }
         .ProseMirror blockquote {
-          border-left: 3px solid #ccc;
+          border-left: 3px solid var(--border);
           margin: 1em 0;
           padding-left: 1em;
-          color: #666;
+          color: var(--muted-foreground);
           font-style: italic;
         }
         .ProseMirror pre {
-          background: #1e1e1e;
-          color: #d4d4d4;
+          background: var(--muted);
+          color: var(--foreground);
           font-family: "JetBrains Mono", monospace;
           padding: 0.75rem 1rem;
           border-radius: 0.5rem;
@@ -422,8 +427,8 @@ export function RichTextEditor({
           margin: 1em 0;
         }
         .ProseMirror code {
-          background: #f1f5f9;
-          color: #e11d48;
+          background: var(--muted);
+          color: var(--destructive);
           padding: 0.2em 0.4em;
           border-radius: 0.25rem;
           font-family: monospace;
@@ -436,7 +441,7 @@ export function RichTextEditor({
         }
         .ProseMirror hr {
           border: none;
-          border-top: 2px solid #e5e7eb;
+          border-top: 2px solid var(--border);
           margin: 1.5em 0;
         }
         .ProseMirror ul,
@@ -467,18 +472,18 @@ export function RichTextEditor({
         }
         .ProseMirror table td,
         .ProseMirror table th {
-          border: 1px solid #d1d5db;
+          border: 1px solid var(--border);
           padding: 0.5em;
           position: relative;
           vertical-align: top;
           min-width: 100px;
         }
         .ProseMirror table th {
-          background: #f3f4f6;
+          background: var(--muted);
           font-weight: bold;
         }
         .ProseMirror table .selectedCell {
-          background: #dbeafe;
+          background: color-mix(in oklch, var(--primary) 22%, transparent);
         }
         .ProseMirror img {
           max-width: 100%;
@@ -486,7 +491,7 @@ export function RichTextEditor({
           margin: 0.5em 0;
         }
         .ProseMirror a {
-          color: #2563eb;
+          color: var(--primary);
           text-decoration: underline;
           cursor: pointer;
         }
@@ -497,7 +502,7 @@ export function RichTextEditor({
         }
         .ProseMirror p.is-editor-empty:first-child::before {
           content: attr(data-placeholder);
-          color: #9ca3af;
+          color: var(--muted-foreground);
           pointer-events: none;
           position: absolute;
           height: 0;

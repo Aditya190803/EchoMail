@@ -91,6 +91,10 @@ export interface DraftEmail {
     appwrite_file_id?: string;
   }[];
   csv_data?: Record<string, string>[];
+  /** Campaign-level Cc addresses */
+  cc?: string[];
+  /** Campaign-level Bcc addresses */
+  bcc?: string[];
   personalized_attachment_column?: string;
   has_personalized_attachments?: boolean;
   created_at?: string;

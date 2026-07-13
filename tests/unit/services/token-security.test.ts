@@ -12,17 +12,24 @@ import {
   sanitizeTokenForLogging,
   type TokenInfo,
 } from "@/lib/token-security";
-import {
-  createMockLoggerModule,
-  createSpyLogger,
-} from "@/tests/helpers/mockLoggerModule";
 
-// Mock logger
-vi.mock("@/lib/logger", () =>
-  createMockLoggerModule({
-    authLogger: createSpyLogger(),
-  }),
-);
+// vi.mock factories are hoisted — keep factory self-contained (no outer imports)
+vi.mock("@/lib/logger", () => {
+  const makeLogger = () => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    child: vi.fn(() => makeLogger()),
+  });
+  return {
+    authLogger: makeLogger(),
+    apiLogger: makeLogger(),
+    emailLogger: makeLogger(),
+    dbLogger: makeLogger(),
+    logger: makeLogger(),
+  };
+});
 
 // Mock fetch
 const mockFetch = vi.fn();

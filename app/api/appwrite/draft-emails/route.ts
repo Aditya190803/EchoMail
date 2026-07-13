@@ -15,6 +15,88 @@ interface DraftEmailDocument extends DraftDocument {
   csv_data?: string | unknown[];
   sent_at?: string;
   error?: string;
+  cc?: string | string[];
+  bcc?: string | string[];
+}
+
+function parseJsonArray(value: unknown): unknown[] {
+  if (!value) {
+    return [];
+  }
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function parseStringArray(value: unknown): string[] {
+  return parseJsonArray(value).filter(
+    (v): v is string => typeof v === "string" && v.trim().length > 0,
+  );
+}
+
+/** Appwrite attribute budget: store both lists in one `cc` string field. */
+function parseCcBcc(value: unknown): { cc: string[]; bcc: string[] } {
+  if (!value) {
+    return { cc: [], bcc: [] };
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return { cc: parseStringArray(parsed), bcc: [] };
+      }
+      if (parsed && typeof parsed === "object") {
+        return {
+          cc: parseStringArray((parsed as { cc?: unknown }).cc),
+          bcc: parseStringArray((parsed as { bcc?: unknown }).bcc),
+        };
+      }
+    } catch {
+      return { cc: [], bcc: [] };
+    }
+  }
+  if (Array.isArray(value)) {
+    return { cc: parseStringArray(value), bcc: [] };
+  }
+  return { cc: [], bcc: [] };
+}
+
+function serializeCcBcc(cc?: string[], bcc?: string[]): string | null {
+  const ccList = parseStringArray(cc);
+  const bccList = parseStringArray(bcc);
+  if (!ccList.length && !bccList.length) {
+    return null;
+  }
+  return JSON.stringify({ cc: ccList, bcc: bccList });
+}
+
+function mapDraftDocument(doc: DraftEmailDocument) {
+  const { cc, bcc } = parseCcBcc(doc.cc);
+  return {
+    $id: doc.$id,
+    subject: doc.subject || "",
+    content: doc.content || "",
+    recipients: parseJsonArray(doc.recipients),
+    saved_at: doc.saved_at,
+    status: doc.status || "pending",
+    user_email: doc.user_email || "",
+    attachments: parseJsonArray(doc.attachments),
+    csv_data: parseJsonArray(doc.csv_data),
+    cc,
+    bcc,
+    created_at: doc.created_at || doc.$createdAt,
+    sent_at: doc.sent_at,
+    error: doc.error,
+  };
 }
 
 // GET /api/appwrite/draft-emails - List draft emails for the authenticated user
@@ -41,31 +123,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
       }
 
-      return NextResponse.json({
-        $id: doc.$id,
-        subject: doc.subject || "",
-        content: doc.content || "",
-        recipients:
-          typeof doc.recipients === "string"
-            ? JSON.parse(doc.recipients)
-            : doc.recipients || [],
-        saved_at: doc.saved_at,
-        status: doc.status || "pending",
-        user_email: doc.user_email || "",
-        attachments: doc.attachments
-          ? typeof doc.attachments === "string"
-            ? JSON.parse(doc.attachments)
-            : doc.attachments
-          : [],
-        csv_data: doc.csv_data
-          ? typeof doc.csv_data === "string"
-            ? JSON.parse(doc.csv_data)
-            : doc.csv_data
-          : [],
-        created_at: doc.created_at || doc.$createdAt,
-        sent_at: doc.sent_at,
-        error: doc.error,
-      });
+      return NextResponse.json(mapDraftDocument(doc));
     }
 
     const response = await databases.listDocuments(
@@ -80,31 +138,7 @@ export async function GET(request: NextRequest) {
 
     const documents = (
       response.documents as unknown as DraftEmailDocument[]
-    ).map((doc) => ({
-      $id: doc.$id,
-      subject: doc.subject || "",
-      content: doc.content || "",
-      recipients:
-        typeof doc.recipients === "string"
-          ? (JSON.parse(doc.recipients) as unknown[])
-          : [],
-      saved_at: doc.saved_at,
-      status: doc.status || "pending",
-      user_email: doc.user_email || "",
-      attachments: doc.attachments
-        ? typeof doc.attachments === "string"
-          ? (JSON.parse(doc.attachments) as unknown[])
-          : (doc.attachments as unknown[])
-        : [],
-      csv_data: doc.csv_data
-        ? typeof doc.csv_data === "string"
-          ? (JSON.parse(doc.csv_data) as unknown[])
-          : (doc.csv_data as unknown[])
-        : [],
-      created_at: doc.created_at || doc.$createdAt,
-      sent_at: doc.sent_at,
-      error: doc.error,
-    }));
+    ).map((doc) => mapDraftDocument(doc));
 
     return NextResponse.json({ total: response.total, documents });
   } catch (error: unknown) {
@@ -130,8 +164,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { subject, content, recipients, saved_at, attachments, csv_data } =
-      body;
+    const {
+      subject,
+      content,
+      recipients,
+      saved_at,
+      attachments,
+      csv_data,
+      cc,
+      bcc,
+    } = body;
 
     const result = await databases.createDocument(
       config.databaseId,
@@ -146,6 +188,8 @@ export async function POST(request: NextRequest) {
         user_email: session.user.email,
         attachments: attachments ? JSON.stringify(attachments) : null,
         csv_data: csv_data ? JSON.stringify(csv_data) : null,
+        // attribute budget: both lists live in `cc` as JSON
+        cc: serializeCcBcc(cc, bcc),
         created_at: new Date().toISOString(),
       },
     );
@@ -184,6 +228,8 @@ export async function PUT(request: NextRequest) {
       saved_at,
       attachments,
       csv_data,
+      cc,
+      bcc,
     } = body;
 
     if (!id) {
@@ -232,6 +278,9 @@ export async function PUT(request: NextRequest) {
     }
     if (csv_data !== undefined) {
       updateData.csv_data = csv_data ? JSON.stringify(csv_data) : null;
+    }
+    if (cc !== undefined || bcc !== undefined) {
+      updateData.cc = serializeCcBcc(cc, bcc);
     }
 
     const result = await databases.updateDocument(

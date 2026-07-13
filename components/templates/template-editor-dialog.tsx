@@ -117,7 +117,7 @@ export function TemplateEditorDialog({
                   id="saveVersion"
                   checked={saveVersion}
                   onChange={(e) => onSaveVersionChange(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300"
+                  className="h-4 w-4 rounded border-input"
                 />
                 <Label
                   htmlFor="saveVersion"

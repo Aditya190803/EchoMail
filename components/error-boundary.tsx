@@ -77,7 +77,7 @@ function DefaultErrorFallback({
     <div className="flex items-center justify-center min-h-[400px] p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-red-600">
+          <CardTitle className="flex items-center gap-2 text-destructive">
             <AlertTriangle className="h-5 w-5" />
             {isChunkError ? "Loading Error" : "Something went wrong"}
           </CardTitle>
@@ -85,24 +85,24 @@ function DefaultErrorFallback({
         <CardContent className="space-y-4">
           {isChunkError ? (
             <div className="space-y-2">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 A loading error occurred. This usually happens when the
                 application updates while you're using it.
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 The page will reload automatically in a moment, or you can click
                 the button below.
               </p>
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-muted-foreground">
                 An unexpected error occurred. Please try again.
               </p>
               {error && (
-                <details className="text-xs text-gray-500">
+                <details className="text-xs text-muted-foreground">
                   <summary>Error details</summary>
-                  <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto">
+                  <pre className="mt-2 p-2 bg-muted rounded text-xs overflow-auto">
                     {error.toString()}
                   </pre>
                 </details>

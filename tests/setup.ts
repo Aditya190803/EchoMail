@@ -68,33 +68,31 @@ const createMockStorage = () => {
 const mockLocalStorage = createMockStorage();
 const mockSessionStorage = createMockStorage();
 
-// Assign mock storage to window before defining global getters
-if (typeof (globalThis as any).window !== "undefined") {
-  Object.defineProperty(window, "localStorage", {
-    configurable: true,
-    value: mockLocalStorage,
-  });
-  Object.defineProperty(window, "sessionStorage", {
-    configurable: true,
-    value: mockSessionStorage,
-  });
-}
+// Hold storage on a plain object — do NOT proxy globalThis <-> window.
+// In jsdom, globalThis === window, so get: () => window.localStorage recurses.
+const storageHolders: Record<
+  string,
+  Storage | ReturnType<typeof createMockStorage>
+> = {
+  localStorage: mockLocalStorage,
+  sessionStorage: mockSessionStorage,
+};
 
-for (const [storageKey] of [
-  ["localStorage", mockLocalStorage],
-  ["sessionStorage", mockSessionStorage],
-] as const) {
-  Object.defineProperty(globalThis, storageKey, {
+for (const storageKey of ["localStorage", "sessionStorage"] as const) {
+  const descriptor: PropertyDescriptor = {
     configurable: true,
-    get: () => window[storageKey],
+    enumerable: true,
+    get: () => storageHolders[storageKey],
     set: (value) => {
-      Object.defineProperty(window, storageKey, {
-        configurable: true,
-        writable: true,
-        value,
-      });
+      storageHolders[storageKey] = value;
     },
-  });
+  };
+  Object.defineProperty(globalThis, storageKey, descriptor);
+  const win = (globalThis as { window?: Window & typeof globalThis }).window;
+  // Only mirror when window is a separate object (node); jsdom shares identity.
+  if (win && (win as object) !== (globalThis as object)) {
+    Object.defineProperty(win, storageKey, descriptor);
+  }
 }
 
 type VitestCompat = typeof vi & {
