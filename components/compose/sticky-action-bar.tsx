@@ -1,6 +1,9 @@
+"use client";
+
 import * as React from "react";
 
 import { ChevronLeft, ChevronRight, Loader2, Send } from "lucide-react";
+import { createPortal } from "react-dom";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -37,10 +40,23 @@ export function StickyActionBar({
   dispatchDisabled: boolean;
   className?: string;
 }) {
-  return (
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return null;
+  }
+
+  // Portal to body so position:fixed is viewport-relative.
+  // App layout scrolls an inner pane; fixed inside that can stick to the pane
+  // and let page content paint under/below the bar.
+  return createPortal(
     <div
       className={cn(
-        "fixed inset-x-0 bottom-0 z-40 border-t bg-background shadow-[0_-12px_30px_-20px_hsl(var(--foreground)/0.25)]",
+        "fixed inset-x-0 bottom-0 z-50 border-t bg-background shadow-[0_-12px_30px_-20px_hsl(var(--foreground)/0.25)]",
         className,
       )}
       role="region"
@@ -100,6 +116,7 @@ export function StickyActionBar({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
