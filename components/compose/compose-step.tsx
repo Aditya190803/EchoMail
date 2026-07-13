@@ -38,6 +38,7 @@ import type { EmailSignature, EmailTemplate } from "@/lib/appwrite";
 import { detectPdfColumn, isPdfUrl } from "@/lib/attachment-fetcher";
 import { LARGE_FILE_THRESHOLD } from "@/lib/attachments/client";
 
+import { EmailChipInput } from "./email-chip-input";
 import { TemplatePickerDialog } from "./template-picker-dialog";
 
 import type { ComposeAttachment } from "./compose-types";
@@ -51,6 +52,10 @@ interface ComposeStepProps {
   isLoadingTemplates: boolean;
   subject: string;
   content: string;
+  cc: string;
+  bcc: string;
+  showCc: boolean;
+  showBcc: boolean;
   attachments: ComposeAttachment[];
   isUploading: boolean;
   csvData: Record<string, string>[];
@@ -69,6 +74,10 @@ interface ComposeStepProps {
   setTemplateSearch: (value: string) => void;
   setSubject: (value: string) => void;
   setContent: (value: string) => void;
+  setCc: (value: string) => void;
+  setBcc: (value: string) => void;
+  setShowCc: (value: boolean) => void;
+  setShowBcc: (value: boolean) => void;
   handleFileUpload: (files: FileList) => void | Promise<void>;
   removeAttachment: (index: number) => void;
   setPreviewAttachmentUrl: (url: string | null) => void;
@@ -116,6 +125,10 @@ export function ComposeStep({
   isLoadingTemplates,
   subject,
   content,
+  cc,
+  bcc,
+  showCc,
+  showBcc,
   attachments,
   isUploading,
   csvData,
@@ -134,6 +147,10 @@ export function ComposeStep({
   setTemplateSearch,
   setSubject,
   setContent,
+  setCc,
+  setBcc,
+  setShowCc,
+  setShowBcc,
   handleFileUpload,
   removeAttachment,
   setPreviewAttachmentUrl,
@@ -225,10 +242,10 @@ export function ComposeStep({
       </div>
 
       <div className="border rounded-xl shadow-sm bg-card overflow-hidden flex flex-col">
-        <div className="flex items-center px-4 py-3 border-b bg-card">
+        <div className="flex items-center px-4 py-3 border-b bg-card gap-2">
           <Label
             htmlFor="subject"
-            className="text-muted-foreground font-medium text-sm w-20 mb-0"
+            className="text-muted-foreground font-medium text-sm w-20 mb-0 shrink-0"
           >
             Subject:
           </Label>
@@ -239,7 +256,63 @@ export function ComposeStep({
             onChange={(e) => setSubject(e.target.value)}
             className="border-0 focus-visible:ring-0 shadow-none px-0 bg-transparent flex-1 h-auto py-0 text-sm font-medium"
           />
+          {!showCc && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground"
+              onClick={() => setShowCc(true)}
+            >
+              Cc
+            </Button>
+          )}
+          {!showBcc && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted-foreground"
+              onClick={() => setShowBcc(true)}
+            >
+              Bcc
+            </Button>
+          )}
         </div>
+
+        {showCc && (
+          <div className="flex items-start px-4 py-2 border-b bg-card gap-2">
+            <Label
+              htmlFor="cc"
+              className="text-muted-foreground font-medium text-sm w-20 mb-0 shrink-0 pt-1"
+            >
+              Cc:
+            </Label>
+            <EmailChipInput
+              id="cc"
+              value={cc}
+              onChange={setCc}
+              placeholder="Add Cc…"
+            />
+          </div>
+        )}
+
+        {showBcc && (
+          <div className="flex items-start px-4 py-2 border-b bg-card gap-2">
+            <Label
+              htmlFor="bcc"
+              className="text-muted-foreground font-medium text-sm w-20 mb-0 shrink-0 pt-1"
+            >
+              Bcc:
+            </Label>
+            <EmailChipInput
+              id="bcc"
+              value={bcc}
+              onChange={setBcc}
+              placeholder="Add Bcc…"
+            />
+          </div>
+        )}
 
         <div className="flex-1 flex flex-col">
           <LazyRichTextEditor

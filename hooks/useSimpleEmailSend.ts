@@ -304,6 +304,8 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
             personalizedAttachment: email.personalizedAttachment || undefined,
             campaignId: campaignIdRef.current,
             isTransactional,
+            cc: email.cc ?? [],
+            bcc: email.bcc ?? [],
           }),
         });
 
@@ -380,12 +382,22 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
       setFailedEmails([]);
       setStoppedDueToError(false);
       remainingEmailsRef.current = [];
-      allEmailsRef.current = personalizedEmails;
+
+      // Campaign-level cc/bcc fill in when a message doesn't set its own
+      const emails =
+        options?.cc?.length || options?.bcc?.length
+          ? personalizedEmails.map((email) => ({
+              ...email,
+              cc: email.cc ?? options.cc,
+              bcc: email.bcc ?? options.bcc,
+            }))
+          : personalizedEmails;
+      allEmailsRef.current = emails;
 
       const campaignId = generateCampaignId();
       campaignIdRef.current = campaignId;
 
-      const totalEmails = personalizedEmails.length;
+      const totalEmails = emails.length;
 
       setProgress({
         currentEmail: 0,
@@ -395,7 +407,7 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
       });
 
       setSendStatus(
-        personalizedEmails.map((email, index) => ({
+        emails.map((email, index) => ({
           email: email.to,
           status: "pending" as const,
           index,
@@ -405,7 +417,7 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
       // Initialize campaign state
       const campaignState: CampaignState = {
         campaignId,
-        emails: personalizedEmails,
+        emails: emails,
         sentIndices: [],
         failedIndices: [],
         status: "in-progress",
@@ -418,10 +430,10 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
       const results: EmailResult[] = [];
 
       try {
-        for (let i = 0; i < personalizedEmails.length; i++) {
+        for (let i = 0; i < emails.length; i++) {
           // Check if stop was requested
           if (shouldStopRef.current) {
-            const remainingEmails = personalizedEmails.slice(i);
+            const remainingEmails = emails.slice(i);
             remainingEmailsRef.current = remainingEmails;
 
             // Mark remaining as cancelled
@@ -469,7 +481,7 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
             break;
           }
 
-          const email = personalizedEmails[i];
+          const email = emails[i];
 
           setProgress({
             currentEmail: i + 1,
@@ -515,7 +527,7 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
             const isPersistent = isPersistentError(result.error || "");
 
             if (isPersistent) {
-              const remainingEmails = personalizedEmails.slice(i + 1);
+              const remainingEmails = emails.slice(i + 1);
               remainingEmailsRef.current = remainingEmails;
               setFailedEmails([email, ...remainingEmails]);
 
@@ -570,7 +582,7 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
             }
           }
 
-          if (i < personalizedEmails.length - 1) {
+          if (i < emails.length - 1) {
             await new Promise((resolve) =>
               setTimeout(resolve, BETWEEN_EMAILS_DELAY_MS),
             );
@@ -583,8 +595,7 @@ export function useSimpleEmailSend(): UseSimpleEmailSendResult {
         ).length;
         const errorCount = results.filter((r) => r.status === "error").length;
         const allProcessed =
-          !shouldStopRef.current &&
-          results.length === personalizedEmails.length;
+          !shouldStopRef.current && results.length === emails.length;
 
         if (allProcessed) {
           if (errorCount === 0) {

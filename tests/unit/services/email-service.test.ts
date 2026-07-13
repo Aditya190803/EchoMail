@@ -4,69 +4,72 @@ import * as gmail from "@/lib/gmail";
 import { EmailService } from "@/lib/services/email-service";
 import { VerificationService } from "@/lib/services/verification-service";
 
-const verifyEmailLikeReal = async (email: string) => {
-  const trimmedEmail = email.trim().toLowerCase();
-  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+const { verifyEmailLikeReal } = vi.hoisted(() => {
+  const verifyEmailLikeReal = async (email: string) => {
+    const trimmedEmail = email.trim().toLowerCase();
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
-  if (!emailRegex.test(trimmedEmail)) {
+    if (!emailRegex.test(trimmedEmail)) {
+      return {
+        isValid: false,
+        reason: "Invalid syntax",
+        score: 0,
+      };
+    }
+
+    const [localPart, domain] = trimmedEmail.split("@");
+    const isDisposable = new Set([
+      "mailinator.com",
+      "guerrillamail.com",
+      "tempmail.com",
+      "10minutemail.com",
+      "throwawaymail.com",
+      "yopmail.com",
+      "sharklasers.com",
+      "guerrillamailblock.com",
+      "pokemail.net",
+      "grr.la",
+    ]).has(domain);
+    const isRoleBased = new Set([
+      "admin",
+      "administrator",
+      "webmaster",
+      "hostmaster",
+      "postmaster",
+      "info",
+      "support",
+      "contact",
+      "sales",
+      "marketing",
+      "billing",
+      "noreply",
+      "no-reply",
+      "jobs",
+      "hr",
+    ]).has(localPart);
+
+    let score = 100;
+    if (isDisposable) {
+      score -= 50;
+    }
+    if (isRoleBased) {
+      score -= 20;
+    }
+
     return {
-      isValid: false,
-      reason: "Invalid syntax",
-      score: 0,
+      isValid: score > 0,
+      reason: isDisposable
+        ? "Disposable email domain"
+        : isRoleBased
+          ? "Role-based email"
+          : undefined,
+      isDisposable,
+      isRoleBased,
+      score,
     };
-  }
-
-  const [localPart, domain] = trimmedEmail.split("@");
-  const isDisposable = new Set([
-    "mailinator.com",
-    "guerrillamail.com",
-    "tempmail.com",
-    "10minutemail.com",
-    "throwawaymail.com",
-    "yopmail.com",
-    "sharklasers.com",
-    "guerrillamailblock.com",
-    "pokemail.net",
-    "grr.la",
-  ]).has(domain);
-  const isRoleBased = new Set([
-    "admin",
-    "administrator",
-    "webmaster",
-    "hostmaster",
-    "postmaster",
-    "info",
-    "support",
-    "contact",
-    "sales",
-    "marketing",
-    "billing",
-    "noreply",
-    "no-reply",
-    "jobs",
-    "hr",
-  ]).has(localPart);
-
-  let score = 100;
-  if (isDisposable) {
-    score -= 50;
-  }
-  if (isRoleBased) {
-    score -= 20;
-  }
-
-  return {
-    isValid: score > 0,
-    reason: isDisposable
-      ? "Disposable email domain"
-      : isRoleBased
-        ? "Role-based email"
-        : undefined,
-    isDisposable,
-    isRoleBased,
-    score,
   };
-};
+  return { verifyEmailLikeReal };
+});
 
 // Mock dependencies
 vi.mock("@/lib/gmail", () => ({

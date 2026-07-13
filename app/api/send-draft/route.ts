@@ -85,8 +85,42 @@ export async function POST(request: NextRequest) {
 
     // Check if we have personalization (placeholders in subject or content)
     const hasPlaceholders =
-      /\{\{\w+\}\}/.test((doc as any).subject) ||
-      /\{\{\w+\}\}/.test((doc as any).content);
+      /\{\{?\w+\}?\}/.test((doc as any).subject) ||
+      /\{\{?\w+\}?\}/.test((doc as any).content);
+
+    // Drafts store both lists in attribute `cc` as {"cc":[],"bcc":[]} (Appwrite attr limit)
+    const parseCcBcc = (value: unknown): { cc: string[]; bcc: string[] } => {
+      const asStrings = (v: unknown) =>
+        Array.isArray(v)
+          ? v.filter(
+              (x): x is string => typeof x === "string" && x.trim().length > 0,
+            )
+          : [];
+      if (!value) {
+        return { cc: [], bcc: [] };
+      }
+      if (typeof value === "string") {
+        try {
+          const parsed = JSON.parse(value);
+          if (Array.isArray(parsed)) {
+            return { cc: asStrings(parsed), bcc: [] };
+          }
+          if (parsed && typeof parsed === "object") {
+            return {
+              cc: asStrings((parsed as { cc?: unknown }).cc),
+              bcc: asStrings((parsed as { bcc?: unknown }).bcc),
+            };
+          }
+        } catch {
+          return { cc: [], bcc: [] };
+        }
+      }
+      if (Array.isArray(value)) {
+        return { cc: asStrings(value), bcc: [] };
+      }
+      return { cc: [], bcc: [] };
+    };
+    const { cc: ccList, bcc: bccList } = parseCcBcc((doc as any).cc);
 
     // Update status to sending
     await databases.updateDocument(
@@ -158,7 +192,13 @@ export async function POST(request: NextRequest) {
           const recipientEmail = recipients[i];
 
           try {
-            await sendEmailWithTemplate(session.accessToken, recipientEmail);
+            await sendEmailWithTemplate(
+              session.accessToken,
+              recipientEmail,
+              undefined,
+              ccList,
+              bccList,
+            );
             results.push({ email: recipientEmail, status: "success" });
             successCount++;
             apiLogger.debug(`Sent email`, {
@@ -244,6 +284,10 @@ export async function POST(request: NextRequest) {
             personalizedSubject,
             personalizedContent,
             resolvedAttachments, // Use pre-resolved attachments
+            undefined,
+            undefined,
+            ccList,
+            bccList,
           );
 
           results.push({ email: recipientEmail, status: "success" });

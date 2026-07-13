@@ -758,7 +758,7 @@ export default function ABTestingPage() {
                               );
                             }
                           }}
-                          className="rounded border-gray-300"
+                          className="rounded border-input"
                         />
                         <span className="text-sm">{email}</span>
                       </label>

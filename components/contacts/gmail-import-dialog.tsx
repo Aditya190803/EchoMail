@@ -103,7 +103,7 @@ export function GmailImportDialog({
                       selectedGmailContacts.size === gmailContacts.length
                     }
                     onChange={onToggleAll}
-                    className="rounded border-gray-300"
+                    className="rounded border-input"
                   />
                   <span className="text-sm font-medium">
                     Select All ({gmailContacts.length} contacts)
@@ -129,7 +129,7 @@ export function GmailImportDialog({
                       type="checkbox"
                       checked={selectedGmailContacts.has(contact.email)}
                       onChange={() => onToggleContact(contact.email)}
-                      className="rounded border-gray-300"
+                      className="rounded border-input"
                       onClick={(event) => event.stopPropagation()}
                     />
                     <div className="flex-1 min-w-0">
