@@ -51,6 +51,7 @@ import {
 import { detectPdfColumn, isPdfUrl } from "@/lib/attachment-fetcher";
 import { componentLogger } from "@/lib/client-logger";
 import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
+import { parseEmailList, serializeEmailList } from "@/lib/email/parse-list";
 import {
   createGmailPreviewWrapper as buildGmailPreviewWrapper,
   replacePlaceholders,
@@ -306,6 +307,14 @@ export function ComposeForm() {
             setSubject(draft.subject || "");
             setContent(draft.content || "");
             setRecipients(draft.recipients || []);
+            if (Array.isArray(draft.cc) && draft.cc.length) {
+              setCc(serializeEmailList(draft.cc));
+              setShowCc(true);
+            }
+            if (Array.isArray(draft.bcc) && draft.bcc.length) {
+              setBcc(serializeEmailList(draft.bcc));
+              setShowBcc(true);
+            }
             setSaveAsDraft(true); // Keep it as draft mode when editing
 
             // Handle attachments
@@ -1166,16 +1175,8 @@ export function ComposeForm() {
       return;
     }
 
-    const parseList = (raw: string) => [
-      ...new Set(
-        raw
-          .split(/[,;\s]+/)
-          .map((s) => s.trim().toLowerCase())
-          .filter(Boolean),
-      ),
-    ];
-    const ccList = parseList(cc);
-    const bccList = parseList(bcc);
+    const ccList = parseEmailList(cc);
+    const bccList = parseEmailList(bcc);
     if (ccList.length > 50 || bccList.length > 50) {
       toast.error("Cc and Bcc can each contain at most 50 addresses");
       return;
@@ -1331,6 +1332,8 @@ export function ComposeForm() {
           saved_at: savedAt,
           attachments: processedAttachments.filter((a) => a.appwrite_file_id), // Only save attachments that were uploaded
           csv_data: recipientCsvData,
+          cc: ccList,
+          bcc: bccList,
           // Save personalized attachment settings
           has_personalized_attachments:
             !!pdfColumn && showPersonalizedAttachments,

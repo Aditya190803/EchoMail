@@ -1,15 +1,4 @@
-export function replacePlaceholders(
-  text: string,
-  data: Record<string, string>,
-): string {
-  return text
-    .replace(/\{\{(\w+)\}\}/g, (match, key) => {
-      return data[key.toLowerCase()] || data[key] || match;
-    })
-    .replace(/\{(\w+)\}/g, (match, key) => {
-      return data[key.toLowerCase()] || data[key] || match;
-    });
-}
+export { replacePlaceholders } from "./placeholders";
 
 export function createGmailPreviewWrapper(htmlContent: string): string {
   return `<!DOCTYPE html>

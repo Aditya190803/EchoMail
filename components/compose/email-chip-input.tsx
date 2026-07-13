@@ -11,23 +11,9 @@ import {
 
 import { Copy, Pencil, Trash2, X } from "lucide-react";
 
+import { parseEmailList, serializeEmailList } from "@/lib/email/parse-list";
 import { cn } from "@/lib/utils";
 import { isValidEmail } from "@/lib/validation";
-
-function parseEmails(raw: string): string[] {
-  return [
-    ...new Set(
-      raw
-        .split(/[,;\s]+/)
-        .map((s) => s.trim().toLowerCase())
-        .filter(Boolean),
-    ),
-  ];
-}
-
-function serialize(emails: string[]): string {
-  return emails.join(", ");
-}
 
 function avatarTone(email: string): string {
   const tones = [
@@ -74,7 +60,7 @@ export function EmailChipInput({
   const [menu, setMenu] = useState<ChipMenu | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const emails = useMemo(() => parseEmails(value), [value]);
+  const emails = useMemo(() => parseEmailList(value), [value]);
 
   useEffect(() => {
     if (!menu) {
@@ -116,18 +102,18 @@ export function EmailChipInput({
       setError(null);
       return;
     }
-    onChange(serialize([...emails, next]));
+    onChange(serializeEmailList([...emails, next]));
     setDraft("");
     setError(null);
   };
 
   const remove = (email: string) => {
-    onChange(serialize(emails.filter((e) => e !== email)));
+    onChange(serializeEmailList(emails.filter((e) => e !== email)));
     inputRef.current?.focus();
   };
 
   const startEdit = (email: string) => {
-    onChange(serialize(emails.filter((e) => e !== email)));
+    onChange(serializeEmailList(emails.filter((e) => e !== email)));
     setDraft(email);
     setError(null);
     setMenu(null);
@@ -230,11 +216,13 @@ export function EmailChipInput({
             const text = e.clipboardData.getData("text");
             if (/[,;\s]/.test(text)) {
               e.preventDefault();
-              const parts = parseEmails(`${draft} ${text}`);
+              const parts = parseEmailList(`${draft} ${text}`);
               const valid = parts.filter(isValidEmail);
               const invalid = parts.filter((p) => !isValidEmail(p));
               if (valid.length) {
-                onChange(serialize([...new Set([...emails, ...valid])]));
+                onChange(
+                  serializeEmailList([...new Set([...emails, ...valid])]),
+                );
               }
               setDraft("");
               setError(
