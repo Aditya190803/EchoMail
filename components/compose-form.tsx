@@ -1176,6 +1176,10 @@ export function ComposeForm() {
     ];
     const ccList = parseList(cc);
     const bccList = parseList(bcc);
+    if (ccList.length > 50 || bccList.length > 50) {
+      toast.error("Cc and Bcc can each contain at most 50 addresses");
+      return;
+    }
     const bad = [...ccList, ...bccList].filter((e) => !isValidEmail(e));
     if (bad.length) {
       toast.error(`Invalid Cc/Bcc address: ${bad[0]}`);

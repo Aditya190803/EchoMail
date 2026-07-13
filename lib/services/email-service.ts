@@ -118,6 +118,8 @@ export interface PersonalizedEmail {
     url: string;
     fileName?: string;
   };
+  cc?: string[];
+  bcc?: string[];
 }
 
 /**
@@ -565,6 +567,9 @@ export class EmailService {
                   userEmail: tracking.userEmail,
                 }
               : undefined,
+            undefined,
+            email.cc,
+            email.bcc,
           );
 
           const emailResult: EmailResult = {
@@ -664,7 +669,13 @@ export class EmailService {
       const recipient = recipients[i];
 
       try {
-        await sendEmailWithTemplate(this.accessToken, recipient.email);
+        await sendEmailWithTemplate(
+          this.accessToken,
+          recipient.email,
+          undefined,
+          content.cc,
+          content.bcc,
+        );
 
         results.push({
           email: recipient.email,

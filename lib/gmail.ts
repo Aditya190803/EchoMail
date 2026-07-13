@@ -128,6 +128,8 @@ export async function sendEmailWithTemplate(
     campaignId: string;
     userEmail: string;
   },
+  cc?: string[],
+  bcc?: string[],
 ): Promise<any> {
   if (!cachedEmailTemplate) {
     throw new Error(
@@ -136,6 +138,8 @@ export async function sendEmailWithTemplate(
   }
 
   const validatedTo = validateAndSanitizeEmail(to);
+  const validatedCc = (cc ?? []).map(validateAndSanitizeEmail);
+  const validatedBcc = (bcc ?? []).map(validateAndSanitizeEmail);
 
   // If tracking is requested for a templated email, we have a problem:
   // The template is pre-built and shared. Tracking needs recipient-specific URLs.
@@ -151,6 +155,8 @@ export async function sendEmailWithTemplate(
   const email = [
     `From: ${cachedEmailTemplate.fromEmail}`,
     `To: ${validatedTo}`,
+    ...(validatedCc.length ? [`Cc: ${validatedCc.join(", ")}`] : []),
+    ...(validatedBcc.length ? [`Bcc: ${validatedBcc.join(", ")}`] : []),
     `Subject: ${cachedEmailTemplate.subject}`,
     `MIME-Version: 1.0`,
     cachedEmailTemplate.bodyParts,
@@ -252,8 +258,8 @@ export async function sendEmailViaAPI(
 
   emailLogger.debug("Sending email", {
     to: validatedTo,
-    cc: validatedCc,
-    bcc: validatedBcc,
+    ccCount: validatedCc.length,
+    bccCount: validatedBcc.length,
     subject,
     subjectLength: subject.length,
     hasSpecialChars: /[^\x00-\x7F]/.test(subject),

@@ -8,6 +8,7 @@ import { formatEmailSendErrorForUser } from "@/lib/gmail-user-message";
 import { apiLogger } from "@/lib/logger";
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { EmailService } from "@/lib/services/email-service";
+import { sendSingleEmailSchema, validate } from "@/lib/validation";
 
 // App Router configuration for single email sending
 export const dynamic = "force-dynamic";
@@ -28,6 +29,14 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await request.json();
+    const parsed = validate(sendSingleEmailSchema, data);
+    if (!parsed.success || !parsed.data) {
+      return NextResponse.json(
+        { error: parsed.message || "Invalid request" },
+        { status: 400 },
+      );
+    }
+
     const {
       to,
       subject,
@@ -35,31 +44,16 @@ export async function POST(request: NextRequest) {
       originalRowData = {},
       attachments = [],
       personalizedAttachment,
-      campaignId,
-      trackingEnabled = true,
-      isTransactional = false,
       cc,
       bcc,
-    } = data;
+    } = parsed.data;
+    const campaignId =
+      typeof data.campaignId === "string" ? data.campaignId : undefined;
+    const trackingEnabled = data.trackingEnabled !== false;
+    const isTransactional = data.isTransactional === true;
 
-    if (!to || !subject || !message) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 },
-      );
-    }
-
-    const emailService = new EmailService(session.accessToken);
-    const ccList = Array.isArray(cc)
-      ? cc.filter(
-          (e): e is string => typeof e === "string" && e.trim().length > 0,
-        )
-      : [];
-    const bccList = Array.isArray(bcc)
-      ? bcc.filter(
-          (e): e is string => typeof e === "string" && e.trim().length > 0,
-        )
-      : [];
+    const ccList = cc ?? [];
+    const bccList = bcc ?? [];
 
     if (ccList.length || bccList.length) {
       apiLogger.info("Sending with Cc/Bcc", {
@@ -68,6 +62,8 @@ export async function POST(request: NextRequest) {
         bccCount: bccList.length,
       });
     }
+
+    const emailService = new EmailService(session.accessToken);
 
     const result = await emailService.sendSingle(
       {

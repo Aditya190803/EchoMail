@@ -232,8 +232,7 @@ export default function HomePage() {
                 {/* glow behind demo */}
                 <div
                   aria-hidden
-                  className="absolute -inset-6 -z-10 rounded-3xl blur-3xl opacity-15"
-                  style={{ background: "oklch(0.6231 0.188 259.8145)" }}
+                  className="absolute -inset-6 -z-10 rounded-3xl blur-3xl opacity-15 bg-primary"
                 />
                 <ProductDemo />
               </div>
