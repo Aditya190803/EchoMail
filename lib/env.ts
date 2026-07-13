@@ -78,6 +78,7 @@ const envSchema = z.object({
   RAZORPAY_PLAN_PRO_MONTHLY: z.string().optional(),
   RAZORPAY_PLAN_PRO_ANNUAL: z.string().optional(),
   NEXT_PUBLIC_RAZORPAY_KEY_ID: z.string().optional(),
+  BILLING_ADMIN_EMAILS: z.string().optional(),
 });
 
 // Parse and validate environment variables
@@ -134,6 +135,7 @@ const _env = envSchema.safeParse({
   RAZORPAY_PLAN_PRO_MONTHLY: process.env.RAZORPAY_PLAN_PRO_MONTHLY,
   RAZORPAY_PLAN_PRO_ANNUAL: process.env.RAZORPAY_PLAN_PRO_ANNUAL,
   NEXT_PUBLIC_RAZORPAY_KEY_ID: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+  BILLING_ADMIN_EMAILS: process.env.BILLING_ADMIN_EMAILS,
 });
 
 if (!_env.success) {

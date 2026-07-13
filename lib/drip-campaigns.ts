@@ -174,7 +174,8 @@ const enrollments: Map<string, DripEnrollment> = new Map();
 const scheduledSteps: Map<string, NodeJS.Timeout> = new Map();
 
 /**
- * Create a new drip campaign
+ * Create a new drip campaign (in-memory).
+ * Prefer createDripCampaignForUser so Pro feature gate is enforced.
  */
 export function createDripCampaign(
   config: Omit<DripCampaign, "id" | "createdAt" | "updatedAt" | "stats">,
