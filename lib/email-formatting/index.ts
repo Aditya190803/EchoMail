@@ -58,6 +58,7 @@ import {
   type EmailFormatterOptions,
   type FormattingResult,
 } from "./types";
+import { apiLogger } from "../logger";
 
 // ============================================================================
 // MAIN FORMATTING FUNCTIONS
@@ -114,7 +115,10 @@ export function formatForEmail(
 
     return result;
   } catch (error) {
-    console.error("Email formatting failed:", error);
+    apiLogger.error(
+      "Email formatting failed",
+      error instanceof Error ? error : undefined,
+    );
     // Fallback: at minimum wrap the content
     return wrapForGmail(html);
   }
@@ -181,7 +185,10 @@ export function formatForEmailWithDetails(
       },
     };
   } catch (error) {
-    console.error("Email formatting failed:", error);
+    apiLogger.error(
+      "Email formatting failed",
+      error instanceof Error ? error : undefined,
+    );
     return {
       html: wrapForGmail(html),
       success: false,

@@ -1,4 +1,3 @@
-/* eslint-disable no-var, no-console */
 // Test file to verify global pause mechanism
 // This is a standalone test that can be run to verify the functionality
 

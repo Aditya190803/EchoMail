@@ -1,3 +1,4 @@
+import { clientLogger } from "@/lib/client-logger";
 import type { Webhook } from "@/types/appwrite-client";
 
 import { apiRequest } from "../api-request";
@@ -29,7 +30,7 @@ export const webhooksService = {
     _event: Webhook["events"][number],
     _payload: any,
   ) {
-    console.warn("triggerWebhooks should be called server-side");
+    clientLogger.warn("triggerWebhooks should be called server-side");
     return [];
   },
 };

@@ -1,3 +1,4 @@
+import { clientLogger } from "../../client-logger";
 import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "../../constants";
 import { getCookie } from "../../utils";
 
@@ -101,7 +102,7 @@ export const storageService = {
 
   // Delete is handled server-side, not available from client
   async deleteFile(_fileId: string) {
-    console.warn("File deletion should be done server-side");
+    clientLogger.warn("File deletion should be done server-side");
     return Promise.resolve();
   },
 };

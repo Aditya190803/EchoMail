@@ -2,17 +2,9 @@
  * Unit tests for email formatting utilities
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 
 import { EMAIL_REGEX } from "@/lib/constants";
-
-// Mock mjml
-vi.mock("mjml", () => ({
-  default: vi.fn((mjml: string) => ({
-    html: `<html>${mjml}</html>`,
-    errors: [],
-  })),
-}));
 
 describe("Email Formatter", () => {
   describe("replacePlaceholders", () => {
