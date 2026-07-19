@@ -3,6 +3,8 @@
  * Provides consistent error types, formatting, and responses across the application
  */
 
+import { apiLogger } from "./logger";
+
 // ============================================
 // Error Types
 // ============================================
@@ -284,12 +286,12 @@ export function logError(
     timestamp: new Date().toISOString(),
   };
 
-  // Use console.error for non-operational (unexpected) errors
-  // Use console.warn for operational (expected) errors
+  // Use apiLogger.error for non-operational (unexpected) errors
+  // Use apiLogger.warn for operational (expected) errors
   if (isOperational) {
-    console.warn("[AppError]", JSON.stringify(logData));
+    apiLogger.warn("[AppError]", logData);
   } else {
-    console.error("[UnexpectedError]", JSON.stringify(logData));
+    apiLogger.error("[UnexpectedError]", logData);
   }
 }
 

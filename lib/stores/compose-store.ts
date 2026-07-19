@@ -32,6 +32,8 @@
 import { create } from "zustand";
 import { devtools, persist } from "zustand/middleware";
 
+import { clientLogger } from "@/lib/client-logger";
+
 /**
  * Attachment data structure
  */
@@ -381,7 +383,10 @@ export const useComposeStore = create<ComposeState>()(
               hasUnsavedChanges: false,
             });
           } catch (error) {
-            console.error("Failed to save draft:", error);
+            clientLogger.error(
+              "Failed to save draft",
+              error instanceof Error ? error : undefined,
+            );
           }
         },
 
@@ -415,7 +420,10 @@ export const useComposeStore = create<ComposeState>()(
               hasUnsavedChanges: false,
             });
           } catch (error) {
-            console.error("Failed to load draft:", error);
+            clientLogger.error(
+              "Failed to load draft",
+              error instanceof Error ? error : undefined,
+            );
           }
         },
 

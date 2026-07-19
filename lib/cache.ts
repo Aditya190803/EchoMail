@@ -5,6 +5,7 @@ import {
   LONG_CACHE_TTL_SECONDS,
   SHORT_CACHE_TTL_SECONDS,
 } from "./constants";
+import { apiLogger } from "./logger";
 
 /**
  * Cache entry with metadata (for memory cache)
@@ -178,11 +179,11 @@ class UpstashCache implements CacheProvider {
     // Check if URL is valid and not a placeholder
     if (process.env.UPSTASH_REDIS_REST_URL?.includes("your-region")) {
       this.isAvailable = false;
-      console.warn(
+      apiLogger.warn(
         "[Cache] Upstash Redis URL is a placeholder. Caching disabled.",
       );
     } else {
-      console.info("[Cache] Upstash Redis initialized");
+      apiLogger.info("[Cache] Upstash Redis initialized");
     }
   }
 
@@ -206,7 +207,9 @@ class UpstashCache implements CacheProvider {
       ]);
       return value;
     } catch (error: any) {
-      console.error("[Cache] Upstash get error:", error.message || error);
+      apiLogger.error("[Cache] Upstash get error", {
+        message: error.message || String(error),
+      });
 
       // If it's a connection error, temporarily disable the cache
       if (
@@ -215,7 +218,7 @@ class UpstashCache implements CacheProvider {
         error.message?.includes("timeout")
       ) {
         this.isAvailable = false;
-        console.warn(
+        apiLogger.warn(
           "[Cache] Upstash connection failed. Disabling cache for this instance.",
         );
         // Re-enable after 5 minutes
@@ -247,7 +250,9 @@ class UpstashCache implements CacheProvider {
         ),
       ]);
     } catch (error: any) {
-      console.error("[Cache] Upstash set error:", error.message || error);
+      apiLogger.error("[Cache] Upstash set error", {
+        message: error.message || String(error),
+      });
 
       if (
         error.code === "ENOTFOUND" ||
@@ -255,7 +260,7 @@ class UpstashCache implements CacheProvider {
         error.message?.includes("timeout")
       ) {
         this.isAvailable = false;
-        console.warn(
+        apiLogger.warn(
           "[Cache] Upstash connection failed. Disabling cache for this instance.",
         );
         setTimeout(
@@ -277,7 +282,10 @@ class UpstashCache implements CacheProvider {
       const fullKey = this.getKey(key);
       await this.client.del(fullKey);
     } catch (error) {
-      console.error("[Cache] Upstash delete error:", error);
+      apiLogger.error(
+        "[Cache] Upstash delete error",
+        error instanceof Error ? error : undefined,
+      );
     }
   }
 
@@ -291,7 +299,10 @@ class UpstashCache implements CacheProvider {
       const exists = await this.client.exists(fullKey);
       return exists === 1;
     } catch (error) {
-      console.error("[Cache] Upstash has error:", error);
+      apiLogger.error(
+        "[Cache] Upstash has error",
+        error instanceof Error ? error : undefined,
+      );
       return false;
     }
   }
@@ -315,7 +326,10 @@ class UpstashCache implements CacheProvider {
         }
       }
     } catch (error) {
-      console.error("[Cache] Upstash clear error:", error);
+      apiLogger.error(
+        "[Cache] Upstash clear error",
+        error instanceof Error ? error : undefined,
+      );
     }
   }
 
@@ -342,7 +356,10 @@ class UpstashCache implements CacheProvider {
       const fullKey = this.getKey(key);
       return await this.client.incr(fullKey);
     } catch (error) {
-      console.error("[Cache] Upstash incr error:", error);
+      apiLogger.error(
+        "[Cache] Upstash incr error",
+        error instanceof Error ? error : undefined,
+      );
       return 0;
     }
   }
@@ -356,7 +373,10 @@ class UpstashCache implements CacheProvider {
       const result = await this.client.expire(fullKey, ttlSeconds);
       return result === 1;
     } catch (error) {
-      console.error("[Cache] Upstash expire error:", error);
+      apiLogger.error(
+        "[Cache] Upstash expire error",
+        error instanceof Error ? error : undefined,
+      );
       return false;
     }
   }
@@ -369,7 +389,10 @@ class UpstashCache implements CacheProvider {
       const fullKey = this.getKey(key);
       return await this.client.ttl(fullKey);
     } catch (error) {
-      console.error("[Cache] Upstash ttl error:", error);
+      apiLogger.error(
+        "[Cache] Upstash ttl error",
+        error instanceof Error ? error : undefined,
+      );
       return -1;
     }
   }
@@ -394,11 +417,11 @@ function isUpstashConfigured(): boolean {
  */
 function createCache(): CacheProvider {
   if (isUpstashConfigured()) {
-    console.info("[Cache] Using Upstash Redis (production)");
+    apiLogger.info("[Cache] Using Upstash Redis (production)");
     return new UpstashCache();
   }
 
-  console.info("[Cache] Using in-memory cache (development fallback)");
+  apiLogger.info("[Cache] Using in-memory cache (development fallback)");
   return new MemoryCache();
 }
 

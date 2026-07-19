@@ -129,14 +129,21 @@ function memoryCheck(
   const entry = rateLimitStore.get(windowKey);
 
   if (!entry) {
-    rateLimitStore.set(windowKey, {
-      count: increment,
-      resetTime: now + config.windowMs,
-    });
+    const resetTime = now + config.windowMs;
+    if (increment > config.maxRequests) {
+      rateLimitStore.set(windowKey, { count: 0, resetTime });
+      return {
+        allowed: false,
+        remaining: config.maxRequests,
+        resetTime,
+        retryAfter: Math.ceil(config.windowMs / 1000),
+      };
+    }
+    rateLimitStore.set(windowKey, { count: increment, resetTime });
     return {
       allowed: true,
       remaining: Math.max(0, config.maxRequests - increment),
-      resetTime: now + config.windowMs,
+      resetTime,
     };
   }
 

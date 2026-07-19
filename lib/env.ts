@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { apiLogger } from "./logger";
+
 /**
  * Environment variable schema
  * Validates all required environment variables on startup
@@ -116,10 +118,9 @@ const _env = envSchema.safeParse({
 });
 
 if (!_env.success) {
-  console.error(
-    "❌ Invalid environment variables:",
-    JSON.stringify(_env.error.format(), null, 2),
-  );
+  apiLogger.error("Invalid environment variables", {
+    issues: _env.error.format(),
+  });
 
   // In production, we want to fail fast
   if (process.env.NODE_ENV === "production") {

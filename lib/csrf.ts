@@ -7,6 +7,7 @@ import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
 
 import { CSRF_TOKEN_NAME, CSRF_HEADER_NAME } from "./constants";
+import { apiLogger } from "./logger";
 
 const TOKEN_LENGTH = 32;
 
@@ -101,7 +102,7 @@ export async function validateCSRFToken(request: Request): Promise<boolean> {
     !cookieToken ||
     !timingSafeEqual(headerToken, cookieToken)
   ) {
-    console.error("[CSRF] Validation failed:", {
+    apiLogger.error("[CSRF] Validation failed", {
       hasHeader: !!headerToken,
       hasCookie: !!cookieToken,
       match:
