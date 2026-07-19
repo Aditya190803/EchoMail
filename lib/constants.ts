@@ -24,6 +24,24 @@ export const API_TIMEOUT_MS = 30000;
 export const EMAIL_SEND_TIMEOUT_MS = 60000;
 
 /**
+ * Chunked / resumable bulk campaign sending (see /api/send-email).
+ *
+ * `vercel.json` caps this route at `maxDuration` seconds. Rather than trying
+ * to send an entire campaign in one request (which gets killed mid-flight
+ * for large recipient lists), the route processes recipients until this
+ * time budget is used up, persists progress, and reports back so the caller
+ * can invoke the same endpoint again to continue where it left off.
+ */
+export const SEND_EMAIL_MAX_DURATION_MS = 60_000;
+
+/** Safety margin subtracted from maxDuration so we stop before the function is killed */
+export const SEND_EMAIL_TIME_BUFFER_MS = 10_000;
+
+/** Time budget for a single chunk of a campaign send */
+export const SEND_EMAIL_CHUNK_BUDGET_MS =
+  SEND_EMAIL_MAX_DURATION_MS - SEND_EMAIL_TIME_BUFFER_MS;
+
+/**
  * Maximum file size for attachments (10MB)
  */
 export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
@@ -307,6 +325,8 @@ export const CAMPAIGN_STATUS = {
   DRAFT: "draft",
   SCHEDULED: "scheduled",
   SENDING: "sending",
+  /** A chunked send stopped partway through its time budget; resume by calling /api/send-email again with the same campaignId */
+  PARTIAL: "partial",
   COMPLETED: "completed",
   FAILED: "failed",
   PAUSED: "paused",

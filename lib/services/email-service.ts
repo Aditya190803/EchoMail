@@ -82,6 +82,14 @@ export interface SendOptions {
   onProgress?: (sent: number, total: number, currentEmail: string) => void;
   /** Callback for individual email results */
   onEmailResult?: (email: string, success: boolean, error?: string) => void;
+  /**
+   * Absolute timestamp (`Date.now()`-based) after which no further email
+   * should be *started*. Used for time-budgeted chunked sending so a caller
+   * (e.g. a serverless function with a maxDuration limit) can stop before
+   * being killed and resume in a later call. When omitted, the whole list
+   * is processed with no time limit (existing behavior).
+   */
+  deadline?: number;
 }
 
 /**
@@ -103,6 +111,14 @@ export interface CampaignSummary {
   failed: number;
   skipped: number;
   results: EmailResult[];
+  /**
+   * False when a `deadline` (see {@link SendOptions.deadline}) cut the run
+   * short before every recipient was processed. Omitted/true means the
+   * whole list passed in was processed. Callers doing chunked sends should
+   * treat `done === false` as "call again to continue", filtering out
+   * recipients already present in `results` on the retry.
+   */
+  done?: boolean;
 }
 
 /**
@@ -476,10 +492,12 @@ export class EmailService {
       verifyBeforeSending = false,
       onProgress,
       onEmailResult,
+      deadline,
     } = options;
 
     let activeEmails = [...emails];
     const results: EmailResult[] = [];
+    let timedOut = false;
 
     // Verify recipients if requested
     if (verifyBeforeSending) {
@@ -518,6 +536,18 @@ export class EmailService {
 
     try {
       for (let i = 0; i < activeEmails.length; i++) {
+        // Stop starting new sends once the time budget is used up. The
+        // caller (e.g. a time-boxed serverless function) is expected to
+        // invoke this again with the remaining recipients.
+        if (deadline !== undefined && Date.now() >= deadline) {
+          timedOut = true;
+          emailLogger.info("Personalized batch time budget exceeded", {
+            processed: i,
+            remaining: activeEmails.length - i,
+          });
+          break;
+        }
+
         const email = activeEmails[i];
 
         // Check for unsubscribe if callback provided
@@ -638,6 +668,7 @@ export class EmailService {
       failed: results.filter((r) => r.status === "error").length,
       skipped: results.filter((r) => r.status === "skipped").length,
       results,
+      done: !timedOut,
     };
   }
 

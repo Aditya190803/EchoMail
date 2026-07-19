@@ -219,4 +219,69 @@ describe("EmailService", () => {
       expect(summary.results[0].status).toBe("error");
     });
   });
+
+  describe("sendPersonalizedBatch — chunked/time-budgeted sending", () => {
+    const makeEmails = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        to: `recipient${i}@example.com`,
+        subject: "Subject",
+        message: "Message",
+        originalRowData: {},
+      }));
+
+    it("processes the whole list and reports done: true when there is no deadline", async () => {
+      (gmail.sendEmailViaAPI as any).mockResolvedValue({
+        success: true,
+        messageId: "msg-1",
+      });
+
+      const emails = makeEmails(3);
+      const summary = await emailService.sendPersonalizedBatch(emails, {
+        delayBetweenEmails: 0,
+      });
+
+      expect(summary.done).toBe(true);
+      expect(summary.results).toHaveLength(3);
+      expect(summary.sent).toBe(3);
+    });
+
+    it("stops early and reports done: false once the deadline has passed", async () => {
+      (gmail.sendEmailViaAPI as any).mockResolvedValue({
+        success: true,
+        messageId: "msg-1",
+      });
+
+      const emails = makeEmails(5);
+      // Deadline already in the past — nothing should be processed after
+      // the very first iteration's check.
+      const summary = await emailService.sendPersonalizedBatch(emails, {
+        delayBetweenEmails: 0,
+        deadline: Date.now() - 1,
+      });
+
+      expect(summary.done).toBe(false);
+      expect(summary.results).toHaveLength(0);
+      expect(gmail.sendEmailViaAPI).not.toHaveBeenCalled();
+    });
+
+    it("processes a partial chunk before the deadline cuts it off", async () => {
+      (gmail.sendEmailViaAPI as any).mockResolvedValue({
+        success: true,
+        messageId: "msg-1",
+      });
+
+      const emails = makeEmails(5);
+      // Real-timer based: the inter-email delay (20ms) is longer than the
+      // remaining budget (15ms), so the deadline check before the second
+      // iteration should trip, leaving 4 recipients unprocessed.
+      const summary = await emailService.sendPersonalizedBatch(emails, {
+        delayBetweenEmails: 20,
+        deadline: Date.now() + 15,
+      });
+
+      expect(summary.done).toBe(false);
+      expect(summary.results.length).toBeGreaterThan(0);
+      expect(summary.results.length).toBeLessThan(5);
+    });
+  });
 });

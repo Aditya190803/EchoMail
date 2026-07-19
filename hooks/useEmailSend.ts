@@ -38,10 +38,34 @@ import type {
   SavedCampaignInfo,
 } from "@/types/campaign";
 
+/**
+ * Options for {@link UseEmailSendResult.sendBulkCampaign}.
+ */
+export interface BulkCampaignOptions {
+  campaignId?: string;
+  subject?: string;
+  trackingEnabled?: boolean;
+  isTransactional?: boolean;
+  abTestId?: string;
+}
+
 interface UseEmailSendResult {
   sendEmails: (
     personalizedEmails: PersonalizedEmailData[],
     options?: SendOptions,
+  ) => Promise<EmailResult[]>;
+  /**
+   * Sends a campaign via the chunked, resumable `/api/send-email` endpoint
+   * instead of one `/api/send-single-email` call per recipient. The server
+   * processes recipients in time-budgeted chunks (to stay under Vercel's
+   * `maxDuration`); this loops, calling the endpoint again with the same
+   * `campaignId` until the server reports `done: true`, updating
+   * `progress` after every chunk. Safe to call again after a page
+   * reload/network drop — already-sent recipients are skipped server-side.
+   */
+  sendBulkCampaign: (
+    personalizedEmails: PersonalizedEmailData[],
+    options?: BulkCampaignOptions,
   ) => Promise<EmailResult[]>;
   retryFailedEmails: () => Promise<EmailResult[]>;
   stopSending: () => void;
@@ -567,7 +591,6 @@ export function useEmailSend(): UseEmailSendResult {
   const clearSavedCampaign = useCallback(() => {
     clearCampaignState();
     releaseLock();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const sendEmails = useCallback(
@@ -1022,6 +1045,144 @@ export function useEmailSend(): UseEmailSendResult {
     }
   }, [sendEmails]);
 
+  const sendBulkCampaign = useCallback(
+    async (
+      personalizedEmails: PersonalizedEmailData[],
+      options?: BulkCampaignOptions,
+    ): Promise<EmailResult[]> => {
+      if (!acquireLock()) {
+        setError(
+          "Another campaign is already running in a different tab. Please wait or close the other tab.",
+        );
+        return [];
+      }
+
+      shouldStopRef.current = false;
+      setIsStopping(false);
+      setIsLoading(true);
+      setError(null);
+      setStoppedDueToError(false);
+
+      const campaignId = options?.campaignId || generateCampaignId();
+      campaignIdRef.current = campaignId;
+      trackingEnabledRef.current = options?.trackingEnabled ?? true;
+
+      const total = personalizedEmails.length;
+      let aggregatedResults: EmailResult[] = [];
+      let done = false;
+
+      setProgress({
+        currentEmail: 0,
+        totalEmails: total,
+        percentage: 0,
+        status: `Starting bulk send of ${total} emails...`,
+      });
+
+      try {
+        while (!done) {
+          if (shouldStopRef.current) {
+            setProgress((prev) => ({
+              ...prev,
+              status: `⏸️ Stopped. Call sendBulkCampaign again with the same campaignId to resume.`,
+            }));
+            break;
+          }
+
+          if (typeof window !== "undefined" && !navigator.onLine) {
+            setProgress((prev) => ({
+              ...prev,
+              status: `📴 Network offline. Waiting for connection...`,
+            }));
+            const restored = await waitForNetwork(() => shouldStopRef.current);
+            if (!restored) {
+              break;
+            }
+          }
+
+          const csrfToken = getCookie(CSRF_TOKEN_NAME);
+          let response: Response;
+          try {
+            response = await fetch("/api/send-email", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
+              },
+              body: JSON.stringify({
+                campaignId,
+                subject: options?.subject,
+                trackingEnabled: trackingEnabledRef.current,
+                isTransactional: options?.isTransactional,
+                abTestId: options?.abTestId,
+                personalizedEmails,
+              }),
+            });
+          } catch (fetchError) {
+            const message =
+              fetchError instanceof Error
+                ? fetchError.message
+                : "Network error";
+            emailSendLogger.error("Bulk campaign chunk request failed", {
+              error: message,
+            });
+            setError(message);
+            setStoppedDueToError(true);
+            break;
+          }
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const message = errorData.error || `HTTP ${response.status}`;
+            setError(message);
+            setStoppedDueToError(true);
+            break;
+          }
+
+          const data = await response.json();
+          const chunkResults: EmailResult[] = data.results || [];
+          aggregatedResults = [...aggregatedResults, ...chunkResults];
+          done = data.done !== false;
+
+          const sentSoFar = data.summary?.sent ?? 0;
+          const failedSoFar = data.summary?.failed ?? 0;
+          const processedSoFar = Math.min(
+            total,
+            sentSoFar + failedSoFar + (data.summary?.skipped ?? 0),
+          );
+
+          setProgress({
+            currentEmail: processedSoFar,
+            totalEmails: total,
+            percentage:
+              total > 0 ? Math.round((processedSoFar / total) * 100) : 0,
+            status: done
+              ? `✅ Done! ${sentSoFar} emails sent${failedSoFar > 0 ? `, ${failedSoFar} failed` : ""}`
+              : `Sent ${processedSoFar}/${total} so far. Continuing...`,
+          });
+
+          if (sentSoFar > 0) {
+            updateQuotaUsed(
+              chunkResults.filter((r) => r.status === "success").length,
+            );
+          }
+
+          if (!done) {
+            // Brief pause between chunks so we don't hammer the endpoint.
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+        }
+
+        return aggregatedResults;
+      } finally {
+        setIsLoading(false);
+        setIsStopping(false);
+        shouldStopRef.current = false;
+        releaseLock();
+      }
+    },
+    [updateQuotaUsed],
+  );
+
   // Function to retry failed/skipped emails
   const retryFailedEmails = useCallback(async (): Promise<EmailResult[]> => {
     if (failedEmails.length === 0) {
@@ -1045,6 +1206,7 @@ export function useEmailSend(): UseEmailSendResult {
 
   return {
     sendEmails,
+    sendBulkCampaign,
     retryFailedEmails,
     stopSending,
     resumeCampaign,

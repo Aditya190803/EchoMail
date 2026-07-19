@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { isAuthed, requireSession } from "@/lib/api-auth";
+import { SEND_EMAIL_CHUNK_BUDGET_MS } from "@/lib/constants";
 import { apiLogger } from "@/lib/logger";
 import {
   rateLimitAsync,
@@ -8,13 +9,35 @@ import {
   RATE_LIMITS,
 } from "@/lib/rate-limit";
 import {
+  loadCampaignSendState,
+  persistCampaignSendState,
+} from "@/lib/services/campaign-send-state";
+import {
   EmailService,
   type PersonalizedEmail,
 } from "@/lib/services/email-service";
 import { checkUserUnsubscribed } from "@/lib/services/unsubscribe-service";
 import { sendEmailRequestSchema, validate } from "@/lib/validation";
 
+/**
+ * Sends a bulk/personalized campaign.
+ *
+ * `vercel.json` caps this route at 60s (`maxDuration`). To avoid a large
+ * campaign getting killed mid-send with no record of where it stopped, this
+ * route only processes recipients until a time budget
+ * (`SEND_EMAIL_CHUNK_BUDGET_MS`) is used up, persists per-recipient
+ * progress to the `campaigns` collection keyed by `campaignId`, and returns
+ * `done: false` with the remaining count when there's more work left.
+ *
+ * Resuming is client-driven and idempotent: call this endpoint again with
+ * the *same* `campaignId` and the *same* full recipient list — recipients
+ * already recorded as processed for that campaign are skipped
+ * automatically. Callers that don't know about chunking (existing behavior)
+ * are unaffected as long as the whole campaign fits inside one time
+ * budget, which covers the vast majority of sends.
+ */
 export async function POST(request: NextRequest) {
+  const requestStartedAt = Date.now();
   try {
     const rateLimitResponse = await rateLimitAsync(
       request,
@@ -39,7 +62,8 @@ export async function POST(request: NextRequest) {
     }
 
     const {
-      campaignId,
+      campaignId: rawCampaignId,
+      abTestId,
       trackingEnabled = true,
       isTransactional = false,
       recipients,
@@ -86,9 +110,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Stable id for this campaign's persisted send state. Falls back to a
+    // fresh id (single-chunk, non-resumable) when the caller doesn't supply
+    // one — matching the previous, non-chunked behavior for those callers.
+    const campaignId = rawCampaignId || abTestId || crypto.randomUUID();
+    const total = personalizedEmails.length;
+
+    const state = await loadCampaignSendState(campaignId, auth.email);
+
+    // Idempotency: skip recipients already recorded as processed for this
+    // campaign, whether from an earlier chunk in this send or a resume.
+    const pending = personalizedEmails.filter(
+      (email) => !state.processedEmails.has(email.to.toLowerCase()),
+    );
+
+    if (pending.length === 0 && state.exists) {
+      const skipped = state.results.filter(
+        (r) => r.status === "skipped",
+      ).length;
+      return NextResponse.json({
+        results: state.results,
+        summary: {
+          total,
+          sent: state.sent,
+          failed: state.failed,
+          skipped,
+          successRate: total > 0 ? (state.sent / total) * 100 : 0,
+        },
+        campaignId,
+        done: true,
+        remaining: 0,
+      });
+    }
+
     const userRateLimitResponse = await rateLimitUserEmailAsync(
       auth.email,
-      personalizedEmails.length,
+      pending.length,
     );
     if (userRateLimitResponse) {
       return userRateLimitResponse;
@@ -96,31 +153,52 @@ export async function POST(request: NextRequest) {
 
     const emailService = new EmailService(auth.accessToken, auth.email);
 
-    const summary = await emailService.sendPersonalizedBatch(
-      personalizedEmails,
-      {
-        verifyBeforeSending: true,
-        tracking: {
-          enabled: trackingEnabled,
-          campaignId: campaignId,
-          userEmail: auth.email,
-        },
-        checkUnsubscribe: isTransactional
-          ? undefined
-          : async (email: string) => checkUserUnsubscribed(auth.email, email),
+    const chunk = await emailService.sendPersonalizedBatch(pending, {
+      verifyBeforeSending: true,
+      tracking: {
+        enabled: trackingEnabled,
+        campaignId,
+        userEmail: auth.email,
       },
-    );
+      checkUnsubscribe: isTransactional
+        ? undefined
+        : async (email: string) => checkUserUnsubscribed(auth.email, email),
+      deadline: requestStartedAt + SEND_EMAIL_CHUNK_BUDGET_MS,
+    });
+
+    const allResults = [...state.results, ...chunk.results];
+    const done = chunk.done !== false && allResults.length >= total;
+    const sent = state.sent + chunk.sent;
+    const failed = state.failed + chunk.failed;
+
+    await persistCampaignSendState({
+      campaignId,
+      docId: state.docId,
+      existed: state.exists,
+      userEmail: auth.email,
+      subject: subject ?? personalizedEmails[0]?.subject,
+      content: content ?? personalizedEmails[0]?.message,
+      fullRecipients: personalizedEmails.map((e) => e.to),
+      allResults,
+      sentDelta: chunk.sent,
+      failedDelta: chunk.failed,
+      previousSent: state.sent,
+      previousFailed: state.failed,
+      done,
+    });
 
     return NextResponse.json({
-      results: summary.results,
+      results: chunk.results,
       summary: {
-        total: summary.total,
-        sent: summary.sent,
-        failed: summary.failed,
-        skipped: summary.skipped,
-        successRate:
-          summary.total > 0 ? (summary.sent / summary.total) * 100 : 0,
+        total,
+        sent,
+        failed,
+        skipped: allResults.filter((r) => r.status === "skipped").length,
+        successRate: total > 0 ? (sent / total) * 100 : 0,
       },
+      campaignId,
+      done,
+      remaining: Math.max(0, total - allResults.length),
     });
   } catch (error) {
     apiLogger.error(

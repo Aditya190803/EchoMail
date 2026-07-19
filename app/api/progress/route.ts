@@ -8,7 +8,6 @@ import { apiLogger } from "@/lib/logger";
 // Client-side progress is primary; this endpoint only reports if a
 // same-instance global Map was populated (legacy / single-instance).
 declare global {
-  // eslint-disable-next-line no-var
   var emailProgress: Map<
     string,
     {
@@ -21,7 +20,7 @@ declare global {
       userEmail?: string;
     }
   >;
-  // eslint-disable-next-line no-var
+
   var emailRateLimitState: {
     isPaused: boolean;
     pauseStartTime: number;
@@ -48,6 +47,10 @@ export async function GET(request: NextRequest) {
     // Ownership: campaign must belong to the session user when it exists in
     // DB. Ephemeral client campaign ids (not yet in DB) are allowed and their
     // progress-map ownership is checked below before returning data.
+    // The persisted campaign document (see lib/services/campaign-send-state)
+    // is also our primary source of chunked/resumable send progress, since
+    // the in-memory map below doesn't survive across serverless instances.
+    let persistedDoc: Record<string, unknown> | null = null;
     if (config.databaseId && config.campaignsCollectionId) {
       try {
         const owned = await databases.listDocuments(
@@ -59,7 +62,12 @@ export async function GET(request: NextRequest) {
             Query.limit(1),
           ],
         );
-        if (owned.total === 0 && !global.emailProgress?.has(campaignId)) {
+        if (owned.total > 0) {
+          persistedDoc = owned.documents[0] as unknown as Record<
+            string,
+            unknown
+          >;
+        } else if (!global.emailProgress?.has(campaignId)) {
           return NextResponse.json({ error: "Not found" }, { status: 404 });
         }
       } catch {
@@ -67,17 +75,30 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (!global.emailProgress) {
-      return NextResponse.json({
-        sent: 0,
-        failed: 0,
-        total: 0,
-        status: "error",
-      });
-    }
+    const progress = global.emailProgress?.get(campaignId);
 
-    const progress = global.emailProgress.get(campaignId);
     if (!progress) {
+      if (persistedDoc) {
+        const status = String(persistedDoc.status || "sending");
+        let total = 0;
+        try {
+          const recipients =
+            typeof persistedDoc.recipients === "string"
+              ? JSON.parse(persistedDoc.recipients)
+              : persistedDoc.recipients;
+          total = Array.isArray(recipients) ? recipients.length : 0;
+        } catch {
+          total = 0;
+        }
+
+        return NextResponse.json({
+          sent: Number(persistedDoc.sent) || 0,
+          failed: Number(persistedDoc.failed) || 0,
+          total,
+          status: status === "partial" ? "sending" : status,
+        });
+      }
+
       return NextResponse.json({
         sent: 0,
         failed: 0,
