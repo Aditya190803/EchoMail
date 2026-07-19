@@ -21,7 +21,7 @@
     "appwrite:setup": "tsx scripts/setup-appwrite.ts",
     "appwrite:delete-database": "tsx scripts/delete-database.ts",
     "prepare": "husky",
-    "validate": "npm run typecheck && npm run lint && npm run test"
+    "validate": "bun run typecheck && bun run lint && bun run test"
   },
   "dependencies": {
     "@auth/core": "^0.34.3",
@@ -109,7 +109,6 @@
     "tailwindcss-animate": "1.0.7",
     "uuid": "^13.0.0",
     "vaul": "1.1.2",
-    "vercel": "^54.18.7",
     "zod": "4.1.13",
     "zustand": "5.0.9"
   },
