@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 import { FileText, Plus, Search, Mail, Sparkles } from "lucide-react";
 import { toast } from "sonner";
@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
 import { usePagination } from "@/hooks/usePagination";
+import { useTemplates } from "@/hooks/useTemplates";
 import {
   templatesService,
   type EmailTemplate,
@@ -197,7 +198,8 @@ const DEFAULT_TEMPLATES = [
 
 export default function TemplatesPage() {
   const { session, status, router } = useAuthGuard();
-  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const { templates, setTemplates, isLoadingData, fetchTemplates } =
+    useTemplates(session?.user?.email ?? undefined);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -213,7 +215,6 @@ export default function TemplatesPage() {
   const [saveVersion, setSaveVersion] = useState(false);
   const [changeNote, setChangeNote] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingData, setIsLoadingData] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [newTemplate, setNewTemplate] = useState({
     name: "",
@@ -251,59 +252,6 @@ export default function TemplatesPage() {
       return "Invalid date";
     }
   };
-
-  // Fetch templates
-  const fetchTemplates = useCallback(async () => {
-    if (!session?.user?.email) {
-      return;
-    }
-
-    try {
-      const response = await templatesService.listByUser(session.user.email);
-      const templatesData = response.documents.map((doc) => ({
-        $id: doc.$id,
-        name: (doc as any).name,
-        subject: (doc as any).subject,
-        content: (doc as any).content,
-        category: (doc as any).category,
-        user_email: (doc as any).user_email,
-        created_at: (doc as any).created_at,
-        updated_at: (doc as any).updated_at,
-      })) as EmailTemplate[];
-
-      setTemplates(templatesData);
-    } catch (error) {
-      componentLogger.error(
-        "Error fetching templates",
-        error instanceof Error ? error : undefined,
-      );
-      toast.error("Failed to load templates");
-    }
-  }, [session?.user?.email]);
-
-  // Initial fetch and real-time subscription
-  useEffect(() => {
-    if (!session?.user?.email) {
-      return;
-    }
-
-    const loadData = async () => {
-      await fetchTemplates();
-      setIsLoadingData(false);
-    };
-    loadData();
-
-    const unsubscribe = templatesService.subscribeToUserTemplates(
-      session.user.email,
-      () => fetchTemplates(),
-    );
-
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, [session?.user?.email, fetchTemplates]);
 
   const createTemplate = async () => {
     if (

@@ -20,9 +20,33 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
 import { AttachmentPreviewDialog } from "@/components/compose/attachment-preview-dialog";
+import {
+  createProcessingAttachments,
+  ensureAppwriteAttachment,
+  processAttachmentFile,
+} from "@/components/compose/attachment-upload";
 import { ComposeStep } from "@/components/compose/compose-step";
+import type {
+  ComposeAttachment,
+  Contact,
+  EmailDraft,
+} from "@/components/compose/compose-types";
 import { DraftRecoveryDialog } from "@/components/compose/draft-recovery-dialog";
+import {
+  AUTO_SAVE_DELAY_MS,
+  clearLocalDraft,
+  contentHash,
+  getTimeAgo,
+  loadLocalDraft,
+  saveLocalDraft,
+  buildLocalDraft,
+  type DraftSyncStatus,
+} from "@/components/compose/draft-storage";
 import { PreviewStep } from "@/components/compose/preview-step";
+import {
+  buildPersonalizedEmails,
+  buildRecipientFields,
+} from "@/components/compose/recipient-data";
 import { RecipientsStep } from "@/components/compose/recipients-step";
 import { SendingStatusDialog } from "@/components/compose/sending-status-dialog";
 import {
@@ -50,11 +74,7 @@ import {
 } from "@/lib/appwrite";
 import { detectPdfColumn, isPdfUrl } from "@/lib/attachment-fetcher";
 import { componentLogger } from "@/lib/client-logger";
-import {
-  CSRF_HEADER_NAME,
-  CSRF_TOKEN_NAME,
-  STORAGE_KEY_COMPOSE_DRAFT,
-} from "@/lib/constants";
+import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
 import { parseEmailList, serializeEmailList } from "@/lib/email/parse-list";
 import {
   createGmailPreviewWrapper as buildGmailPreviewWrapper,
@@ -64,35 +84,6 @@ import { getEmailPreview } from "@/lib/email-formatting/client";
 import { getCookie } from "@/lib/utils";
 import { isValidEmail } from "@/lib/validation";
 import type { CSVRow } from "@/types/email";
-
-const DRAFT_STORAGE_KEY = STORAGE_KEY_COMPOSE_DRAFT;
-
-// File size threshold for immediate Appwrite upload (5MB)
-const LARGE_FILE_THRESHOLD = 5 * 1024 * 1024;
-
-// Auto-save delay in ms
-const AUTO_SAVE_DELAY = 2000;
-
-// Draft sync status
-type DraftSyncStatus = "idle" | "saving" | "saved" | "error";
-
-interface EmailDraft {
-  subject: string;
-  content: string;
-  recipients: string[];
-  attachments: any[];
-  savedAt: string;
-}
-
-interface Contact {
-  $id: string;
-  email: string;
-  name?: string;
-  company?: string;
-  phone?: string;
-  tags?: string[];
-  customFields?: Record<string, string>;
-}
 
 export function ComposeForm() {
   const { data: session } = useSession();
@@ -107,7 +98,7 @@ export function ComposeForm() {
   const [showCc, setShowCc] = useState(false);
   const [showBcc, setShowBcc] = useState(false);
   const [recipients, setRecipients] = useState<string[]>([]);
-  const [attachments, setAttachments] = useState<any[]>([]);
+  const [attachments, setAttachments] = useState<ComposeAttachment[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isPreparingSend, setIsPreparingSend] = useState(false);
 
@@ -404,12 +395,9 @@ export function ComposeForm() {
           return; // Don't load draft if duplicating campaign
         }
 
-        const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
-        if (saved) {
-          const draft: EmailDraft = JSON.parse(saved);
+        const draft = loadLocalDraft();
+        if (draft) {
           setHasDraft(true);
-
-          // Show draft recovery dialog instead of confirm()
           setPendingDraft(draft);
           setShowDraftRecoveryDialog(true);
         }
@@ -431,21 +419,20 @@ export function ComposeForm() {
     setRecipients(draft.recipients || []);
     setAttachments(draft.attachments || []);
     setLastSaved(new Date(draft.savedAt));
-    lastSavedContentRef.current = JSON.stringify({
+    lastSavedContentRef.current = contentHash({
       subject: draft.subject,
       content: draft.content,
       recipients: draft.recipients,
-      attachments: (draft.attachments || []).map((a) => a.name),
+      attachments: draft.attachments || [],
     });
     setShowDraftRecoveryDialog(false);
     setPendingDraft(null);
     toast.success("Draft restored!");
   }, []);
 
-  // Clear draft from localStorage (defined before discardPendingDraft that uses it)
   const clearDraft = useCallback(() => {
     try {
-      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      clearLocalDraft();
       setHasDraft(false);
       setLastSaved(null);
       setHasUnsavedChanges(false);
@@ -465,15 +452,10 @@ export function ComposeForm() {
     setPendingDraft(null);
   }, [clearDraft]);
 
-  // Create content hash for change detection
-  const currentContentHash = useMemo(() => {
-    return JSON.stringify({
-      subject,
-      content,
-      recipients,
-      attachments: attachments.map((a) => a.name),
-    });
-  }, [subject, content, recipients, attachments]);
+  const currentContentHash = useMemo(
+    () => contentHash({ subject, content, recipients, attachments }),
+    [subject, content, recipients, attachments],
+  );
 
   // Track unsaved changes
   useEffect(() => {
@@ -503,7 +485,7 @@ export function ComposeForm() {
       setDraftSyncStatus("idle");
       autoSaveTimerRef.current = setTimeout(() => {
         saveDraft();
-      }, AUTO_SAVE_DELAY);
+      }, AUTO_SAVE_DELAY_MS);
     }
 
     return () => {
@@ -624,26 +606,8 @@ export function ComposeForm() {
     toast.success(`Template "${template.name}" applied!`);
   };
 
-  // Helper function to get time ago string
-  const getTimeAgo = (date: Date): string => {
-    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-
-    if (seconds < 60) {
-      return "just now";
-    }
-    if (seconds < 3600) {
-      return `${Math.floor(seconds / 60)} minutes ago`;
-    }
-    if (seconds < 86400) {
-      return `${Math.floor(seconds / 3600)} hours ago`;
-    }
-    return `${Math.floor(seconds / 86400)} days ago`;
-  };
-
-  // Save draft to localStorage with improved tracking
   const saveDraft = useCallback(() => {
     try {
-      // Don't save if there's nothing to save
       if (!subject && !content && recipients.length === 0) {
         return;
       }
@@ -651,22 +615,19 @@ export function ComposeForm() {
       setIsSavingDraft(true);
       setDraftSyncStatus("saving");
 
-      const draft: EmailDraft = {
+      const draft = buildLocalDraft({
         subject,
         content,
         recipients,
         attachments,
-        savedAt: new Date().toISOString(),
-      };
+      });
+      saveLocalDraft(draft);
 
-      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
-
-      // Update tracking refs and state
-      lastSavedContentRef.current = JSON.stringify({
+      lastSavedContentRef.current = contentHash({
         subject,
         content,
         recipients,
-        attachments: attachments.map((a) => a.name),
+        attachments,
       });
       setLastSaved(new Date());
       setHasDraft(true);
@@ -674,7 +635,6 @@ export function ComposeForm() {
       setDraftSyncStatus("saved");
       setIsSavingDraft(false);
 
-      // Reset status after 3 seconds
       setTimeout(() => {
         setDraftSyncStatus("idle");
       }, 3000);
@@ -688,152 +648,41 @@ export function ComposeForm() {
     }
   }, [subject, content, recipients, attachments]);
 
-  // Helper function to convert File to base64
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const result = reader.result as string;
-        // Remove the data URL prefix (e.g., "data:image/png;base64,")
-        const base64 = result.split(",")[1];
-        resolve(base64);
-      };
-      reader.onerror = (error) => reject(error);
-    });
-  };
-
-  // Handle file upload with background processing:
-  // - Immediately show files as "processing"
-  // - Small files (<5MB): Encode to base64 in background
-  // - Large files (>=5MB): Upload to Appwrite in background
-  // - Update state when ready
   const handleFileUpload = async (files: FileList) => {
     if (!files.length) {
       return;
     }
 
-    // Immediately add files as "processing" state
-    const processingAttachments: any[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const tempId = `temp_${Date.now()}_${i}`;
-      processingAttachments.push({
-        tempId,
-        name: file.name,
-        type: file.type || "application/octet-stream",
-        data: "processing", // Will be replaced with base64 or 'appwrite'
-        fileSize: file.size,
-        isProcessing: true,
-      });
-    }
-
-    // Add to state immediately so user sees them
+    const processingAttachments = createProcessingAttachments(files);
     setAttachments((prev) => [...prev, ...processingAttachments]);
     setIsUploading(true);
 
-    // Process each file in background
     const fileArray = Array.from(files);
-
-    // Process small and large files in parallel
-    const processPromises = fileArray.map(async (file, index) => {
-      const tempId = processingAttachments[index].tempId;
-
-      if (file.size < LARGE_FILE_THRESHOLD) {
-        // Small file: convert to base64 in background
-        try {
-          componentLogger.debug(`Encoding file to base64`, { name: file.name });
-          const base64 = await fileToBase64(file);
-          componentLogger.debug(`Encoded file`, { name: file.name });
-
-          // Update the attachment with the actual data
+    const results = await Promise.all(
+      fileArray.map(async (file, index) => {
+        const tempId = processingAttachments[index].tempId!;
+        const result = await processAttachmentFile(file, tempId);
+        if (result.success && result.update) {
           setAttachments((prev) =>
             prev.map((a) =>
-              a.tempId === tempId
-                ? { ...a, data: base64, isProcessing: false, tempId: undefined }
-                : a,
+              a.tempId === tempId ? { ...a, ...result.update } : a,
             ),
           );
-          return { success: true, name: file.name };
-        } catch (error) {
-          componentLogger.error(
-            `Error reading file ${file.name}`,
-            error instanceof Error ? error : undefined,
-          );
-          // Remove failed attachment
+        } else if (!result.success) {
           setAttachments((prev) => prev.filter((a) => a.tempId !== tempId));
-          return { success: false, name: file.name, error };
         }
-      } else {
-        // Large file: upload to Appwrite in background
-        try {
-          componentLogger.debug(`Uploading file to Appwrite`, {
-            name: file.name,
-          });
-          const formData = new FormData();
-          formData.append("files", file);
-
-          const csrfToken = getCookie(CSRF_TOKEN_NAME);
-          const response = await fetch("/api/upload-attachment", {
-            method: "POST",
-            headers: {
-              ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
-            },
-            body: formData,
-          });
-
-          const result = await response.json();
-
-          if (result.success && result.uploads[0] && !result.uploads[0].error) {
-            const upload = result.uploads[0];
-            componentLogger.debug(`Uploaded file to Appwrite`, {
-              name: file.name,
-            });
-
-            // Update the attachment with Appwrite info
-            setAttachments((prev) =>
-              prev.map((a) =>
-                a.tempId === tempId
-                  ? {
-                      ...a,
-                      data: "appwrite",
-                      appwriteFileId: upload.appwrite_file_id,
-                      appwriteUrl: upload.url,
-                      isProcessing: false,
-                      tempId: undefined,
-                    }
-                  : a,
-              ),
-            );
-            return { success: true, name: file.name };
-          } else {
-            throw new Error(result.uploads?.[0]?.error || "Upload failed");
-          }
-        } catch (error) {
-          componentLogger.error(
-            `Error uploading file ${file.name}`,
-            error instanceof Error ? error : undefined,
-          );
-          // Remove failed attachment
-          setAttachments((prev) => prev.filter((a) => a.tempId !== tempId));
-          return { success: false, name: file.name, error };
-        }
-      }
-    });
-
-    // Wait for all processing to complete
-    const results = await Promise.all(processPromises);
+        return result;
+      }),
+    );
 
     const successCount = results.filter((r) => r.success).length;
     const failCount = results.filter((r) => !r.success).length;
-
     if (failCount > 0) {
       toast.error(`${failCount} file(s) failed to process`);
     }
     if (successCount > 0) {
       toast.success(`${successCount} file(s) ready`);
     }
-
     setIsUploading(false);
   };
 
@@ -1231,102 +1080,18 @@ export function ComposeForm() {
 
       setIsSavingDraft(true);
       try {
-        // Upload any base64 attachments to Appwrite for draft persistence
         const processedAttachments = await Promise.all(
-          attachments.map(async (a) => {
-            // If it's already in Appwrite, use existing reference
-            if (a.appwriteFileId) {
-              return {
-                fileName: a.name,
-                fileUrl: a.appwriteUrl || "",
-                fileSize: a.fileSize || 0,
-                appwrite_file_id: a.appwriteFileId,
-              };
-            }
-
-            // If it has base64 data, upload to Appwrite now for draft persistence
-            if (a.data && a.data !== "appwrite") {
-              try {
-                // Convert base64 back to blob for upload
-                const byteCharacters = atob(a.data);
-                const byteNumbers = new Array(byteCharacters.length);
-                for (let i = 0; i < byteCharacters.length; i++) {
-                  byteNumbers[i] = byteCharacters.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                const blob = new Blob([byteArray], { type: a.type });
-                const file = new File([blob], a.name, { type: a.type });
-
-                const formData = new FormData();
-                formData.append("files", file);
-
-                const csrfToken = getCookie(CSRF_TOKEN_NAME);
-                const response = await fetch("/api/upload-attachment", {
-                  method: "POST",
-                  headers: {
-                    ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
-                  },
-                  body: formData,
-                });
-
-                const result = await response.json();
-
-                if (
-                  result.success &&
-                  result.uploads[0] &&
-                  !result.uploads[0].error
-                ) {
-                  const upload = result.uploads[0];
-                  return {
-                    fileName: upload.fileName,
-                    fileUrl: upload.url,
-                    fileSize: upload.fileSize,
-                    appwrite_file_id: upload.appwrite_file_id,
-                  };
-                }
-              } catch (uploadError) {
-                componentLogger.error(
-                  `Error uploading attachment ${a.name} for draft`,
-                  uploadError instanceof Error ? uploadError : undefined,
-                );
-              }
-            }
-
-            // Fallback: save reference without Appwrite (attachment may be lost)
-            return {
-              fileName: a.name,
-              fileUrl: "",
-              fileSize: a.fileSize || 0,
-              appwrite_file_id: "",
-            };
-          }),
+          attachments.map((a) => ensureAppwriteAttachment(a)),
         );
 
-        // Build personalization data for each recipient
-        const recipientCsvData = filteredRecipients.map((recipientEmail) => {
-          // Find CSV row with case-insensitive email matching
-          const csvRow =
-            csvData.find((row) => {
-              const rowEmail = row.email || row.Email || row.EMAIL || "";
-              return rowEmail.toLowerCase() === recipientEmail.toLowerCase();
-            }) || {};
-          const manualEntry = manualEntries.find(
-            (e) => e.email.toLowerCase() === recipientEmail.toLowerCase(),
-          );
-          const contact = contacts.find(
-            (c) => c.email.toLowerCase() === recipientEmail.toLowerCase(),
-          );
-          return {
+        const recipientCsvData = filteredRecipients.map((recipientEmail) =>
+          buildRecipientFields({
             email: recipientEmail,
-            ...(contact?.name ? { name: contact.name } : {}),
-            ...(contact?.company ? { company: contact.company } : {}),
-            ...(contact?.phone ? { phone: contact.phone } : {}),
-            ...(contact?.tags?.length ? { tags: contact.tags.join(", ") } : {}),
-            ...(contact?.customFields || {}),
-            ...(manualEntry?.name ? { name: manualEntry.name } : {}),
-            ...csvRow,
-          };
-        });
+            csvData,
+            manualEntries,
+            contacts,
+          }),
+        );
 
         const draftEmailData = {
           subject,
@@ -1373,50 +1138,15 @@ export function ComposeForm() {
     setShowSendingDialog(true);
     setIsPreparingSend(false); // Reset preparing state once sending dialog is shown
 
-    // Prepare personalized emails
-    const personalizedEmails = filteredRecipients.map((email) => {
-      // Find the CSV row for this recipient (case-insensitive email match)
-      const csvRow =
-        csvData.find((row) => {
-          const rowEmail = row.email || row.Email || row.EMAIL || "";
-          return rowEmail.toLowerCase() === email.toLowerCase();
-        }) || {};
-
-      const manualEntry = manualEntries.find(
-        (e) => e.email.toLowerCase() === email.toLowerCase(),
-      );
-      const contact = contacts.find(
-        (c) => c.email.toLowerCase() === email.toLowerCase(),
-      );
-
-      const recipientData: Record<string, string> & { email: string } = {
-        email,
-        ...(contact?.name ? { name: contact.name } : {}),
-        ...(contact?.company ? { company: contact.company } : {}),
-        ...(contact?.phone ? { phone: contact.phone } : {}),
-        ...(contact?.tags?.length ? { tags: contact.tags.join(", ") } : {}),
-        ...(contact?.customFields || {}),
-        ...(manualEntry?.name ? { name: manualEntry.name } : {}),
-        ...csvRow,
-      };
-
-      // Check if there's a personalized PDF attachment for this recipient
-      let personalizedAttachment = undefined;
-      if (pdfColumn && csvRow[pdfColumn] && isPdfUrl(csvRow[pdfColumn])) {
-        personalizedAttachment = {
-          url: csvRow[pdfColumn],
-          fileName: undefined, // Let the fetcher determine the filename and extension
-        };
-      }
-
-      return {
-        to: email,
-        subject,
-        message: finalContent,
-        originalRowData: recipientData,
-        attachments,
-        personalizedAttachment,
-      };
+    const personalizedEmails = buildPersonalizedEmails({
+      recipients: filteredRecipients,
+      subject,
+      content: finalContent,
+      csvData,
+      manualEntries,
+      contacts,
+      attachments,
+      pdfColumn,
     });
 
     try {

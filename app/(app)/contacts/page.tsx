@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 
 import Link from "next/link";
 
@@ -60,6 +60,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { useContactsData, type Contact } from "@/hooks/useContactsData";
 import { useGmailContactsImport } from "@/hooks/useGmailContactsImport";
 import { usePagination } from "@/hooks/usePagination";
 import { useVirtualScroll } from "@/hooks/useVirtualScroll";
@@ -81,21 +82,16 @@ const GROUP_COLORS = [
   { value: "gray", label: "Gray", class: "bg-gray-500" },
 ];
 
-interface Contact {
-  $id: string;
-  email: string;
-  name?: string;
-  company?: string;
-  phone?: string;
-  tags?: string[];
-  created_at: string;
-  user_email: string;
-}
-
 export default function ContactsPage() {
   const { session, status } = useAuthGuard();
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [groups, setGroups] = useState<ContactGroup[]>([]);
+  const {
+    contacts,
+    setContacts,
+    groups,
+    isLoadingData,
+    fetchContacts,
+    fetchGroups,
+  } = useContactsData(session?.user?.email ?? undefined);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -106,7 +102,6 @@ export default function ContactsPage() {
   const [selectedContactForGroup, setSelectedContactForGroup] =
     useState<Contact | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingData, setIsLoadingData] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState("contacts");
   const [viewMode, setViewMode] = useState<"grid" | "virtual">("grid");
@@ -355,66 +350,6 @@ export default function ContactsPage() {
     );
   };
 
-  // Fetch contacts function
-  const fetchContacts = useCallback(async () => {
-    if (!session?.user?.email) {
-      return;
-    }
-
-    try {
-      const response = await contactsService.listByUser(session.user.email);
-      const contactsData = response.documents.map((doc) => {
-        // Parse tags from JSON string if present
-        let tags: string[] = [];
-        try {
-          if ((doc as any).tags) {
-            tags = JSON.parse((doc as any).tags);
-          }
-        } catch {
-          tags = [];
-        }
-
-        return {
-          $id: doc.$id,
-          email: doc.email,
-          name: doc.name,
-          company: doc.company,
-          phone: doc.phone,
-          tags,
-          created_at: doc.created_at,
-          user_email: doc.user_email,
-        };
-      }) as Contact[];
-
-      setContacts(contactsData);
-    } catch (error) {
-      componentLogger.error(
-        "Error fetching contacts",
-        error instanceof Error ? error : undefined,
-      );
-      toast.error("Failed to load contacts");
-    }
-  }, [session?.user?.email]);
-
-  // Fetch groups function
-  const fetchGroups = useCallback(async () => {
-    if (!session?.user?.email) {
-      return;
-    }
-
-    try {
-      const response = await contactGroupsService.listByUser(
-        session.user.email,
-      );
-      setGroups(response.documents);
-    } catch (error) {
-      componentLogger.error(
-        "Error fetching groups",
-        error instanceof Error ? error : undefined,
-      );
-    }
-  }, [session?.user?.email]);
-
   const {
     showGmailImport,
     gmailContacts,
@@ -433,35 +368,6 @@ export default function ContactsPage() {
     existingContacts: contacts,
     onImportComplete: fetchContacts,
   });
-
-  // Initial fetch and real-time subscription
-  useEffect(() => {
-    if (!session?.user?.email) {
-      return;
-    }
-
-    // Initial fetch
-    const loadData = async () => {
-      await Promise.all([fetchContacts(), fetchGroups()]);
-      setIsLoadingData(false);
-    };
-    loadData();
-
-    // Subscribe to real-time updates
-    const unsubscribe = contactsService.subscribeToUserContacts(
-      session.user.email,
-      (_response) => {
-        // Refetch on any change (create, update, delete)
-        fetchContacts();
-      },
-    );
-
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, [session?.user?.email, fetchContacts, fetchGroups]);
 
   const addContact = async () => {
     if (!session?.user?.email || !newContact.email.trim()) {

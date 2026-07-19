@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -67,55 +67,29 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageShell, PageHeader, EmptyState } from "@/components/ui/page-shell";
-import { webhooksService, type Webhook as WebhookType } from "@/lib/appwrite";
-import { componentLogger } from "@/lib/client-logger";
-
-const EVENT_TYPES = [
-  {
-    value: "campaign.sent",
-    label: "Campaign Sent",
-    description:
-      "Triggered when all emails in a campaign are successfully sent",
-    icon: Send,
-  },
-  {
-    value: "campaign.failed",
-    label: "Campaign Failed",
-    description: "Triggered when a campaign fails to send completely",
-    icon: PowerOff,
-  },
-  {
-    value: "email.opened",
-    label: "Email Opened",
-    description:
-      "Triggered when a recipient opens your email (via tracking pixel)",
-    icon: CheckCircle,
-  },
-  {
-    value: "email.clicked",
-    label: "Link Clicked",
-    description:
-      "Triggered when a recipient clicks any tracked link in your email",
-    icon: ExternalLink,
-  },
-  {
-    value: "email.bounced",
-    label: "Email Bounced",
-    description: "Triggered when an email bounces back (hard or soft bounce)",
-    icon: PowerOff,
-  },
-] as const;
+import {
+  WEBHOOK_EVENT_TYPES as EVENT_TYPES,
+  generateWebhookSecret,
+} from "@/components/webhooks/event-types";
+import { useWebhooks } from "@/hooks/useWebhooks";
+import { type Webhook as WebhookType } from "@/lib/appwrite";
 
 export default function WebhooksPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [webhooks, setWebhooks] = useState<WebhookType[]>([]);
+  const {
+    webhooks,
+    isLoading,
+    createWebhook: createWebhookApi,
+    updateWebhook: updateWebhookApi,
+    toggleWebhookActive,
+    deleteWebhook,
+  } = useWebhooks(session?.user?.email ?? undefined);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editingWebhook, setEditingWebhook] = useState<WebhookType | null>(
     null,
   );
-  const [isLoading, setIsLoading] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [showDocsSection, setShowDocsSection] = useState(true);
   const [copiedCode, setCopiedCode] = useState(false);
@@ -136,37 +110,7 @@ export default function WebhooksPage() {
     }
   }, [status, router]);
 
-  const fetchWebhooks = useCallback(async () => {
-    if (!session?.user?.email) {
-      return;
-    }
-
-    try {
-      const response = await webhooksService.listByUser(session.user.email);
-      setWebhooks(response.documents);
-    } catch (error) {
-      componentLogger.error(
-        "Error fetching webhooks",
-        error instanceof Error ? error : undefined,
-      );
-      toast.error("Failed to load webhooks");
-    }
-  }, [session?.user?.email]);
-
-  useEffect(() => {
-    if (!session?.user?.email) {
-      return;
-    }
-    fetchWebhooks();
-  }, [session?.user?.email, fetchWebhooks]);
-
-  const generateSecret = () => {
-    const array = new Uint8Array(32);
-    crypto.getRandomValues(array);
-    return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join(
-      "",
-    );
-  };
+  const generateSecret = () => generateWebhookSecret();
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -202,101 +146,38 @@ export default function WebhooksPage() {
 
   const createWebhook = async () => {
     if (
-      !session?.user?.email ||
       !newWebhook.name.trim() ||
       !newWebhook.url.trim() ||
       newWebhook.events.length === 0
     ) {
       return;
     }
-
-    // Validate URL
     try {
       new URL(newWebhook.url);
     } catch {
       toast.error("Please enter a valid URL");
       return;
     }
-
-    setIsLoading(true);
-    try {
-      await webhooksService.create({
-        name: newWebhook.name.trim(),
-        url: newWebhook.url.trim(),
-        events: newWebhook.events,
-        is_active: true,
-        secret: newWebhook.secret.trim() || undefined,
-        user_email: session.user.email,
-      });
-
+    const ok = await createWebhookApi({
+      name: newWebhook.name,
+      url: newWebhook.url,
+      events: newWebhook.events,
+      secret: newWebhook.secret,
+    });
+    if (ok) {
       setNewWebhook({ name: "", url: "", events: [], secret: "" });
       setShowCreateDialog(false);
-      toast.success("Webhook created!");
-      fetchWebhooks();
-    } catch (error) {
-      componentLogger.error(
-        "Error creating webhook",
-        error instanceof Error ? error : undefined,
-      );
-      toast.error("Failed to create webhook");
     }
-    setIsLoading(false);
   };
 
   const updateWebhook = async () => {
     if (!editingWebhook?.$id) {
       return;
     }
-
-    setIsLoading(true);
-    try {
-      await webhooksService.update(editingWebhook.$id, {
-        name: editingWebhook.name,
-        url: editingWebhook.url,
-        events: editingWebhook.events,
-        is_active: editingWebhook.is_active,
-        secret: editingWebhook.secret,
-      });
-
+    const ok = await updateWebhookApi(editingWebhook);
+    if (ok) {
       setShowEditDialog(false);
       setEditingWebhook(null);
-      toast.success("Webhook updated!");
-      fetchWebhooks();
-    } catch (error) {
-      componentLogger.error(
-        "Error updating webhook",
-        error instanceof Error ? error : undefined,
-      );
-      toast.error("Failed to update webhook");
-    }
-    setIsLoading(false);
-  };
-
-  const toggleWebhookActive = async (webhookId: string, isActive: boolean) => {
-    try {
-      await webhooksService.update(webhookId, { is_active: !isActive });
-      toast.success(isActive ? "Webhook disabled" : "Webhook enabled");
-      fetchWebhooks();
-    } catch (error) {
-      componentLogger.error(
-        "Error toggling webhook",
-        error instanceof Error ? error : undefined,
-      );
-      toast.error("Failed to update webhook");
-    }
-  };
-
-  const deleteWebhook = async (webhookId: string) => {
-    try {
-      await webhooksService.delete(webhookId);
-      toast.success("Webhook deleted");
-      fetchWebhooks();
-    } catch (error) {
-      componentLogger.error(
-        "Error deleting webhook",
-        error instanceof Error ? error : undefined,
-      );
-      toast.error("Failed to delete webhook");
     }
   };
 

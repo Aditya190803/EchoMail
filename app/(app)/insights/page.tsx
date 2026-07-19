@@ -72,64 +72,37 @@ import { PageHeader, PageShell, EmptyState } from "@/components/ui/page-shell";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthGuard } from "@/hooks/useAuthGuard";
+import { useInsightsData } from "@/hooks/useInsightsData";
 import { getAttachmentUrl } from "@/lib/activity/attachment-url";
 import { buildCampaignChartData } from "@/lib/activity/chart-data";
-import { generateWeekOverWeekComparison } from "@/lib/activity/comparison";
-import { aggregateDeviceData } from "@/lib/activity/devices";
-import {
-  generateCSV,
-  generatePDF,
-  downloadFile,
-  calculateSummary,
-  transformCampaignToAnalytics,
-} from "@/lib/activity/export";
-import { aggregateClickData } from "@/lib/activity/heatmap";
+import { generateCSV, generatePDF, downloadFile } from "@/lib/activity/export";
+import { getRecipientsArray } from "@/lib/activity/recipients";
 import type { EmailCampaign } from "@/lib/appwrite";
-import { campaignsService } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
 import {
   formatEmailSendErrorForUser,
   formatSendResultLabel,
   sendResultBadgeVariant,
 } from "@/lib/gmail-user-message";
-import { metricsService } from "@/lib/services/metrics-service";
 import { cn, formatDate } from "@/lib/utils";
-import type {
-  CampaignAnalytics,
-  AnalyticsSummary,
-  ComparisonReport,
-  ClickHeatmapData,
-  TrackingEvent,
-} from "@/types/activity";
-
-interface HistoryData {
-  totalCampaigns: number;
-  totalSent: number;
-  totalRecipients: number;
-  totalFailed: number;
-  successRate: number;
-  averageRecipientsPerCampaign: number;
-  campaignsThisMonth: number;
-  campaignsLastMonth: number;
-  recentCampaigns: EmailCampaign[];
-  monthlyTrend: "up" | "down" | "same";
-}
 
 export default function HistoryPage() {
   const { session, status, isLoading: _isLoading } = useAuthGuard();
   const router = useRouter();
-  const [historyData, setHistoryData] = useState<HistoryData | null>(null);
-  const [insightsCampaigns, setInsightsCampaigns] = useState<
-    CampaignAnalytics[]
-  >([]);
-  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
-  const [comparison, setComparison] = useState<ComparisonReport | null>(null);
-  const [_deviceDistribution, setDeviceDistribution] = useState<
-    { name: string; value: number; color: string }[]
-  >([]);
-  const [heatmap, setHeatmap] = useState<ClickHeatmapData | null>(null);
+  const {
+    historyData,
+    insightsCampaigns,
+    summary,
+    comparison,
+    heatmap,
+    isLoadingData,
+    allTrackingEvents,
+    selectedHeatmapCampaignId,
+    setSelectedHeatmapCampaignId,
+    fetchHistory,
+  } = useInsightsData(session?.user?.email ?? undefined);
+
   const [isExporting, setIsExporting] = useState(false);
-  const [isLoadingData, setIsLoadingData] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [duplicatingCampaignId, setDuplicatingCampaignId] = useState<
     string | null
@@ -148,36 +121,11 @@ export default function HistoryPage() {
   const [filterStatus, setFilterStatus] = useState<
     "all" | "success" | "failed"
   >("all");
-  const [selectedHeatmapCampaignId, setSelectedHeatmapCampaignId] = useState<
-    string | null
-  >(null);
-  const [allTrackingEvents, setAllTrackingEvents] = useState<TrackingEvent[]>(
-    [],
-  );
 
-  // Prepare chart data by aggregating by date
   const chartData = useMemo(
     () => buildCampaignChartData(insightsCampaigns),
     [insightsCampaigns],
   );
-
-  // Helper function to safely get recipients as array
-  const getRecipientsArray = (recipients: any): string[] => {
-    if (Array.isArray(recipients)) {
-      return recipients;
-    }
-    if (typeof recipients === "string") {
-      try {
-        return JSON.parse(recipients);
-      } catch {
-        return recipients
-          .split(",")
-          .map((email: string) => email.trim())
-          .filter((email: string) => email);
-      }
-    }
-    return [];
-  };
 
   // Duplicate campaign - same behavior as dashboard
   const duplicateCampaign = useCallback(
@@ -242,133 +190,7 @@ export default function HistoryPage() {
     fetchCampaignData();
   }, [selectedCampaign]);
 
-  // Fetch campaigns and calculate history data
-  const fetchHistory = useCallback(async () => {
-    if (!session?.user?.email) {
-      return;
-    }
-
-    setIsLoadingData(true);
-    try {
-      // Fetch campaigns first as they are the primary data
-      const campaignsResponse = await campaignsService.listByUser(
-        session.user.email,
-      );
-      const campaigns = campaignsResponse.documents;
-
-      // Fetch events separately and handle failure gracefully
-      let events: TrackingEvent[] = [];
-      try {
-        const eventsResponse = await metricsService.listEvents({
-          limit: 1000,
-        });
-        events = eventsResponse.documents as unknown as TrackingEvent[];
-      } catch (error) {
-        componentLogger.error("Error fetching tracking events", error as Error);
-        // Continue with empty events if tracking fails
-      }
-
-      // Transform to insights format
-      const transformed = campaigns.map((c) => {
-        const campaignEvents = events.filter((e) => e.campaign_id === c.$id);
-        return transformCampaignToAnalytics(c, {
-          opens: campaignEvents.filter((e) => e.event_type === "open").length,
-          clicks: campaignEvents.filter((e) => e.event_type === "click").length,
-        });
-      });
-
-      setInsightsCampaigns(transformed);
-      setSummary(calculateSummary(transformed));
-      setComparison(generateWeekOverWeekComparison(transformed));
-      setDeviceDistribution(aggregateDeviceData(events));
-      setAllTrackingEvents(events);
-
-      // If there's a recent campaign, show its heatmap and select it
-      if (transformed.length > 0) {
-        setSelectedHeatmapCampaignId(transformed[0].id);
-        setHeatmap(aggregateClickData(events, transformed[0].id));
-      }
-
-      const now = new Date();
-      const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-
-      const totalCampaigns = campaigns.length;
-      const totalSent = campaigns.reduce((sum, c) => sum + c.sent, 0);
-      const totalRecipients = campaigns.reduce(
-        (sum, c) => sum + getRecipientsArray(c.recipients).length,
-        0,
-      );
-      const totalFailed = campaigns.reduce((sum, c) => sum + c.failed, 0);
-      const successRate =
-        totalRecipients > 0 ? (totalSent / totalRecipients) * 100 : 0;
-      const averageRecipientsPerCampaign =
-        totalCampaigns > 0 ? totalRecipients / totalCampaigns : 0;
-
-      const campaignsThisMonth = campaigns.filter((c) => {
-        const date = new Date(c.created_at || "");
-        return date >= thisMonth;
-      }).length;
-
-      const campaignsLastMonth = campaigns.filter((c) => {
-        const date = new Date(c.created_at || "");
-        return date >= lastMonth && date <= lastMonthEnd;
-      }).length;
-
-      const monthlyTrend =
-        campaignsThisMonth > campaignsLastMonth
-          ? "up"
-          : campaignsThisMonth < campaignsLastMonth
-            ? "down"
-            : "same";
-
-      setHistoryData({
-        totalCampaigns,
-        totalSent,
-        totalRecipients,
-        totalFailed,
-        successRate,
-        averageRecipientsPerCampaign,
-        campaignsThisMonth,
-        campaignsLastMonth,
-        recentCampaigns: campaigns,
-        monthlyTrend,
-      });
-    } catch (error) {
-      componentLogger.error(
-        "Error fetching history",
-        error instanceof Error ? error : undefined,
-      );
-    } finally {
-      setIsLoadingData(false);
-    }
-  }, [session?.user?.email]);
-
-  // Initial fetch and real-time subscription
-  useEffect(() => {
-    if (!session?.user?.email) {
-      return;
-    }
-
-    // Initial fetch
-    fetchHistory();
-
-    // Subscribe to real-time updates
-    const unsubscribe = campaignsService.subscribeToUserCampaigns(
-      session.user.email,
-      (_response) => {
-        // Refetch on any change
-        fetchHistory();
-      },
-    );
-
-    return () => {
-      if (unsubscribe) {
-        unsubscribe();
-      }
-    };
-  }, [session?.user?.email, fetchHistory]);
+  // data loaded via useInsightsData
 
   // Helper functions for campaign details
   const toggleCampaignExpansion = (campaignId: string) => {
@@ -563,8 +385,7 @@ export default function HistoryPage() {
               allTrackingEvents={allTrackingEvents}
               selectedCampaignId={selectedHeatmapCampaignId}
               onSelectCampaign={(campaignId, heatmapData) => {
-                setSelectedHeatmapCampaignId(campaignId);
-                setHeatmap(heatmapData);
+                setSelectedHeatmapCampaignId(campaignId, heatmapData);
               }}
             />
           )}

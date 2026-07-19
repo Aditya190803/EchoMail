@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 
 import { useRouter } from "next/navigation";
 
@@ -45,22 +45,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageShell, PageHeader, EmptyState } from "@/components/ui/page-shell";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAbTests } from "@/hooks/useAbTests";
 import type { ABTest } from "@/lib/appwrite";
-import { abTestsService, contactsService } from "@/lib/appwrite";
+import { abTestsService } from "@/lib/appwrite";
 import { componentLogger } from "@/lib/client-logger";
-import { CSRF_HEADER_NAME, CSRF_TOKEN_NAME } from "@/lib/constants";
-import { getCookie } from "@/lib/utils";
 
 export default function ABTestingPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
-  const [tests, setTests] = useState<ABTest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    tests,
+    loading,
+    contacts,
+    submitting,
+    fetchTests,
+    createTest,
+    startTest,
+  } = useAbTests(session?.user?.email ?? undefined);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
   const [selectedTest, setSelectedTest] = useState<ABTest | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [contacts, setContacts] = useState<string[]>([]);
 
   // Form state
   const [testName, setTestName] = useState("");
@@ -77,46 +81,6 @@ export default function ABTestingPage() {
     }
   }, [status, router]);
 
-  const fetchTests = useCallback(async () => {
-    if (!session?.user?.email) {
-      return;
-    }
-
-    try {
-      const response = await abTestsService.listByUser(session.user.email);
-      setTests(response.documents);
-    } catch (error) {
-      componentLogger.error(
-        "Error fetching A/B tests",
-        error instanceof Error ? error : undefined,
-      );
-      toast.error("Failed to load A/B tests");
-    } finally {
-      setLoading(false);
-    }
-  }, [session?.user?.email]);
-
-  const fetchContacts = useCallback(async () => {
-    if (!session?.user?.email) {
-      return;
-    }
-
-    try {
-      const response = await contactsService.listByUser(session.user.email);
-      setContacts(response.documents.map((c) => c.email));
-    } catch (error) {
-      componentLogger.error(
-        "Error fetching contacts",
-        error instanceof Error ? error : undefined,
-      );
-    }
-  }, [session?.user?.email]);
-
-  useEffect(() => {
-    fetchTests();
-    fetchContacts();
-  }, [fetchTests, fetchContacts]);
-
   const resetForm = () => {
     setTestName("");
     setTestType("subject");
@@ -128,151 +92,18 @@ export default function ABTestingPage() {
   };
 
   const handleCreateTest = async () => {
-    if (!session?.user?.email) {
-      return;
-    }
-    if (!testName.trim()) {
-      toast.error("Please enter a test name");
-      return;
-    }
-    if (selectedContacts.length < 2) {
-      toast.error("Please select at least 2 contacts for testing");
-      return;
-    }
-
-    if (
-      testType === "subject" &&
-      (!variantASubject.trim() || !variantBSubject.trim())
-    ) {
-      toast.error("Please enter both subject line variants");
-      return;
-    }
-
-    if (
-      testType === "content" &&
-      (!variantAContent.trim() || !variantBContent.trim())
-    ) {
-      toast.error("Please enter both content variants");
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      // Split contacts randomly between variants
-      const shuffled = [...selectedContacts].sort(() => Math.random() - 0.5);
-      const midpoint = Math.ceil(shuffled.length / 2);
-      const variantARecipients = shuffled.slice(0, midpoint);
-      const variantBRecipients = shuffled.slice(midpoint);
-
-      await abTestsService.create({
-        name: testName,
-        status: "draft",
-        test_type: testType,
-        variant_a_subject:
-          testType === "subject"
-            ? variantASubject
-            : variantASubject || "A/B Test Email",
-        variant_b_subject:
-          testType === "subject"
-            ? variantBSubject
-            : variantASubject || "A/B Test Email",
-        variant_a_content:
-          variantAContent || "<p>Test content for variant A</p>",
-        variant_b_content:
-          testType === "content"
-            ? variantBContent
-            : variantAContent || "<p>Test content</p>",
-        variant_a_recipients: variantARecipients,
-        variant_b_recipients: variantBRecipients,
-        user_email: session.user.email,
-      });
-
-      toast.success("A/B test created!");
+    const ok = await createTest({
+      name: testName,
+      testType,
+      variantASubject,
+      variantBSubject,
+      variantAContent,
+      variantBContent,
+      selectedContacts,
+    });
+    if (ok) {
       setShowCreateDialog(false);
       resetForm();
-      fetchTests();
-    } catch (error) {
-      componentLogger.error(
-        "Error creating A/B test",
-        error instanceof Error ? error : undefined,
-      );
-      toast.error("Failed to create A/B test");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleStartTest = async (test: ABTest) => {
-    if (!test.$id) {
-      return;
-    }
-
-    try {
-      const csrfToken = getCookie(CSRF_TOKEN_NAME);
-
-      // Update status to running
-      await abTestsService.update(test.$id, { status: "running" });
-
-      // Send variant A
-      const variantAPayload = {
-        recipients: test.variant_a_recipients,
-        subject: test.variant_a_subject,
-        content: test.variant_a_content,
-        abTestId: test.$id,
-        abVariant: "A",
-      };
-
-      const responseA = await fetch("/api/send-email", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
-        },
-        body: JSON.stringify(variantAPayload),
-      });
-
-      if (!responseA.ok) {
-        throw new Error("Failed to send variant A");
-      }
-
-      // Send variant B
-      const variantBPayload = {
-        recipients: test.variant_b_recipients,
-        subject: test.variant_b_subject,
-        content: test.variant_b_content,
-        abTestId: test.$id,
-        abVariant: "B",
-      };
-
-      const responseB = await fetch("/api/send-email", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {}),
-        },
-        body: JSON.stringify(variantBPayload),
-      });
-
-      if (!responseB.ok) {
-        throw new Error("Failed to send variant B");
-      }
-
-      // Update stats
-      await abTestsService.updateStats(test.$id, "A", {
-        sent: test.variant_a_recipients.length,
-      });
-      await abTestsService.updateStats(test.$id, "B", {
-        sent: test.variant_b_recipients.length,
-      });
-
-      toast.success("A/B test started! Emails are being sent.");
-      fetchTests();
-    } catch (error) {
-      componentLogger.error(
-        "Error starting A/B test",
-        error instanceof Error ? error : undefined,
-      );
-      toast.error("Failed to start A/B test");
     }
   };
 
@@ -554,7 +385,7 @@ export default function ABTestingPage() {
 
                     <div className="flex flex-col gap-2">
                       {test.status === "draft" && (
-                        <Button size="sm" onClick={() => handleStartTest(test)}>
+                        <Button size="sm" onClick={() => startTest(test)}>
                           <Play className="h-4 w-4 mr-1" />
                           Start
                         </Button>
