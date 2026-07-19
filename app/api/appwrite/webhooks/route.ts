@@ -1,10 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 import type { WebhookDocument } from "@/types/appwrite";
 
@@ -14,19 +12,18 @@ interface ExtendedWebhookDocument extends WebhookDocument {
 }
 
 // GET /api/appwrite/webhooks - List webhooks for the authenticated user
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const response = await databases.listDocuments(
       config.databaseId,
       config.webhooksCollectionId,
       [
-        Query.equal("user_email", session.user.email),
+        Query.equal("user_email", auth.email),
         Query.orderDesc("$updatedAt"),
         Query.limit(50),
       ],
@@ -69,10 +66,9 @@ export async function GET(_request: NextRequest) {
 // POST /api/appwrite/webhooks - Create a new webhook
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -89,7 +85,7 @@ export async function POST(request: NextRequest) {
         events: JSON.stringify(events || []),
         is_active: is_active ?? true,
         secret,
-        user_email: session.user.email,
+        user_email: auth.email,
         created_at: now,
       },
     );
@@ -113,10 +109,9 @@ export async function POST(request: NextRequest) {
 // PUT /api/appwrite/webhooks - Update a webhook
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -137,7 +132,7 @@ export async function PUT(request: NextRequest) {
       id,
     )) as WebhookDocument;
 
-    if (doc.user_email !== session.user.email) {
+    if (doc.user_email !== auth.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -187,10 +182,9 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/appwrite/webhooks - Delete a webhook
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const { searchParams } = new URL(request.url);
@@ -210,7 +204,7 @@ export async function DELETE(request: NextRequest) {
       webhookId,
     )) as WebhookDocument;
 
-    if (doc.user_email !== session.user.email) {
+    if (doc.user_email !== auth.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 

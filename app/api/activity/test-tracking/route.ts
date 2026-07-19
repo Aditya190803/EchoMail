@@ -1,9 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, ID, Query } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -13,11 +11,14 @@ export const dynamic = "force-dynamic";
  * This helps verify the database connection and collection permissions
  */
 export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
     apiLogger.info("Creating test tracking event", {
       campaignId,
       eventType,
-      userEmail: session.user.email,
+      userEmail: auth.email,
       collectionId: config.trackingEventsCollectionId,
       databaseId: config.databaseId,
     });
@@ -50,7 +51,7 @@ export async function POST(request: NextRequest) {
         event_type: eventType,
         user_agent: "Test Agent",
         ip_address: "127.0.0.1",
-        user_email: session.user.email,
+        user_email: auth.email,
         created_at: new Date().toISOString(),
       },
     );
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
     const countResponse = await databases.listDocuments(
       config.databaseId,
       config.trackingEventsCollectionId,
-      [Query.equal("user_email", session.user.email), Query.limit(1)],
+      [Query.equal("user_email", auth.email), Query.limit(1)],
     );
 
     return NextResponse.json({

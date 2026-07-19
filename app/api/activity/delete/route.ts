@@ -1,9 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +11,9 @@ export const dynamic = "force-dynamic";
  */
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const { searchParams } = new URL(request.url);
@@ -30,7 +27,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    const queries = [Query.equal("user_email", session.user.email)];
+    const queries = [Query.equal("user_email", auth.email)];
     if (campaignId) {
       queries.push(Query.equal("campaign_id", campaignId));
     }

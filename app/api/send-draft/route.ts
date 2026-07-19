@@ -1,9 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import {
   sendEmailViaAPI,
   replacePlaceholders,
@@ -20,10 +18,9 @@ import { apiLogger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.accessToken || !session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request, { accessToken: true });
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const { draftId } = await request.json();
@@ -40,7 +37,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Verify ownership
-    if ((doc as any).user_email !== session.user.email) {
+    if ((doc as any).user_email !== auth.email) {
       return NextResponse.json(
         { error: "Not authorized to send this draft" },
         { status: 403 },
@@ -181,7 +178,7 @@ export async function POST(request: NextRequest) {
       try {
         // Pre-build the email template ONCE
         await preBuildEmailTemplate(
-          session.user.email!,
+          auth.email!,
           (doc as any).subject,
           (doc as any).content,
           resolvedAttachments,
@@ -193,7 +190,7 @@ export async function POST(request: NextRequest) {
 
           try {
             await sendEmailWithTemplate(
-              session.accessToken,
+              auth.accessToken,
               recipientEmail,
               undefined,
               ccList,
@@ -279,8 +276,8 @@ export async function POST(request: NextRequest) {
 
         try {
           await sendEmailViaAPI(
-            session.accessToken,
-            session.user.email!,
+            auth.accessToken,
+            auth.email!,
             recipientEmail,
             personalizedSubject,
             personalizedContent,
@@ -342,7 +339,7 @@ export async function POST(request: NextRequest) {
         sent: successCount,
         failed: failedCount,
         status: "completed",
-        user_email: session.user.email,
+        user_email: auth.email,
         campaign_type: "draft",
         attachments: (doc as any).attachments,
         send_results: JSON.stringify(results),

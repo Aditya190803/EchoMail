@@ -22,11 +22,11 @@ export async function proxy(request: NextRequest) {
     if (["POST", "PUT", "DELETE"].includes(request.method)) {
       // Skip CSRF for public tracking/unsubscribe endpoints if they exist
       // Also skip for NextAuth endpoints - NextAuth has its own CSRF protection
+      // Public/unauthenticated endpoints (token-signed or NextAuth-managed)
       const isPublicApi =
-        pathname.startsWith("/api/public") ||
-        pathname.startsWith("/api/tracking") ||
+        pathname.startsWith("/api/track/") ||
         pathname.startsWith("/api/unsubscribe") ||
-        pathname.startsWith("/api/appwrite/webhooks") ||
+        pathname.startsWith("/api/activity/cron") ||
         pathname.startsWith("/api/auth");
 
       if (!isPublicApi) {
@@ -40,7 +40,8 @@ export async function proxy(request: NextRequest) {
       }
     }
 
-    // 3. Global Rate Limiting for API
+    // 3. Global Rate Limiting for API (sync memory in edge proxy;
+    // route handlers use rateLimitAsync → Upstash when configured)
     const rateLimitResponse = rateLimit(request, RATE_LIMITS.api);
     if (rateLimitResponse) {
       return rateLimitResponse;

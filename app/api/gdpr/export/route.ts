@@ -1,10 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 import type { GDPRDataExport } from "@/types/gdpr";
 
@@ -26,14 +24,13 @@ function _sanitizeDocument(doc: any): any {
 // GET /api/gdpr/export - Export all user data (GDPR compliant)
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
-    const userEmail = session.user.email;
-    const userName = session.user.name || undefined;
+    const userEmail = auth.email;
+    const userName = auth.name || undefined;
 
     // Gather all user data from different collections
     const [

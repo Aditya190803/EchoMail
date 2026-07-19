@@ -1,10 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 import type { ContactGroupDocument } from "@/types/appwrite";
 
@@ -15,19 +13,18 @@ interface ExtendedContactGroupDocument extends ContactGroupDocument {
 }
 
 // GET /api/appwrite/contact-groups - List groups for the authenticated user
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const response = await databases.listDocuments(
       config.databaseId,
       config.contactGroupsCollectionId,
       [
-        Query.equal("user_email", session.user.email),
+        Query.equal("user_email", auth.email),
         Query.orderDesc("$updatedAt"),
         Query.limit(100),
       ],
@@ -71,10 +68,9 @@ export async function GET(_request: NextRequest) {
 // POST /api/appwrite/contact-groups - Create a new group
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -90,7 +86,7 @@ export async function POST(request: NextRequest) {
         description,
         color,
         contact_ids: JSON.stringify(contact_ids || []),
-        user_email: session.user.email,
+        user_email: auth.email,
         created_at: now,
       },
     );
@@ -116,10 +112,9 @@ export async function POST(request: NextRequest) {
 // PUT /api/appwrite/contact-groups - Update a group
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -136,7 +131,7 @@ export async function PUT(request: NextRequest) {
       id,
     )) as ContactGroupDocument;
 
-    if (doc.user_email !== session.user.email) {
+    if (doc.user_email !== auth.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -182,10 +177,9 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/appwrite/contact-groups - Delete a group
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const { searchParams } = new URL(request.url);
@@ -202,7 +196,7 @@ export async function DELETE(request: NextRequest) {
       groupId,
     )) as ContactGroupDocument;
 
-    if (doc.user_email !== session.user.email) {
+    if (doc.user_email !== auth.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 

@@ -1,10 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { cache, CacheKeys, CacheTTL, getOrSet } from "@/lib/cache";
 import { apiLogger } from "@/lib/logger";
 import type { TemplateDocument } from "@/types/appwrite";
@@ -15,15 +13,14 @@ interface ExtendedTemplateDocument extends TemplateDocument {
 }
 
 // GET /api/appwrite/templates - List templates for the authenticated user
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
-    const userEmail = session.user.email;
+    const userEmail = auth.email;
     const cacheKey = CacheKeys.userTemplates(userEmail);
 
     const result = await getOrSet(
@@ -65,10 +62,9 @@ export async function GET(_request: NextRequest) {
 // POST /api/appwrite/templates - Create a new template
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -85,14 +81,14 @@ export async function POST(request: NextRequest) {
         content,
         category,
         version: 1, // Start at version 1
-        user_email: session.user.email,
+        user_email: auth.email,
         created_at: now,
         updated_at: now,
       },
     );
 
     // Invalidate cache
-    await cache.delete(CacheKeys.userTemplates(session.user.email));
+    await cache.delete(CacheKeys.userTemplates(auth.email));
 
     return NextResponse.json(result);
   } catch (error: unknown) {
@@ -113,10 +109,9 @@ export async function POST(request: NextRequest) {
 // PUT /api/appwrite/templates - Update a template
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -137,7 +132,7 @@ export async function PUT(request: NextRequest) {
       id,
     )) as ExtendedTemplateDocument;
 
-    if (doc.user_email !== session.user.email) {
+    if (doc.user_email !== auth.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -157,7 +152,7 @@ export async function PUT(request: NextRequest) {
             subject: doc.subject,
             content: doc.content,
             category: doc.category,
-            user_email: session.user.email,
+            user_email: auth.email,
             created_at: new Date().toISOString(),
             change_note: changeNote || null,
           },
@@ -194,7 +189,7 @@ export async function PUT(request: NextRequest) {
     );
 
     // Invalidate cache
-    await cache.delete(CacheKeys.userTemplates(session.user.email));
+    await cache.delete(CacheKeys.userTemplates(auth.email));
 
     return NextResponse.json(result);
   } catch (error: unknown) {
@@ -215,10 +210,9 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/appwrite/templates - Delete a template
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const { searchParams } = new URL(request.url);
@@ -238,7 +232,7 @@ export async function DELETE(request: NextRequest) {
       templateId,
     )) as TemplateDocument;
 
-    if (doc.user_email !== session.user.email) {
+    if (doc.user_email !== auth.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -249,7 +243,7 @@ export async function DELETE(request: NextRequest) {
     );
 
     // Invalidate cache
-    await cache.delete(CacheKeys.userTemplates(session.user.email));
+    await cache.delete(CacheKeys.userTemplates(auth.email));
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

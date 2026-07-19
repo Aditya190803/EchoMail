@@ -1,10 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { cache, CacheKeys, CacheTTL, getOrSet } from "@/lib/cache";
 import { apiLogger } from "@/lib/logger";
 import type { SignatureDocument } from "@/types/appwrite";
@@ -12,15 +10,14 @@ import type { SignatureDocument } from "@/types/appwrite";
 // GET /api/appwrite/signatures - List signatures for the authenticated user
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const { searchParams } = new URL(request.url);
     const defaultOnly = searchParams.get("default") === "true";
-    const userEmail = session.user.email;
+    const userEmail = auth.email;
 
     // Use cache for non-default-only requests (full list)
     if (!defaultOnly) {
@@ -105,10 +102,9 @@ export async function GET(request: NextRequest) {
 // POST /api/appwrite/signatures - Create a new signature
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -121,7 +117,7 @@ export async function POST(request: NextRequest) {
         config.databaseId,
         config.signaturesCollectionId,
         [
-          Query.equal("user_email", session.user.email),
+          Query.equal("user_email", auth.email),
           Query.equal("is_default", true),
         ],
       );
@@ -144,13 +140,13 @@ export async function POST(request: NextRequest) {
         name,
         content,
         is_default: is_default || false,
-        user_email: session.user.email,
+        user_email: auth.email,
         created_at: now,
       },
     );
 
     // Invalidate cache
-    await cache.delete(CacheKeys.userSignatures(session.user.email));
+    await cache.delete(CacheKeys.userSignatures(auth.email));
 
     return NextResponse.json(result);
   } catch (error: unknown) {
@@ -171,10 +167,9 @@ export async function POST(request: NextRequest) {
 // PUT /api/appwrite/signatures - Update a signature
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -194,7 +189,7 @@ export async function PUT(request: NextRequest) {
       id,
     )) as SignatureDocument;
 
-    if (doc.user_email !== session.user.email) {
+    if (doc.user_email !== auth.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -204,7 +199,7 @@ export async function PUT(request: NextRequest) {
         config.databaseId,
         config.signaturesCollectionId,
         [
-          Query.equal("user_email", session.user.email),
+          Query.equal("user_email", auth.email),
           Query.equal("is_default", true),
         ],
       );
@@ -240,7 +235,7 @@ export async function PUT(request: NextRequest) {
     );
 
     // Invalidate cache
-    await cache.delete(CacheKeys.userSignatures(session.user.email));
+    await cache.delete(CacheKeys.userSignatures(auth.email));
 
     return NextResponse.json(result);
   } catch (error: unknown) {
@@ -261,10 +256,9 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/appwrite/signatures - Delete a signature
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const { searchParams } = new URL(request.url);
@@ -284,7 +278,7 @@ export async function DELETE(request: NextRequest) {
       signatureId,
     )) as SignatureDocument;
 
-    if (doc.user_email !== session.user.email) {
+    if (doc.user_email !== auth.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -295,7 +289,7 @@ export async function DELETE(request: NextRequest) {
     );
 
     // Invalidate cache
-    await cache.delete(CacheKeys.userSignatures(session.user.email));
+    await cache.delete(CacheKeys.userSignatures(auth.email));
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

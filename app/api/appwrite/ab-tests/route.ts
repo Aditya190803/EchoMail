@@ -1,20 +1,17 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 import type { ABTestDocument } from "@/types/appwrite";
 
 // GET /api/appwrite/ab-tests - List A/B tests for the authenticated user
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const { searchParams } = new URL(request.url);
@@ -28,7 +25,7 @@ export async function GET(request: NextRequest) {
         testId,
       )) as ABTestDocument;
 
-      if (doc.user_email !== session.user.email) {
+      if (doc.user_email !== auth.email) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
       }
 
@@ -67,7 +64,7 @@ export async function GET(request: NextRequest) {
       config.databaseId,
       config.abTestsCollectionId,
       [
-        Query.equal("user_email", session.user.email),
+        Query.equal("user_email", auth.email),
         Query.orderDesc("created_at"),
         Query.limit(100),
       ],
@@ -123,10 +120,9 @@ export async function GET(request: NextRequest) {
 // POST /api/appwrite/ab-tests - Create a new A/B test
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -162,7 +158,7 @@ export async function POST(request: NextRequest) {
         variant_b_opens: 0,
         variant_a_clicks: 0,
         variant_b_clicks: 0,
-        user_email: session.user.email,
+        user_email: auth.email,
         created_at: new Date().toISOString(),
       },
     );
@@ -186,10 +182,9 @@ export async function POST(request: NextRequest) {
 // PUT /api/appwrite/ab-tests - Update an A/B test
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -206,7 +201,7 @@ export async function PUT(request: NextRequest) {
       id,
     )) as ABTestDocument;
 
-    if (doc.user_email !== session.user.email) {
+    if (doc.user_email !== auth.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -300,10 +295,9 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/appwrite/ab-tests - Delete an A/B test
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const { searchParams } = new URL(request.url);
@@ -320,7 +314,7 @@ export async function DELETE(request: NextRequest) {
       testId,
     )) as ABTestDocument;
 
-    if (doc.user_email !== session.user.email) {
+    if (doc.user_email !== auth.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 

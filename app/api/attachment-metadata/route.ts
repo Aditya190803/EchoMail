@@ -1,8 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import {
   extractAttachmentFileName,
   getAttachmentFileType,
@@ -12,15 +11,14 @@ import {
   getAttachmentSource,
   getDirectDownloadUrl,
 } from "@/lib/attachments/url";
-import { authOptions } from "@/lib/auth";
 import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
     // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();

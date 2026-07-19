@@ -1,12 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
-import { authOptions } from "@/lib/auth";
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { formatEmailSendErrorForUser } from "@/lib/gmail-user-message";
 import { apiLogger } from "@/lib/logger";
-import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { rateLimitAsync, RATE_LIMITS } from "@/lib/rate-limit";
 import { EmailService } from "@/lib/services/email-service";
 import { sendSingleEmailSchema, validate } from "@/lib/validation";
 
@@ -17,15 +15,17 @@ export const maxDuration = 60;
 export async function POST(request: NextRequest) {
   try {
     // Apply rate limiting
-    const rateLimitResponse = rateLimit(request, RATE_LIMITS.sendEmail);
+    const rateLimitResponse = await rateLimitAsync(
+      request,
+      RATE_LIMITS.sendEmail,
+    );
     if (rateLimitResponse) {
       return rateLimitResponse;
     }
 
-    const session = await getServerSession(authOptions);
-
-    if (!session?.accessToken || !session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request, { accessToken: true });
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const data = await request.json();
@@ -63,10 +63,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const emailService = new EmailService(
-      session.accessToken,
-      session.user.email!,
-    );
+    const emailService = new EmailService(auth.accessToken, auth.email!);
 
     const result = await emailService.sendSingle(
       {
@@ -84,7 +81,7 @@ export async function POST(request: NextRequest) {
       trackingEnabled
         ? {
             campaignId: campaignId || "single-send-" + Date.now(),
-            userEmail: session.user.email,
+            userEmail: auth.email,
           }
         : undefined,
       isTransactional,

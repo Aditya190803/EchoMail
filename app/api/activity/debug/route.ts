@@ -1,9 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -13,11 +11,14 @@ export const dynamic = "force-dynamic";
  * Only accessible by authenticated users for their own data
  */
 export async function GET(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions);
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
 
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const { searchParams } = new URL(request.url);
@@ -39,7 +40,7 @@ export async function GET(request: NextRequest) {
 
     try {
       const queries = [
-        Query.equal("user_email", session.user.email),
+        Query.equal("user_email", auth.email),
         Query.orderDesc("created_at"),
         Query.limit(20),
       ];
@@ -80,7 +81,7 @@ export async function GET(request: NextRequest) {
         config.databaseId,
         config.campaignsCollectionId,
         [
-          Query.equal("user_email", session.user.email),
+          Query.equal("user_email", auth.email),
           Query.orderDesc("created_at"),
           Query.limit(5),
         ],
@@ -103,7 +104,7 @@ export async function GET(request: NextRequest) {
       const allEventsResponse = await databases.listDocuments(
         config.databaseId,
         config.trackingEventsCollectionId,
-        [Query.equal("user_email", session.user.email), Query.limit(5000)],
+        [Query.equal("user_email", auth.email), Query.limit(5000)],
       );
 
       for (const doc of allEventsResponse.documents) {
@@ -124,7 +125,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       status: "ok",
-      userEmail: session.user.email,
+      userEmail: auth.email,
       config: configInfo,
       eventCounts,
       totalEvents,

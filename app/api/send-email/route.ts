@@ -1,48 +1,65 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
-import { authOptions } from "@/lib/auth";
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
-import { rateLimit, rateLimitUserEmail, RATE_LIMITS } from "@/lib/rate-limit";
+import {
+  rateLimitAsync,
+  rateLimitUserEmailAsync,
+  RATE_LIMITS,
+} from "@/lib/rate-limit";
 import {
   EmailService,
   type PersonalizedEmail,
 } from "@/lib/services/email-service";
 import { checkUserUnsubscribed } from "@/lib/services/unsubscribe-service";
+import { sendEmailRequestSchema, validate } from "@/lib/validation";
 
 export async function POST(request: NextRequest) {
   try {
-    // Apply global IP-based rate limiting first
-    const rateLimitResponse = rateLimit(request, RATE_LIMITS.sendEmail);
+    const rateLimitResponse = await rateLimitAsync(
+      request,
+      RATE_LIMITS.sendEmail,
+    );
     if (rateLimitResponse) {
       return rateLimitResponse;
     }
 
-    const session = await getServerSession(authOptions);
-
-    if (!session?.accessToken || !session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request, { accessToken: true });
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
+    const parsed = validate(sendEmailRequestSchema, body);
+    if (!parsed.success || !parsed.data) {
+      return NextResponse.json(
+        { error: parsed.message || "Invalid request" },
+        { status: 400 },
+      );
+    }
+
     const {
       campaignId,
       trackingEnabled = true,
       isTransactional = false,
-      abTestId: _abTestId,
       recipients,
       subject,
       content,
-      variants, // New: support for multiple variants
-    } = body;
+      variants,
+      personalizedEmails: rawPersonalized,
+    } = parsed.data;
 
-    let personalizedEmails: PersonalizedEmail[] = body.personalizedEmails;
+    let personalizedEmails: PersonalizedEmail[] | undefined =
+      rawPersonalized?.map((e) => ({
+        to: e.to,
+        subject: e.subject,
+        message: e.message,
+        originalRowData: e.originalRowData ?? {},
+        attachments: e.attachments,
+      }));
 
-    // Handle A/B testing payload format (recipients, subject, content)
     if (!personalizedEmails && recipients && Array.isArray(recipients)) {
-      if (variants && Array.isArray(variants) && variants.length > 0) {
-        // Distribute variants among recipients
+      if (variants && variants.length > 0) {
         personalizedEmails = recipients.map((to: string, index: number) => {
           const variant = variants[index % variants.length];
           return {
@@ -62,30 +79,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (
-      !personalizedEmails ||
-      !Array.isArray(personalizedEmails) ||
-      personalizedEmails.length === 0
-    ) {
+    if (!personalizedEmails || personalizedEmails.length === 0) {
       return NextResponse.json(
         { error: "No emails provided" },
         { status: 400 },
       );
     }
 
-    // Apply per-user rate limiting based on number of emails
-    const userRateLimitResponse = rateLimitUserEmail(
-      session.user.email,
+    const userRateLimitResponse = await rateLimitUserEmailAsync(
+      auth.email,
       personalizedEmails.length,
     );
     if (userRateLimitResponse) {
       return userRateLimitResponse;
     }
 
-    const emailService = new EmailService(
-      session.accessToken,
-      session.user.email!,
-    );
+    const emailService = new EmailService(auth.accessToken, auth.email);
 
     const summary = await emailService.sendPersonalizedBatch(
       personalizedEmails,
@@ -94,13 +103,11 @@ export async function POST(request: NextRequest) {
         tracking: {
           enabled: trackingEnabled,
           campaignId: campaignId,
-          userEmail: session.user.email,
+          userEmail: auth.email,
         },
-        // Only check unsubscribe list for marketing emails, not transactional
         checkUnsubscribe: isTransactional
           ? undefined
-          : async (email: string) =>
-              checkUserUnsubscribed(session.user.email!, email),
+          : async (email: string) => checkUserUnsubscribed(auth.email, email),
       },
     );
 
@@ -121,10 +128,7 @@ export async function POST(request: NextRequest) {
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      {
-        error: "Failed to process email request",
-        details: error instanceof Error ? error.message : String(error),
-      },
+      { error: "Failed to process email request" },
       { status: 500 },
     );
   }

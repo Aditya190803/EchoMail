@@ -1,9 +1,12 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import { isAuthed, requireSession } from "@/lib/api-auth";
+import { databases, config, Query } from "@/lib/appwrite-server";
 import { apiLogger } from "@/lib/logger";
 
-// Use the same global Map as in send-single-email
+// Client-side progress is primary; this endpoint only reports if a
+// same-instance global Map was populated (legacy / single-instance).
 declare global {
   // eslint-disable-next-line no-var
   var emailProgress: Map<
@@ -15,6 +18,7 @@ declare global {
       status: "sending" | "completed" | "error" | "paused";
       startTime: number;
       lastUpdate: number;
+      userEmail?: string;
     }
   >;
   // eslint-disable-next-line no-var
@@ -28,14 +32,12 @@ declare global {
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const campaignId = searchParams.get("campaignId");
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
+    }
 
-    apiLogger.debug("Progress API called", {
-      campaignId,
-      availableCampaigns: Array.from(global.emailProgress?.keys() || []),
-    });
-
+    const campaignId = new URL(request.url).searchParams.get("campaignId");
     if (!campaignId) {
       return NextResponse.json(
         { error: "Missing campaignId" },
@@ -43,8 +45,29 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Ownership: campaign must belong to the session user when it exists in
+    // DB. Ephemeral client campaign ids (not yet in DB) are allowed and their
+    // progress-map ownership is checked below before returning data.
+    if (config.databaseId && config.campaignsCollectionId) {
+      try {
+        const owned = await databases.listDocuments(
+          config.databaseId,
+          config.campaignsCollectionId,
+          [
+            Query.equal("$id", campaignId),
+            Query.equal("user_email", auth.email),
+            Query.limit(1),
+          ],
+        );
+        if (owned.total === 0 && !global.emailProgress?.has(campaignId)) {
+          return NextResponse.json({ error: "Not found" }, { status: 404 });
+        }
+      } catch {
+        // Ownership lookup failed; the map ownership check below still applies.
+      }
+    }
+
     if (!global.emailProgress) {
-      apiLogger.debug("Global emailProgress not initialized");
       return NextResponse.json({
         sent: 0,
         failed: 0,
@@ -54,9 +77,7 @@ export async function GET(request: NextRequest) {
     }
 
     const progress = global.emailProgress.get(campaignId);
-
     if (!progress) {
-      apiLogger.debug("No progress found", { campaignId });
       return NextResponse.json({
         sent: 0,
         failed: 0,
@@ -65,10 +86,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    apiLogger.debug("Returning progress", progress);
+    if (progress.userEmail && progress.userEmail !== auth.email) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
-    // Include global pause state in response
-    const response = {
+    return NextResponse.json({
       ...progress,
       globalPause: global.emailRateLimitState
         ? {
@@ -86,16 +108,14 @@ export async function GET(request: NextRequest) {
               : 0,
           }
         : null,
-    };
-
-    return NextResponse.json(response);
+    });
   } catch (error) {
     apiLogger.error(
-      "Error in progress API",
+      "Progress API error",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Failed to get progress" },
       { status: 500 },
     );
   }

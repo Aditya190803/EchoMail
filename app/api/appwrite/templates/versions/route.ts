@@ -1,10 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 import type { TemplateDocument } from "@/types/appwrite";
 
@@ -30,10 +28,9 @@ interface TemplateVersionDocument {
 // GET /api/appwrite/templates/versions - List versions for a template
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const { searchParams } = new URL(request.url);
@@ -53,7 +50,7 @@ export async function GET(request: NextRequest) {
       templateId,
     )) as ExtendedTemplateDocument;
 
-    if (template.user_email !== session.user.email) {
+    if (template.user_email !== auth.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -64,7 +61,7 @@ export async function GET(request: NextRequest) {
         config.templateVersionsCollectionId,
         [
           Query.equal("template_id", templateId),
-          Query.equal("user_email", session.user.email),
+          Query.equal("user_email", auth.email),
           Query.orderDesc("version"),
           Query.limit(50),
         ],
@@ -113,10 +110,9 @@ export async function GET(request: NextRequest) {
 // POST /api/appwrite/templates/versions - Create a version or restore from version
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -136,7 +132,7 @@ export async function POST(request: NextRequest) {
       templateId,
     )) as ExtendedTemplateDocument;
 
-    if (template.user_email !== session.user.email) {
+    if (template.user_email !== auth.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -169,7 +165,7 @@ export async function POST(request: NextRequest) {
           subject: template.subject,
           content: template.content,
           category: template.category,
-          user_email: session.user.email,
+          user_email: auth.email,
           created_at: new Date().toISOString(),
           change_note: `Auto-saved before restoring to version ${version.version}`,
         },
@@ -209,7 +205,7 @@ export async function POST(request: NextRequest) {
         subject: template.subject,
         content: template.content,
         category: template.category,
-        user_email: session.user.email,
+        user_email: auth.email,
         created_at: new Date().toISOString(),
         change_note: changeNote || null,
       },

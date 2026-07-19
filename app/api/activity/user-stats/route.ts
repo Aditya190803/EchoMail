@@ -1,9 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -11,19 +9,18 @@ export const dynamic = "force-dynamic";
 /**
  * Get overall analytics stats for the authenticated user
  */
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     // Fetch all campaigns for this user
     const campaignsResponse = await databases.listDocuments(
       config.databaseId,
       config.campaignsCollectionId,
-      [Query.equal("user_email", session.user.email), Query.limit(1000)],
+      [Query.equal("user_email", auth.email), Query.limit(1000)],
     );
 
     const campaigns = campaignsResponse.documents as any[];
@@ -33,7 +30,7 @@ export async function GET(_request: NextRequest) {
     const eventsResponse = await databases.listDocuments(
       config.databaseId,
       config.trackingEventsCollectionId,
-      [Query.equal("user_email", session.user.email), Query.limit(5000)],
+      [Query.equal("user_email", auth.email), Query.limit(5000)],
     );
 
     const events = eventsResponse.documents as any[];

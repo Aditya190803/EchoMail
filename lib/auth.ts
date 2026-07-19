@@ -45,8 +45,8 @@ async function refreshAccessToken(token: JWT): Promise<JWT> {
     const url =
       "https://oauth2.googleapis.com/token?" +
       new URLSearchParams({
-        client_id: process.env.GOOGLE_CLIENT_ID!,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET!,
+        client_id: process.env.GOOGLE_CLIENT_ID || "",
+        client_secret: process.env.GOOGLE_CLIENT_SECRET || "",
         grant_type: "refresh_token",
         refresh_token: refreshToken,
       });
@@ -92,8 +92,8 @@ export const authOptions: NextAuthOptions = {
       id: "google",
       name: "Google",
       type: "oauth",
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
       // Use Google's stable OAuth endpoints directly so sign-in does not depend
       // on runtime OIDC discovery succeeding within openid-client's default timeout.
       wellKnown: undefined,

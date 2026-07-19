@@ -1,10 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 import type { DraftDocument } from "@/types/appwrite";
 
@@ -102,10 +100,9 @@ function mapDraftDocument(doc: DraftEmailDocument) {
 // GET /api/appwrite/draft-emails - List draft emails for the authenticated user
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const { searchParams } = new URL(request.url);
@@ -119,7 +116,7 @@ export async function GET(request: NextRequest) {
         id,
       )) as DraftEmailDocument;
 
-      if (doc.user_email !== session.user.email) {
+      if (doc.user_email !== auth.email) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
       }
 
@@ -130,7 +127,7 @@ export async function GET(request: NextRequest) {
       config.databaseId,
       config.draftEmailsCollectionId,
       [
-        Query.equal("user_email", session.user.email),
+        Query.equal("user_email", auth.email),
         Query.orderDesc("saved_at"),
         Query.limit(100),
       ],
@@ -157,10 +154,9 @@ export async function GET(request: NextRequest) {
 // POST /api/appwrite/draft-emails - Create a draft email
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -185,7 +181,7 @@ export async function POST(request: NextRequest) {
         recipients: JSON.stringify(recipients || []),
         saved_at,
         status: "pending",
-        user_email: session.user.email,
+        user_email: auth.email,
         attachments: attachments ? JSON.stringify(attachments) : null,
         csv_data: csv_data ? JSON.stringify(csv_data) : null,
         // attribute budget: both lists live in `cc` as JSON
@@ -211,10 +207,9 @@ export async function POST(request: NextRequest) {
 // PUT /api/appwrite/draft-emails - Update draft email
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -243,7 +238,7 @@ export async function PUT(request: NextRequest) {
       id,
     )) as DraftEmailDocument;
 
-    if (doc.user_email !== session.user.email) {
+    if (doc.user_email !== auth.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -307,10 +302,9 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/appwrite/draft-emails - Delete a draft email
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const { searchParams } = new URL(request.url);
@@ -327,7 +321,7 @@ export async function DELETE(request: NextRequest) {
       emailId,
     )) as DraftEmailDocument;
 
-    if (doc.user_email !== session.user.email) {
+    if (doc.user_email !== auth.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 

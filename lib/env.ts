@@ -27,8 +27,11 @@ const envSchema = z.object({
   // Appwrite Private
   APPWRITE_API_KEY: z.string().min(1, "APPWRITE_API_KEY is required"),
 
-  // Cron / Background Tasks
+  // Cron / Background Tasks (required in production — enforced at route)
   CRON_SECRET: z.string().optional(),
+
+  // HMAC secret for open/click/unsubscribe links (falls back to NEXTAUTH_SECRET)
+  TRACKING_TOKEN_SECRET: z.string().optional(),
 
   // Optional Appwrite Collections (with defaults)
   NEXT_PUBLIC_APPWRITE_CONTACTS_COLLECTION_ID: z.string().default("contacts"),
@@ -76,6 +79,8 @@ const _env = envSchema.safeParse({
   NEXT_PUBLIC_APPWRITE_DATABASE_ID:
     process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID,
   APPWRITE_API_KEY: process.env.APPWRITE_API_KEY,
+  CRON_SECRET: process.env.CRON_SECRET,
+  TRACKING_TOKEN_SECRET: process.env.TRACKING_TOKEN_SECRET,
   NEXT_PUBLIC_APPWRITE_CONTACTS_COLLECTION_ID:
     process.env.NEXT_PUBLIC_APPWRITE_CONTACTS_COLLECTION_ID,
   NEXT_PUBLIC_APPWRITE_CAMPAIGNS_COLLECTION_ID:

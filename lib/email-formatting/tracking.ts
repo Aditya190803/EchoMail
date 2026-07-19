@@ -1,5 +1,6 @@
 import { generateLinkId, generateRecipientId } from "../analytics";
 import { emailLogger } from "../logger";
+import { signTrackingToken } from "../tracking-token";
 
 export function injectTracking(
   html: string,
@@ -24,14 +25,10 @@ export function injectTracking(
     trackingEnabled = true,
   } = params;
 
-  const encodedRecipient = encodeURIComponent(recipientEmail || "");
-  const encodedUser = encodeURIComponent(userEmail || "");
   const recipientId = generateRecipientId(recipientEmail);
 
-  emailLogger.info("Injecting tracking into email", {
+  emailLogger.debug("Injecting tracking into email", {
     campaignId,
-    recipientEmail,
-    userEmail,
     trackingEnabled,
     baseUrl,
   });
@@ -39,8 +36,14 @@ export function injectTracking(
   let result = html;
 
   if (trackingEnabled) {
-    const openTrackUrl = `${baseUrl}/api/track/open?c=${campaignId}&e=${encodedRecipient}&u=${encodedUser}&r=${recipientId}`;
-    emailLogger.debug("Open tracking URL", { openTrackUrl });
+    const openToken = signTrackingToken({
+      campaignId,
+      recipientEmail,
+      userEmail,
+      recipientId,
+      purpose: "open",
+    });
+    const openTrackUrl = `${baseUrl}/api/track/open?t=${encodeURIComponent(openToken)}`;
     const pixelTag = `<img src="${openTrackUrl}" width="1" height="1" alt="" style="border:0;width:1px;height:1px;" />`;
 
     if (result.includes("</body>")) {
@@ -68,8 +71,16 @@ export function injectTracking(
       const linkIdMatch = rest.match(/data-link-id="([^"]+)"/);
       const linkId = linkIdMatch ? linkIdMatch[1] : generateLinkId();
 
-      const encodedUrl = encodeURIComponent(url);
-      const clickTrackUrl = `${baseUrl}/api/track/click?url=${encodedUrl}&c=${campaignId}&e=${encodedRecipient}&u=${encodedUser}&r=${recipientId}&l=${linkId}`;
+      const clickToken = signTrackingToken({
+        campaignId,
+        recipientEmail,
+        userEmail,
+        recipientId,
+        linkId,
+        targetUrl: url,
+        purpose: "click",
+      });
+      const clickTrackUrl = `${baseUrl}/api/track/click?t=${encodeURIComponent(clickToken)}`;
 
       const cleanedRest = rest.replace(/data-link-id="[^"]*"/, "");
 
@@ -78,7 +89,14 @@ export function injectTracking(
   }
 
   if (!isTransactional && !result.toLowerCase().includes("unsubscribe")) {
-    const unsubscribeUrl = `${baseUrl}/api/unsubscribe?e=${encodedRecipient}&u=${encodedUser}`;
+    const unsubToken = signTrackingToken({
+      campaignId,
+      recipientEmail,
+      userEmail,
+      recipientId,
+      purpose: "unsubscribe",
+    });
+    const unsubscribeUrl = `${baseUrl}/api/unsubscribe?t=${encodeURIComponent(unsubToken)}`;
     const unsubscribeTag = `
       <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eeeeee; text-align: center; font-size: 12px; color: #999999;">
         <p>You are receiving this email because you are on our mailing list.</p>

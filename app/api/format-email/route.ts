@@ -1,38 +1,47 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { formatForEmail, convertEmojisToUnicode } from "@/lib/email-formatting";
 import { apiLogger } from "@/lib/logger";
 
 export async function POST(request: NextRequest) {
   try {
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
+    }
+
     const { htmlContent } = await request.json();
 
-    if (!htmlContent) {
+    if (!htmlContent || typeof htmlContent !== "string") {
       return NextResponse.json(
         { error: "HTML content is required" },
         { status: 400 },
       );
     }
 
-    // Test emoji conversion first
-    const originalContent = htmlContent;
-    const contentWithTextEmojis = convertEmojisToUnicode(htmlContent);
+    if (htmlContent.length > 1_000_000) {
+      return NextResponse.json(
+        { error: "HTML content too large" },
+        { status: 413 },
+      );
+    }
 
-    // Format for email
+    const contentWithTextEmojis = convertEmojisToUnicode(htmlContent);
     const formattedHTML = formatForEmail(htmlContent);
 
     return NextResponse.json({
       success: true,
-      original: originalContent,
+      original: htmlContent,
       emojiConverted: contentWithTextEmojis,
       formatted: formattedHTML,
       analysis: {
-        originalLength: originalContent.length,
+        originalLength: htmlContent.length,
         emojiConvertedLength: contentWithTextEmojis.length,
         formattedLength: formattedHTML.length,
         hasEmojiImages:
-          originalContent.includes("<img") && originalContent.includes("emoji"),
+          htmlContent.includes("<img") && htmlContent.includes("emoji"),
         emojiImagesRemoved:
           !contentWithTextEmojis.includes("<img") ||
           !contentWithTextEmojis.includes("emoji"),
@@ -44,10 +53,7 @@ export async function POST(request: NextRequest) {
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      {
-        error: "Failed to format email",
-        details: error instanceof Error ? error.message : "Unknown error",
-      },
+      { error: "Failed to format email" },
       { status: 500 },
     );
   }

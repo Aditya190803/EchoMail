@@ -123,6 +123,48 @@ export const sendBulkEmailSchema = z.object({
 });
 
 /**
+ * Send-email API body (personalized batch or A/B recipients)
+ */
+export const sendEmailRequestSchema = z
+  .object({
+    campaignId: z.string().max(200).optional(),
+    trackingEnabled: z.boolean().optional(),
+    isTransactional: z.boolean().optional(),
+    abTestId: z.string().max(200).optional(),
+    subject: subjectSchema.optional(),
+    content: messageSchema.optional(),
+    recipients: emailArraySchema.optional(),
+    variants: z
+      .array(
+        z.object({
+          subject: subjectSchema.optional(),
+          content: messageSchema.optional(),
+        }),
+      )
+      .max(10)
+      .optional(),
+    personalizedEmails: z
+      .array(
+        z.object({
+          to: emailSchema,
+          subject: subjectSchema,
+          message: messageSchema,
+          originalRowData: z.record(z.string(), z.string()).optional(),
+          attachments: z.array(attachmentSchema).optional(),
+        }),
+      )
+      .min(1)
+      .max(1000)
+      .optional(),
+  })
+  .refine(
+    (d) =>
+      (d.personalizedEmails && d.personalizedEmails.length > 0) ||
+      (d.recipients && d.recipients.length > 0),
+    { message: "No emails provided" },
+  );
+
+/**
  * Contact creation/update
  */
 export const contactSchema = z.object({

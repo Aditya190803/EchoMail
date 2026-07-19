@@ -1,19 +1,16 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/gdpr/consent - Get all consent records for the user
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     if (!config.consentsCollectionId) {
@@ -33,10 +30,7 @@ export async function GET(_request: NextRequest) {
     const response = await databases.listDocuments(
       config.databaseId,
       config.consentsCollectionId,
-      [
-        Query.equal("user_email", session.user.email),
-        Query.orderDesc("$createdAt"),
-      ],
+      [Query.equal("user_email", auth.email), Query.orderDesc("$createdAt")],
     );
 
     return NextResponse.json({
@@ -58,10 +52,9 @@ export async function GET(_request: NextRequest) {
 // POST /api/gdpr/consent - Create or update a consent record
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -107,7 +100,7 @@ export async function POST(request: NextRequest) {
       config.databaseId,
       config.consentsCollectionId,
       [
-        Query.equal("user_email", session.user.email),
+        Query.equal("user_email", auth.email),
         Query.equal("consent_type", consent_type),
         Query.limit(1),
       ],
@@ -142,7 +135,7 @@ export async function POST(request: NextRequest) {
         config.consentsCollectionId,
         ID.unique(),
         {
-          user_email: session.user.email,
+          user_email: auth.email,
           consent_type,
           granted: given,
           granted_at: given ? new Date().toISOString() : null,
@@ -161,7 +154,7 @@ export async function POST(request: NextRequest) {
           config.auditLogsCollectionId,
           ID.unique(),
           {
-            user_email: session.user.email,
+            user_email: auth.email,
             action: given ? "gdpr.consent_given" : "gdpr.consent_revoked",
             resource_type: "settings",
             details: JSON.stringify({ consent_type }),

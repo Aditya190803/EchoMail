@@ -1,9 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
-import { authOptions } from "@/lib/auth";
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { apiLogger } from "@/lib/logger";
 
 interface GoogleContact {
@@ -37,10 +35,9 @@ interface GoogleContactsResponse {
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.accessToken) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    const auth = await requireSession(request, { accessToken: true });
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const { searchParams } = new URL(request.url);
@@ -62,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     const response = await fetch(apiUrl.toString(), {
       headers: {
-        Authorization: `Bearer ${session.accessToken}`,
+        Authorization: `Bearer ${auth.accessToken}`,
       },
     });
 

@@ -1,22 +1,19 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 
 // DELETE /api/gdpr/delete - Delete all user data (GDPR Right to be Forgotten)
-export async function DELETE(_request: NextRequest) {
+export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
-    const userEmail = session.user.email;
+    const userEmail = auth.email;
     const deletionResults = {
       contacts: 0,
       campaigns: 0,
@@ -151,12 +148,11 @@ export async function DELETE(_request: NextRequest) {
 }
 
 // GET /api/gdpr/delete - Get deletion request status (placeholder for async deletion)
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     // In a production system, you might have a queue for deletion requests

@@ -4,10 +4,9 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("@/lib/logger", () => {
+vi.mock("@/lib/logger", async () => {
   const { createMockLoggerModule, createSpyLogger } =
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    require("../../helpers/mockLoggerModule");
+    await import("@/tests/helpers/mockLoggerModule");
   return createMockLoggerModule({
     authLogger: createSpyLogger(),
   });

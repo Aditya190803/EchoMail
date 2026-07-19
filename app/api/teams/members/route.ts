@@ -1,19 +1,16 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/teams/members - List members of a team
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     if (!config.teamsCollectionId || !config.teamMembersCollectionId) {
@@ -39,7 +36,7 @@ export async function GET(request: NextRequest) {
       config.teamMembersCollectionId,
       [
         Query.equal("team_id", teamId),
-        Query.equal("user_email", session.user.email),
+        Query.equal("user_email", auth.email),
         Query.equal("status", "active"),
         Query.limit(1),
       ],
@@ -83,10 +80,9 @@ export async function GET(request: NextRequest) {
 // POST /api/teams/members - Invite a new member to the team
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     if (!config.teamsCollectionId || !config.teamMembersCollectionId) {
@@ -120,7 +116,7 @@ export async function POST(request: NextRequest) {
       config.teamMembersCollectionId,
       [
         Query.equal("team_id", team_id),
-        Query.equal("user_email", session.user.email),
+        Query.equal("user_email", auth.email),
         Query.equal("status", "active"),
         Query.limit(1),
       ],
@@ -194,7 +190,7 @@ export async function POST(request: NextRequest) {
         user_email: email.toLowerCase(),
         role,
         permissions: JSON.stringify([]),
-        invited_by: session.user.email,
+        invited_by: auth.email,
         joined_at: memberStatus === "active" ? now_time : null,
         status: memberStatus,
       },
@@ -222,10 +218,9 @@ export async function POST(request: NextRequest) {
 // PUT /api/teams/members - Update a member's role
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     if (!config.teamMembersCollectionId) {
@@ -258,7 +253,7 @@ export async function PUT(request: NextRequest) {
       config.teamMembersCollectionId,
       [
         Query.equal("team_id", member.team_id),
-        Query.equal("user_email", session.user.email),
+        Query.equal("user_email", auth.email),
         Query.equal("status", "active"),
         Query.limit(1),
       ],
@@ -334,7 +329,7 @@ export async function PUT(request: NextRequest) {
           config.auditLogsCollectionId,
           ID.unique(),
           {
-            user_email: session.user.email,
+            user_email: auth.email,
             action: "team.member_role_change",
             resource_type: "team",
             resource_id: member.team_id,
@@ -369,10 +364,9 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/teams/members - Remove a member from the team
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     if (!config.teamMembersCollectionId) {
@@ -405,7 +399,7 @@ export async function DELETE(request: NextRequest) {
       config.teamMembersCollectionId,
       [
         Query.equal("team_id", member.team_id),
-        Query.equal("user_email", session.user.email),
+        Query.equal("user_email", auth.email),
         Query.equal("status", "active"),
         Query.limit(1),
       ],
@@ -417,7 +411,7 @@ export async function DELETE(request: NextRequest) {
         : null;
 
     // Allow self-removal (leaving the team) or admin/owner removal
-    const isSelfRemoval = member.user_email === session.user.email;
+    const isSelfRemoval = member.user_email === auth.email;
     const canRemoveOthers = ["owner", "admin"].includes(userRole);
 
     if (!isSelfRemoval && !canRemoveOthers) {
@@ -459,7 +453,7 @@ export async function DELETE(request: NextRequest) {
           config.auditLogsCollectionId,
           ID.unique(),
           {
-            user_email: session.user.email,
+            user_email: auth.email,
             action: "team.member_remove",
             resource_type: "team",
             resource_id: member.team_id,

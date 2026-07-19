@@ -1,19 +1,16 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 
 // GET /api/teams - List teams the user is a member of
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     if (!config.teamsCollectionId || !config.teamMembersCollectionId) {
@@ -29,7 +26,7 @@ export async function GET(_request: NextRequest) {
       config.databaseId,
       config.teamMembersCollectionId,
       [
-        Query.equal("user_email", session.user.email),
+        Query.equal("user_email", auth.email),
         Query.equal("status", "active"),
         Query.limit(100),
       ],
@@ -86,10 +83,9 @@ export async function GET(_request: NextRequest) {
 // POST /api/teams - Create a new team
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     if (!config.teamsCollectionId || !config.teamMembersCollectionId) {
@@ -120,7 +116,7 @@ export async function POST(request: NextRequest) {
       {
         name: name.trim(),
         description: description?.trim() || null,
-        owner_email: session.user.email,
+        owner_email: auth.email,
         created_at: now,
         updated_at: now,
         settings: JSON.stringify({
@@ -139,10 +135,10 @@ export async function POST(request: NextRequest) {
       ID.unique(),
       {
         team_id: teamId,
-        user_email: session.user.email,
+        user_email: auth.email,
         role: "owner",
         permissions: JSON.stringify(["*"]),
-        invited_by: session.user.email,
+        invited_by: auth.email,
         joined_at: now,
         status: "active",
       },
@@ -156,7 +152,7 @@ export async function POST(request: NextRequest) {
           config.auditLogsCollectionId,
           ID.unique(),
           {
-            user_email: session.user.email,
+            user_email: auth.email,
             action: "team.create",
             resource_type: "team",
             resource_id: teamId,
@@ -190,10 +186,9 @@ export async function POST(request: NextRequest) {
 // PUT /api/teams - Update a team
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     if (!config.teamsCollectionId || !config.teamMembersCollectionId) {
@@ -219,7 +214,7 @@ export async function PUT(request: NextRequest) {
       config.teamMembersCollectionId,
       [
         Query.equal("team_id", id),
-        Query.equal("user_email", session.user.email),
+        Query.equal("user_email", auth.email),
         Query.equal("status", "active"),
         Query.limit(1),
       ],
@@ -272,10 +267,9 @@ export async function PUT(request: NextRequest) {
 // DELETE /api/teams - Delete a team
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     if (!config.teamsCollectionId || !config.teamMembersCollectionId) {
@@ -302,7 +296,7 @@ export async function DELETE(request: NextRequest) {
       teamId,
     );
 
-    if ((team as any).owner_email !== session.user.email) {
+    if ((team as any).owner_email !== auth.email) {
       return NextResponse.json(
         { error: "Only the team owner can delete the team" },
         { status: 403 },

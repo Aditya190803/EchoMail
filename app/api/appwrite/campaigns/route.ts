@@ -1,27 +1,24 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getServerSession } from "next-auth";
-
+import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
-import { authOptions } from "@/lib/auth";
 import { apiLogger } from "@/lib/logger";
 import type { CampaignDocument } from "@/types/appwrite";
 
 // GET /api/appwrite/campaigns - List campaigns for the authenticated user
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const response = await databases.listDocuments(
       config.databaseId,
       config.campaignsCollectionId,
       [
-        Query.equal("user_email", session.user.email),
+        Query.equal("user_email", auth.email),
         Query.orderDesc("created_at"),
         Query.limit(1000),
       ],
@@ -95,10 +92,9 @@ export async function GET(_request: NextRequest) {
 // POST /api/appwrite/campaigns - Create a new campaign
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireSession(request);
+    if (!isAuthed(auth)) {
+      return auth;
     }
 
     const body = await request.json();
@@ -126,7 +122,7 @@ export async function POST(request: NextRequest) {
         sent: sent || 0,
         failed: failed || 0,
         status: status || "completed",
-        user_email: session.user.email,
+        user_email: auth.email,
         campaign_type,
         attachments: attachments ? JSON.stringify(attachments) : null,
         send_results: send_results ? JSON.stringify(send_results) : null,
