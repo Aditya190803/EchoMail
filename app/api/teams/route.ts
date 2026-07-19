@@ -4,6 +4,12 @@ import { NextResponse } from "next/server";
 import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
 import { apiLogger } from "@/lib/logger";
+import { createTeamSchema, updateTeamSchema, validate } from "@/lib/validation";
+import type { TeamDocument, TeamMembershipDocument } from "@/types/appwrite";
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown error";
+}
 
 // GET /api/teams - List teams the user is a member of
 export async function GET(request: NextRequest) {
@@ -37,21 +43,21 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all team IDs
-    const teamIds = memberships.documents.map((m: any) => m.team_id);
+    const teamMemberships =
+      memberships.documents as unknown as TeamMembershipDocument[];
+    const teamIds = teamMemberships.map((m) => m.team_id);
 
     // Fetch all teams (we need to do this in batches if there are many)
     const teams = await Promise.all(
       teamIds.map(async (teamId: string) => {
         try {
-          const team = await databases.getDocument(
+          const team = (await databases.getDocument(
             config.databaseId,
             config.teamsCollectionId,
             teamId,
-          );
+          )) as TeamDocument;
           // Add the user's role to the team object
-          const membership = memberships.documents.find(
-            (m: any) => m.team_id === teamId,
-          );
+          const membership = teamMemberships.find((m) => m.team_id === teamId);
           return {
             ...team,
             user_role: membership?.role || "member",
@@ -68,13 +74,13 @@ export async function GET(request: NextRequest) {
       total: validTeams.length,
       documents: validTeams,
     });
-  } catch (error: any) {
+  } catch (error) {
     apiLogger.error(
       "Error fetching teams",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to fetch teams" },
+      { error: errorMessage(error) || "Failed to fetch teams" },
       { status: 500 },
     );
   }
@@ -96,14 +102,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description } = body;
-
-    if (!name || name.trim().length === 0) {
+    const parsed = validate(createTeamSchema, body);
+    if (!parsed.success || !parsed.data) {
       return NextResponse.json(
-        { error: "Team name is required" },
+        { error: parsed.message || "Invalid request" },
         { status: 400 },
       );
     }
+    const { name, description } = parsed.data;
 
     const now = new Date().toISOString();
     const teamId = ID.unique();
@@ -171,13 +177,13 @@ export async function POST(request: NextRequest) {
       ...team,
       user_role: "owner",
     });
-  } catch (error: any) {
+  } catch (error) {
     apiLogger.error(
       "Error creating team",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to create team" },
+      { error: errorMessage(error) || "Failed to create team" },
       { status: 500 },
     );
   }
@@ -199,14 +205,14 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, description, settings } = body;
-
-    if (!id) {
+    const parsed = validate(updateTeamSchema, body);
+    if (!parsed.success || !parsed.data) {
       return NextResponse.json(
-        { error: "Team ID is required" },
+        { error: parsed.message || "Invalid request" },
         { status: 400 },
       );
     }
+    const { id, name, description, settings } = parsed.data;
 
     // Check if user is owner or admin of the team
     const membership = await databases.listDocuments(
@@ -219,18 +225,18 @@ export async function PUT(request: NextRequest) {
         Query.limit(1),
       ],
     );
+    const membershipDoc = membership.documents[0] as unknown as
+      | TeamMembershipDocument
+      | undefined;
 
-    if (
-      membership.documents.length === 0 ||
-      !["owner", "admin"].includes((membership.documents[0] as any).role)
-    ) {
+    if (!membershipDoc || !["owner", "admin"].includes(membershipDoc.role)) {
       return NextResponse.json(
         { error: "You don't have permission to update this team" },
         { status: 403 },
       );
     }
 
-    const updateData: any = {
+    const updateData: Partial<TeamDocument> = {
       updated_at: new Date().toISOString(),
     };
 
@@ -252,13 +258,13 @@ export async function PUT(request: NextRequest) {
     );
 
     return NextResponse.json(team);
-  } catch (error: any) {
+  } catch (error) {
     apiLogger.error(
       "Error updating team",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to update team" },
+      { error: errorMessage(error) || "Failed to update team" },
       { status: 500 },
     );
   }
@@ -290,13 +296,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Check if user is owner of the team
-    const team = await databases.getDocument(
+    const team = (await databases.getDocument(
       config.databaseId,
       config.teamsCollectionId,
       teamId,
-    );
+    )) as TeamDocument;
 
-    if ((team as any).owner_email !== auth.email) {
+    if (team.owner_email !== auth.email) {
       return NextResponse.json(
         { error: "Only the team owner can delete the team" },
         { status: 403 },
@@ -326,13 +332,13 @@ export async function DELETE(request: NextRequest) {
     );
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     apiLogger.error(
       "Error deleting team",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to delete team" },
+      { error: errorMessage(error) || "Failed to delete team" },
       { status: 500 },
     );
   }

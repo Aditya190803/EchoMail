@@ -209,6 +209,62 @@ export const trackingEventSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
+/**
+ * Team roles (excludes "owner", which cannot be assigned directly)
+ */
+export const teamMemberRoleSchema = z.enum(["admin", "member", "viewer"]);
+
+/**
+ * Create team request (POST /api/teams)
+ */
+export const createTeamSchema = z.object({
+  name: z.string().min(1, "Team name is required").max(200).trim(),
+  description: z.string().max(2000).trim().optional(),
+});
+
+/**
+ * Update team request (PUT /api/teams)
+ */
+export const updateTeamSchema = z.object({
+  id: z.string().min(1, "Team ID is required"),
+  name: z.string().min(1).max(200).trim().optional(),
+  description: z.string().max(2000).trim().optional(),
+  settings: z
+    .object({
+      allow_member_invite: z.boolean().optional(),
+      require_approval: z.boolean().optional(),
+      shared_templates: z.boolean().optional(),
+      shared_contacts: z.boolean().optional(),
+    })
+    .optional(),
+});
+
+/**
+ * Invite team member request (POST /api/teams/members)
+ */
+export const inviteTeamMemberSchema = z.object({
+  team_id: z.string().min(1, "Team ID is required"),
+  email: emailSchema,
+  role: teamMemberRoleSchema.optional().default("member"),
+});
+
+/**
+ * Update team member request (PUT /api/teams/members)
+ */
+export const updateTeamMemberSchema = z.object({
+  member_id: z.string().min(1, "Member ID is required"),
+  role: teamMemberRoleSchema.optional(),
+  status: z.enum(["active", "suspended"]).optional(),
+});
+
+/**
+ * Export report query params (GET /api/export-report)
+ */
+export const exportReportQuerySchema = z.object({
+  format: z.enum(["csv", "json"]).optional().default("csv"),
+  campaign: z.string().min(1).optional(),
+});
+
 // ============================================
 // Sanitization Helpers
 // ============================================

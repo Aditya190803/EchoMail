@@ -187,6 +187,30 @@ export interface TeamMemberDocument extends AppwriteDocument {
 }
 
 /**
+ * Team document (teams collection)
+ */
+export interface TeamDocument extends Models.Document {
+  name: string;
+  description?: string | null;
+  owner_email: string;
+  created_at: string;
+  updated_at?: string;
+  settings?: string; // JSON-encoded TeamSettings
+}
+
+/**
+ * Team membership document (team members collection)
+ */
+export interface TeamMembershipDocument extends AppwriteDocument {
+  team_id: string;
+  role: "owner" | "admin" | "member" | "viewer";
+  permissions?: string; // JSON-encoded string[]
+  invited_by?: string;
+  joined_at?: string | null;
+  status: "pending" | "active" | "removed" | "suspended";
+}
+
+/**
  * Audit log document
  */
 export interface AuditLogDocument extends AppwriteDocument {

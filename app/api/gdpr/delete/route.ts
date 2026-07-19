@@ -5,6 +5,10 @@ import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query } from "@/lib/appwrite-server";
 import { apiLogger } from "@/lib/logger";
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown error";
+}
+
 // DELETE /api/gdpr/delete - Delete all user data (GDPR Right to be Forgotten)
 export async function DELETE(request: NextRequest) {
   try {
@@ -64,16 +68,17 @@ export async function DELETE(request: NextRequest) {
               if (typeof deletionResults[key] === "number") {
                 (deletionResults[key] as number)++;
               }
-            } catch (e: any) {
+            } catch (e) {
               deletionResults.errors.push(
-                `Failed to delete ${key} ${doc.$id}: ${e.message}`,
+                `Failed to delete ${key} ${doc.$id}: ${errorMessage(e)}`,
               );
             }
           }
         }
-      } catch (e: any) {
-        if (!e.message?.includes("Collection not found")) {
-          deletionResults.errors.push(`Failed to delete ${key}: ${e.message}`);
+      } catch (e) {
+        const message = errorMessage(e);
+        if (!message.includes("Collection not found")) {
+          deletionResults.errors.push(`Failed to delete ${key}: ${message}`);
         }
       }
     }
@@ -115,8 +120,10 @@ export async function DELETE(request: NextRequest) {
           "Attachment deletion would require file ownership tracking",
         );
       }
-    } catch (e: any) {
-      deletionResults.errors.push(`Failed to delete attachments: ${e.message}`);
+    } catch (e) {
+      deletionResults.errors.push(
+        `Failed to delete attachments: ${errorMessage(e)}`,
+      );
     }
 
     // Log the deletion (to a separate permanent audit log if needed)
@@ -138,10 +145,13 @@ export async function DELETE(request: NextRequest) {
       message: `Successfully deleted ${totalDeleted} records`,
       details: deletionResults,
     });
-  } catch (error: any) {
-    apiLogger.error("Error deleting user data", error);
+  } catch (error) {
+    apiLogger.error(
+      "Error deleting user data",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to delete user data" },
+      { error: errorMessage(error) || "Failed to delete user data" },
       { status: 500 },
     );
   }
@@ -162,10 +172,13 @@ export async function GET(request: NextRequest) {
       warning:
         "This action is irreversible. All your data will be permanently deleted.",
     });
-  } catch (error: any) {
-    apiLogger.error("Error checking deletion status", error);
+  } catch (error) {
+    apiLogger.error(
+      "Error checking deletion status",
+      error instanceof Error ? error : undefined,
+    );
     return NextResponse.json(
-      { error: error.message || "Failed to check deletion status" },
+      { error: errorMessage(error) || "Failed to check deletion status" },
       { status: 500 },
     );
   }

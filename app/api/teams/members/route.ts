@@ -4,6 +4,16 @@ import { NextResponse } from "next/server";
 import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query, ID } from "@/lib/appwrite-server";
 import { apiLogger } from "@/lib/logger";
+import {
+  inviteTeamMemberSchema,
+  updateTeamMemberSchema,
+  validate,
+} from "@/lib/validation";
+import type { TeamDocument, TeamMembershipDocument } from "@/types/appwrite";
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown error";
+}
 
 // GET /api/teams/members - List members of a team
 export async function GET(request: NextRequest) {
@@ -63,15 +73,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       total: members.total,
       documents: members.documents,
-      current_user_role: (userMembership.documents[0] as any).role,
+      current_user_role: (
+        userMembership.documents[0] as unknown as TeamMembershipDocument
+      ).role,
     });
-  } catch (error: any) {
+  } catch (error) {
     apiLogger.error(
       "Error fetching team members",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to fetch team members" },
+      { error: errorMessage(error) || "Failed to fetch team members" },
       { status: 500 },
     );
   }
@@ -93,22 +105,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { team_id, email, role = "member" } = body;
-
-    if (!team_id || !email) {
+    const parsed = validate(inviteTeamMemberSchema, body);
+    if (!parsed.success || !parsed.data) {
       return NextResponse.json(
-        { error: "Team ID and email are required" },
+        { error: parsed.message || "Invalid request" },
         { status: 400 },
       );
     }
-
-    const validRoles = ["admin", "member", "viewer"];
-    if (!validRoles.includes(role)) {
-      return NextResponse.json(
-        { error: `Invalid role. Must be one of: ${validRoles.join(", ")}` },
-        { status: 400 },
-      );
-    }
+    const { team_id, email, role } = parsed.data;
 
     // Check if user is owner or admin of the team
     const userMembership = await databases.listDocuments(
@@ -121,10 +125,13 @@ export async function POST(request: NextRequest) {
         Query.limit(1),
       ],
     );
+    const requesterMembership = userMembership.documents[0] as unknown as
+      | TeamMembershipDocument
+      | undefined;
 
     if (
-      userMembership.documents.length === 0 ||
-      !["owner", "admin"].includes((userMembership.documents[0] as any).role)
+      !requesterMembership ||
+      !["owner", "admin"].includes(requesterMembership.role)
     ) {
       return NextResponse.json(
         { error: "You don't have permission to invite members" },
@@ -133,13 +140,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if team settings allow member invites (for non-owners)
-    if ((userMembership.documents[0] as any).role !== "owner") {
-      const team = await databases.getDocument(
+    if (requesterMembership.role !== "owner") {
+      const team = (await databases.getDocument(
         config.databaseId,
         config.teamsCollectionId,
         team_id,
-      );
-      const settings = JSON.parse((team as any).settings || "{}");
+      )) as TeamDocument;
+      const settings = JSON.parse(team.settings || "{}");
       if (!settings.allow_member_invite) {
         return NextResponse.json(
           { error: "Only the team owner can invite members" },
@@ -166,15 +173,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const _now = new Date().toISOString();
-
     // Check team settings for require_approval
-    const team = await databases.getDocument(
+    const team = (await databases.getDocument(
       config.databaseId,
       config.teamsCollectionId,
       team_id,
-    );
-    const settings = JSON.parse((team as any).settings || "{}");
+    )) as TeamDocument;
+    const settings = JSON.parse(team.settings || "{}");
 
     // If require_approval is false, add directly as active member
     // Otherwise, create as pending member
@@ -203,13 +208,13 @@ export async function POST(request: NextRequest) {
           ? "Invitation sent. User needs to accept the invite."
           : "Member added successfully.",
     });
-  } catch (error: any) {
+  } catch (error) {
     apiLogger.error(
       "Error inviting team member",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to invite team member" },
+      { error: errorMessage(error) || "Failed to invite team member" },
       { status: 500 },
     );
   }
@@ -231,21 +236,21 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { member_id, role, status } = body;
-
-    if (!member_id) {
+    const parsed = validate(updateTeamMemberSchema, body);
+    if (!parsed.success || !parsed.data) {
       return NextResponse.json(
-        { error: "Member ID is required" },
+        { error: parsed.message || "Invalid request" },
         { status: 400 },
       );
     }
+    const { member_id, role, status } = parsed.data;
 
     // Get the member document
     const member = (await databases.getDocument(
       config.databaseId,
       config.teamMembersCollectionId,
       member_id,
-    )) as any;
+    )) as TeamMembershipDocument;
 
     // Check if user is owner or admin of the team
     const userMembership = await databases.listDocuments(
@@ -258,10 +263,13 @@ export async function PUT(request: NextRequest) {
         Query.limit(1),
       ],
     );
+    const requesterMembership = userMembership.documents[0] as unknown as
+      | TeamMembershipDocument
+      | undefined;
 
     if (
-      userMembership.documents.length === 0 ||
-      !["owner", "admin"].includes((userMembership.documents[0] as any).role)
+      !requesterMembership ||
+      !["owner", "admin"].includes(requesterMembership.role)
     ) {
       return NextResponse.json(
         { error: "You don't have permission to update members" },
@@ -278,39 +286,20 @@ export async function PUT(request: NextRequest) {
     }
 
     // Admins can't change other admins
-    if (
-      (userMembership.documents[0] as any).role === "admin" &&
-      member.role === "admin"
-    ) {
+    if (requesterMembership.role === "admin" && member.role === "admin") {
       return NextResponse.json(
         { error: "Admins cannot modify other admins" },
         { status: 403 },
       );
     }
 
-    const updateData: any = {};
+    const updateData: Partial<TeamMembershipDocument> = {};
 
     if (role) {
-      const validRoles = ["admin", "member", "viewer"];
-      if (!validRoles.includes(role)) {
-        return NextResponse.json(
-          { error: `Invalid role. Must be one of: ${validRoles.join(", ")}` },
-          { status: 400 },
-        );
-      }
       updateData.role = role;
     }
 
     if (status) {
-      const validStatuses = ["active", "suspended"];
-      if (!validStatuses.includes(status)) {
-        return NextResponse.json(
-          {
-            error: `Invalid status. Must be one of: ${validStatuses.join(", ")}`,
-          },
-          { status: 400 },
-        );
-      }
       updateData.status = status;
     }
 
@@ -349,13 +338,13 @@ export async function PUT(request: NextRequest) {
     }
 
     return NextResponse.json(updated);
-  } catch (error: any) {
+  } catch (error) {
     apiLogger.error(
       "Error updating team member",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to update team member" },
+      { error: errorMessage(error) || "Failed to update team member" },
       { status: 500 },
     );
   }
@@ -391,7 +380,7 @@ export async function DELETE(request: NextRequest) {
       config.databaseId,
       config.teamMembersCollectionId,
       memberId,
-    )) as any;
+    )) as TeamMembershipDocument;
 
     // Check permissions
     const userMembership = await databases.listDocuments(
@@ -405,14 +394,17 @@ export async function DELETE(request: NextRequest) {
       ],
     );
 
-    const userRole =
+    const userRole: string | null =
       userMembership.documents.length > 0
-        ? (userMembership.documents[0] as any).role
+        ? (userMembership.documents[0] as unknown as TeamMembershipDocument)
+            .role
         : null;
 
     // Allow self-removal (leaving the team) or admin/owner removal
     const isSelfRemoval = member.user_email === auth.email;
-    const canRemoveOthers = ["owner", "admin"].includes(userRole);
+    const canRemoveOthers = userRole
+      ? ["owner", "admin"].includes(userRole)
+      : false;
 
     if (!isSelfRemoval && !canRemoveOthers) {
       return NextResponse.json(
@@ -472,13 +464,13 @@ export async function DELETE(request: NextRequest) {
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
+  } catch (error) {
     apiLogger.error(
       "Error removing team member",
       error instanceof Error ? error : undefined,
     );
     return NextResponse.json(
-      { error: error.message || "Failed to remove team member" },
+      { error: errorMessage(error) || "Failed to remove team member" },
       { status: 500 },
     );
   }

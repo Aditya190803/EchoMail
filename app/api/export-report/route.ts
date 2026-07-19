@@ -3,10 +3,23 @@ import { type NextRequest, NextResponse } from "next/server";
 import { isAuthed, requireSession } from "@/lib/api-auth";
 import { databases, config, Query } from "@/lib/appwrite-server";
 import { apiLogger } from "@/lib/logger";
+import { exportReportQuerySchema, validate } from "@/lib/validation";
+
+import type { Models } from "appwrite";
 
 /**
  * Export campaign reports as CSV
  */
+
+interface ExportCampaignDoc extends Models.Document {
+  subject?: string;
+  status?: string;
+  sent?: number;
+  failed?: number;
+  recipients?: string | unknown[];
+  campaign_type?: string;
+  created_at?: string;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,18 +29,27 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const format = searchParams.get("format") || "csv";
-    const campaignId = searchParams.get("campaign");
+    const parsed = validate(exportReportQuerySchema, {
+      format: searchParams.get("format") || undefined,
+      campaign: searchParams.get("campaign") || undefined,
+    });
+    if (!parsed.success || !parsed.data) {
+      return NextResponse.json(
+        { error: parsed.message || "Invalid request" },
+        { status: 400 },
+      );
+    }
+    const { format, campaign: campaignId } = parsed.data;
 
     // Fetch campaigns
-    let campaigns;
+    let campaigns: ExportCampaignDoc[];
     if (campaignId) {
       // Single campaign
-      const doc = await databases.getDocument(
+      const doc = (await databases.getDocument(
         config.databaseId,
         config.campaignsCollectionId,
         campaignId,
-      );
+      )) as ExportCampaignDoc;
       campaigns = [doc];
     } else {
       // All campaigns
@@ -40,22 +62,22 @@ export async function GET(request: NextRequest) {
           Query.limit(1000),
         ],
       );
-      campaigns = response.documents;
+      campaigns = response.documents as ExportCampaignDoc[];
     }
 
     // Parse campaign data
     const parsedCampaigns = campaigns.map((doc) => ({
       id: doc.$id,
-      subject: (doc as any).subject || "",
-      status: (doc as any).status || "",
-      sent: (doc as any).sent || 0,
-      failed: (doc as any).failed || 0,
+      subject: doc.subject || "",
+      status: doc.status || "",
+      sent: doc.sent || 0,
+      failed: doc.failed || 0,
       recipients:
-        typeof (doc as any).recipients === "string"
-          ? JSON.parse((doc as any).recipients).length
-          : (doc as any).recipients?.length || 0,
-      campaign_type: (doc as any).campaign_type || "bulk",
-      created_at: (doc as any).created_at || doc.$createdAt,
+        typeof doc.recipients === "string"
+          ? JSON.parse(doc.recipients).length
+          : doc.recipients?.length || 0,
+      campaign_type: doc.campaign_type || "bulk",
+      created_at: doc.created_at || doc.$createdAt,
     }));
 
     if (format === "json") {
