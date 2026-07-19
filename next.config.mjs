@@ -16,9 +16,8 @@ const nextConfig = {
   experimental: {
     esmExternals: true,
   },
-  // Fix ChunkLoadError issues and handle MJML server-side only
+  // Fix ChunkLoadError issues
   webpack: (config, { dev, isServer }) => {
-    // Exclude MJML and related packages from client-side bundle
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
@@ -29,20 +28,10 @@ const nextConfig = {
         util: false,
         os: false,
       };
-      
-      config.externals = [
-        ...(config.externals || []),
-        'mjml',
-        'mjml-core',
-        'clean-css',
-        'html-minifier',
-      ];
     }
 
-    // Suppress MJML webpack warnings
     config.ignoreWarnings = [
       ...(config.ignoreWarnings || []),
-      { module: /mjml/ },
       { message: /Critical dependency: the request of a dependency is an expression/ },
     ];
 
@@ -77,11 +66,6 @@ const nextConfig = {
     }
     return config
   },
-  // Server-side configuration for larger payloads
-  serverExternalPackages: ['mjml'],
-
-  // Increase body parser size limit for API routes
-
   // Add headers for CORS and content-type handling
   // SECURITY: Restrict CORS to specific origins in production
   async headers() {

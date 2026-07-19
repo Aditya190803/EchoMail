@@ -1,32 +1,13 @@
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
-import js from "@eslint/js";
-import tseslint from "@typescript-eslint/eslint-plugin";
-import tsparser from "@typescript-eslint/parser";
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-  recommendedConfig: js.configs.recommended,
-});
-
+// eslint-config-next already registers the "@typescript-eslint" plugin
+// (via the combined `typescript-eslint` package) and its parser for
+// **/*.ts(x) files, so we only add rules here rather than re-registering
+// the plugin (flat config forbids redefining a plugin under the same key).
 const config = [
-  ...compat.extends("next/core-web-vitals"),
+  ...nextCoreWebVitals,
   {
     files: ["**/*.ts", "**/*.tsx"],
-    languageOptions: {
-      parser: tsparser,
-      parserOptions: {
-        ecmaVersion: "latest",
-        sourceType: "module",
-      },
-    },
-    plugins: {
-      "@typescript-eslint": tseslint,
-    },
     rules: {
       // Import ordering
       "import/order": [
@@ -94,6 +75,19 @@ const config = [
       ],
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
+      // eslint-plugin-react-hooks v7 (pulled in by eslint-config-next ^16)
+      // adds the React Compiler "Rules of React" ruleset, which flags a
+      // large number of pre-existing, working patterns across the codebase
+      // (imperative setState-in-effect data fetching, ref reads during
+      // render in virtualization code, manual memoization, etc). Fixing
+      // these requires non-mechanical refactors of hook logic, so they are
+      // disabled here rather than mass-edited as part of a lint tooling
+      // upgrade. Revisit individually if adopting the React Compiler.
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/preserve-manual-memoization": "off",
+      "react-hooks/immutability": "off",
+      "react-hooks/purity": "off",
 
       // General code quality
       "no-console": "off",
@@ -121,6 +115,39 @@ const config = [
     },
   },
   {
+    // Enforce structured logging (apiLogger/clientLogger) over raw console
+    // calls in application source. Tests, scripts, and the logger modules
+    // themselves are exempt below.
+    files: [
+      "app/**/*.ts",
+      "app/**/*.tsx",
+      "lib/**/*.ts",
+      "lib/**/*.tsx",
+      "components/**/*.ts",
+      "components/**/*.tsx",
+      "hooks/**/*.ts",
+      "hooks/**/*.tsx",
+    ],
+    rules: {
+      "no-console": "error",
+    },
+  },
+  {
+    files: [
+      "lib/logger.ts",
+      "lib/client-logger.ts",
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/*.spec.ts",
+      "**/*.spec.tsx",
+      "tests/**",
+      "scripts/**",
+    ],
+    rules: {
+      "no-console": "off",
+    },
+  },
+  {
     ignores: [
       "node_modules/**",
       ".next/**",
@@ -129,6 +156,7 @@ const config = [
       "*.config.js",
       "*.config.mjs",
       "*.config.ts",
+      "storybook-static/**",
     ],
   },
 ];
