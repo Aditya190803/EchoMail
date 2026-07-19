@@ -31,6 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { TabsContent } from "@/components/ui/tabs";
 import type { ContactGroup } from "@/lib/appwrite";
+import { clientLogger } from "@/lib/client-logger";
 
 interface Contact {
   $id: string;
@@ -345,9 +346,9 @@ export function ContactListTab({
                                 void onDeleteContact(
                                   virtualItem.data.$id,
                                 ).catch((error) => {
-                                  console.error(
-                                    "Failed to delete contact:",
-                                    error,
+                                  clientLogger.error(
+                                    "Failed to delete contact",
+                                    error instanceof Error ? error : undefined,
                                   );
                                   toast.error(
                                     "Failed to delete contact. Please try again.",
